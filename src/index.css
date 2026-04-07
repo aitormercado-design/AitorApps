@@ -1,0 +1,96 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-zinc-950 text-zinc-100 antialiased selection:bg-lime-400/30;
+  }
+
+  /* Hide number input spin buttons */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-zinc-800 rounded-full hover:bg-zinc-700 transition-colors;
+  }
+
+  /* Custom Range Slider */
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #a3e635; /* lime-400 */
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(163, 230, 53, 0.4);
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 15px rgba(163, 230, 53, 0.6);
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #a3e635;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 10px rgba(163, 230, 53, 0.4);
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+
+  input[type="range"]::-moz-range-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 15px rgba(163, 230, 53, 0.6);
+  }
+}
+
+@utility glass-card {
+  @apply bg-zinc-900/40 backdrop-blur-xl border border-white/5 shadow-2xl;
+}
+
+@utility premium-gradient {
+  @apply bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800;
+}
+
+@utility bento-item {
+  @apply glass-card rounded-[2rem] p-6 transition-all duration-300 hover:border-white/10 hover:bg-zinc-900/60;
+}
+
+@utility text-glow-lime {
+  text-shadow: 0 0 20px rgba(163, 230, 53, 0.4);
+}
+
+@utility animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}

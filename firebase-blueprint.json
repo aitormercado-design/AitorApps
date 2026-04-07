@@ -1,0 +1,40 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User data including profile, goals, habits, meals, weights, etc.",
+      "type": "object",
+      "properties": {
+        "profile": {
+          "type": "object"
+        },
+        "goals": {
+          "type": "object"
+        },
+        "habits": {
+          "type": "object"
+        },
+        "generatedMenu": {
+          "type": "object"
+        },
+        "shoppingList": {
+          "type": "object"
+        },
+        "meals": {
+          "type": "array"
+        },
+        "weights": {
+          "type": "array"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
+      },
+      "description": "User data"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "NutriVision Pro",
+  "description": "Aplicación profesional y minimalista para contar calorías y macros mediante análisis de fotos con IA.",
+  "requestFramePermissions": ["camera"]
+}

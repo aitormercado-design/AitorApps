@@ -1,0 +1,2274 @@
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, Download, LogOut } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
+import Markdown from 'react-markdown';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { analyzeFoodImage, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, WeeklyMenu, ShoppingList } from './lib/gemini';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db } from './firebase';
+
+type Meal = NutritionalInfo & {
+  id: string;
+  imageUrl: string;
+  timestamp: number;
+};
+
+type WeightEntry = {
+  id: string;
+  weight: number;
+  timestamp: number;
+};
+
+type UserProfile = {
+  age: number;
+  height: number;
+  gender: 'male' | 'female';
+  activityLevel: number;
+  dietType: string;
+  allergies: string;
+  dislikedFoods: string;
+  goal: 'lose' | 'maintain' | 'gain';
+  macroDistribution: 'balanced' | 'low_carb' | 'high_protein' | 'keto';
+};
+
+type DailyHabits = {
+  [date: string]: { water: number; sleep: number };
+};
+
+const DEFAULT_GOALS = {
+  calories: 2500,
+  protein: 180,
+  carbs: 250,
+  fat: 86,
+};
+
+const NutriScoreBadge = ({ score }: { score?: "A" | "B" | "C" | "D" | "E" }) => {
+  if (!score) return null;
+  const colors = {
+    A: "bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]",
+    B: "bg-lime-500 text-white shadow-[0_0_15px_rgba(132,204,22,0.4)]",
+    C: "bg-yellow-500 text-white shadow-[0_0_15px_rgba(234,179,8,0.4)]",
+    D: "bg-orange-500 text-white shadow-[0_0_15px_rgba(249,115,22,0.4)]",
+    E: "bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)]",
+  };
+  return (
+    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-lg ${colors[score]}`}>
+      {score}
+    </div>
+  );
+};
+
+const NumberInput = ({ value, onChange, label, step = 1, min = 0, max = 300, placeholder }: any) => {
+  // Extract unit from label if present (e.g., "Peso (kg)" -> "kg")
+  const unitMatch = label.match(/\(([^)]+)\)/);
+  const unit = unitMatch ? unitMatch[1] : '';
+  const cleanLabel = label.replace(/\s*\([^)]+\)/, '');
+
+  return (
+    <div className="space-y-3 bg-zinc-900/50 p-4 rounded-2xl border border-white/5">
+      <div className="flex justify-between items-center">
+        <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest">{cleanLabel}</label>
+        <div className="flex items-baseline gap-1">
+          <input 
+            type="number" 
+            step={step}
+            min={min}
+            max={max}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="bg-transparent text-right text-xl font-display font-bold text-lime-400 focus:outline-none w-20"
+            placeholder={placeholder}
+            style={{ MozAppearance: 'textfield' }}
+          />
+          {unit && <span className="text-zinc-500 text-sm font-medium">{unit}</span>}
+        </div>
+      </div>
+      <div className="relative pt-2">
+        <input 
+          type="range" 
+          min={min} 
+          max={max} 
+          step={step} 
+          value={parseFloat(value) || min} 
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-lime-400 focus:outline-none focus:ring-2 focus:ring-lime-400/50"
+        />
+      </div>
+    </div>
+  );
+};
+
+export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+
+  const [meals, setMeals] = useState<Meal[]>([]);
+  const [weights, setWeights] = useState<WeightEntry[]>([]);
+  const [goals, setGoals] = useState(DEFAULT_GOALS);
+  const [profile, setProfile] = useState<UserProfile>({
+    age: 0,
+    height: 170,
+    gender: 'male',
+    activityLevel: 1.55,
+    dietType: 'Normal',
+    allergies: '',
+    dislikedFoods: '',
+    goal: 'maintain',
+    macroDistribution: 'balanced'
+  });
+  const [habits, setHabits] = useState<DailyHabits>({});
+
+  const [activeTab, setActiveTab] = useState<'today' | 'week' | 'plan'>('today');
+  const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
+  const [newWeight, setNewWeight] = useState('');
+  
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const [editProfile, setEditProfile] = useState<UserProfile>(profile);
+  const [editWeight, setEditWeight] = useState('');
+
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [generatedMenu, setGeneratedMenu] = useState<WeeklyMenu | null>(null);
+  const [shoppingList, setShoppingList] = useState<ShoppingList | null>(null);
+  const [isGeneratingMenu, setIsGeneratingMenu] = useState(false);
+
+  // Fridge Scanner State
+  const [isScanningFridge, setIsScanningFridge] = useState(false);
+  const [fridgeRecipe, setFridgeRecipe] = useState<string | null>(null);
+  const [isFridgeModalOpen, setIsFridgeModalOpen] = useState(false);
+  const fridgeFileInputRef = useRef<HTMLInputElement>(null);
+  const [appError, setAppError] = useState<string | null>(null);
+
+  // Chatbot State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{role: 'user' | 'model', parts: {text: string}[]}[]>([
+    { role: 'model', parts: [{ text: '¡Hola! Soy tu entrenador y nutricionista personal. ¿En qué te puedo ayudar hoy?' }] }
+  ]);
+  const [currentChatMessage, setCurrentChatMessage] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        try {
+          const docRef = doc(db, 'users', currentUser.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.profile) setProfile(data.profile);
+            if (data.goals) setGoals(data.goals);
+            if (data.habits) setHabits(data.habits);
+            if (data.generatedMenu) setGeneratedMenu(data.generatedMenu);
+            if (data.shoppingList) setShoppingList(data.shoppingList);
+            if (data.meals) setMeals(data.meals);
+            if (data.weights) setWeights(data.weights);
+          }
+        } catch (error) {
+          console.error("Error loading user data:", error);
+        }
+      }
+      setIsDataLoaded(true);
+      setIsAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (user && isDataLoaded) {
+      setDoc(doc(db, 'users', user.uid), { meals }, { merge: true });
+    }
+  }, [meals, user, isDataLoaded]);
+
+  useEffect(() => {
+    if (user && isDataLoaded) {
+      setDoc(doc(db, 'users', user.uid), { weights }, { merge: true });
+    }
+  }, [weights, user, isDataLoaded]);
+
+  useEffect(() => {
+    if (user && isDataLoaded) {
+      setDoc(doc(db, 'users', user.uid), { goals }, { merge: true });
+    }
+  }, [goals, user, isDataLoaded]);
+
+  useEffect(() => {
+    if (user && isDataLoaded) {
+      setDoc(doc(db, 'users', user.uid), { profile }, { merge: true });
+    }
+  }, [profile, user, isDataLoaded]);
+
+  useEffect(() => {
+    if (user && isDataLoaded) {
+      setDoc(doc(db, 'users', user.uid), { habits }, { merge: true });
+    }
+  }, [habits, user, isDataLoaded]);
+
+  useEffect(() => {
+    if (user && isDataLoaded && generatedMenu) {
+      setDoc(doc(db, 'users', user.uid), { generatedMenu }, { merge: true });
+    }
+  }, [generatedMenu, user, isDataLoaded]);
+
+  useEffect(() => {
+    if (user && isDataLoaded && shoppingList) {
+      setDoc(doc(db, 'users', user.uid), { shoppingList }, { merge: true });
+    }
+  }, [shoppingList, user, isDataLoaded]);
+
+  // Calculate today's totals
+  const todaysMeals = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    return meals.filter(m => m.timestamp >= todayStart.getTime());
+  }, [meals]);
+
+  const totals = todaysMeals.reduce(
+    (acc, meal) => ({
+      calories: acc.calories + meal.calories,
+      protein: acc.protein + meal.protein,
+      carbs: acc.carbs + meal.carbs,
+      fat: acc.fat + meal.fat,
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 }
+  );
+
+  // Calculate weekly totals
+  const weeklyStats = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    const end = d.getTime() + 86400000;
+    const start = end - (7 * 86400000);
+    
+    const weekMeals = meals.filter(m => m.timestamp >= start && m.timestamp < end);
+    
+    return weekMeals.reduce(
+      (acc, meal) => ({
+        calories: acc.calories + meal.calories,
+        protein: acc.protein + meal.protein,
+        carbs: acc.carbs + meal.carbs,
+        fat: acc.fat + meal.fat,
+      }),
+      { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    );
+  }, [meals]);
+
+  const weeklyGoals = useMemo(() => ({
+    calories: goals.calories * 7,
+    protein: goals.protein * 7,
+    carbs: goals.carbs * 7,
+    fat: goals.fat * 7,
+  }), [goals]);
+
+  // Calculate last 7 days trends
+  const trendsData = useMemo(() => {
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      d.setHours(0, 0, 0, 0);
+      const start = d.getTime();
+      const end = start + 86400000;
+      
+      const dayMeals = meals.filter(m => m.timestamp >= start && m.timestamp < end);
+      const dayCals = dayMeals.reduce((sum, m) => sum + m.calories, 0);
+      
+      const pastWeights = weights.filter(w => w.timestamp < end);
+      const dayWeight = pastWeights.length > 0 ? pastWeights[pastWeights.length - 1].weight : null;
+      
+      return {
+        name: d.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', ''),
+        calories: dayCals,
+        weight: dayWeight,
+        goal: goals.calories
+      };
+    });
+  }, [meals, weights, goals]);
+
+  const compressImage = (file: File, maxWidth = 800): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => reject(new Error("Image compression timed out")), 15000);
+      
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          clearTimeout(timeoutId);
+          try {
+            const canvas = document.createElement('canvas');
+            const ratio = Math.min(maxWidth / img.width, maxWidth / img.height, 1);
+            canvas.width = img.width * ratio;
+            canvas.height = img.height * ratio;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            }
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
+          } catch (e) {
+            reject(e);
+          }
+        };
+        img.onerror = (error) => {
+          clearTimeout(timeoutId);
+          reject(new Error("Error loading image for compression"));
+        };
+      };
+      reader.onerror = (error) => {
+        clearTimeout(timeoutId);
+        reject(new Error("Error reading file"));
+      };
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("handleFileChange triggered");
+    const file = e.target.files?.[0];
+    if (!file) {
+      console.log("No file selected");
+      return;
+    }
+
+    console.log("File selected:", file.name, file.type, file.size);
+    setIsCapturing(true);
+    setIsAnalyzing(true);
+    setAppError(null);
+
+    try {
+      console.log("Compressing image...");
+      const base64String = await compressImage(file);
+      console.log("Image compressed, length:", base64String.length);
+      setPreviewImage(base64String);
+
+      // Extract base64 data and mime type
+      const match = base64String.match(/^data:(image\/[a-zA-Z+.-]+);base64,(.+)$/);
+      if (!match) {
+        console.error("Invalid image format");
+        throw new Error("Formato de imagen inválido");
+      }
+      
+      const mimeType = match[1];
+      const base64Data = match[2];
+
+      console.log("Mime type:", mimeType);
+
+      // Calculate remaining macros for context
+      const remainingCalories = goals.calories - totals.calories;
+      const remainingProtein = goals.protein - totals.protein;
+      const remainingCarbs = goals.carbs - totals.carbs;
+      const remainingFat = goals.fat - totals.fat;
+      const contextStr = `Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas para cumplir el objetivo del día. Dieta: ${profile.dietType}.`;
+
+      console.log("Calling analyzeFoodImage...");
+      const info = await analyzeFoodImage(base64Data, mimeType, contextStr);
+      console.log("Analysis result received:", info);
+      
+      const newMeal: Meal = {
+        id: Date.now().toString(),
+        ...info,
+        imageUrl: base64String,
+        timestamp: Date.now(),
+      };
+
+      setEditingMeal(newMeal);
+    } catch (error) {
+      console.error("Error in handleFileChange:", error);
+      setAppError(error instanceof Error ? error.message : "Error al analizar la imagen");
+    } finally {
+      console.log("Analysis process finished");
+      setIsAnalyzing(false);
+      setIsCapturing(false);
+      setPreviewImage(null);
+    }
+    
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const downloadMenuPDF = () => {
+    if (!generatedMenu) return;
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const contentWidth = pageWidth - (margin * 2);
+    
+    const primaryColor = [163, 230, 53]; // lime-400
+    const secondaryColor = [24, 24, 27]; // zinc-900
+    const accentColor = [16, 185, 129]; // emerald-500
+    const textColor = [40, 40, 40];
+    const lightTextColor = [113, 113, 122]; // zinc-500
+
+    const drawHeader = (title: string, subtitle: string, color: number[]) => {
+      doc.setFillColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+      doc.rect(0, 0, pageWidth, 50, 'F');
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(32);
+      doc.setTextColor(color[0], color[1], color[2]);
+      doc.text('NUTRI', margin, 25);
+      doc.setTextColor(255, 255, 255);
+      doc.text('VISION', margin + 38, 25);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(161, 161, 170); // zinc-400
+      doc.text(subtitle.toUpperCase(), margin, 38);
+      
+      doc.setDrawColor(color[0], color[1], color[2]);
+      doc.setLineWidth(1.5);
+      doc.line(margin, 42, margin + 60, 42);
+    };
+
+    const drawFooter = (pageNumber: number) => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(161, 161, 170);
+      doc.text(`NutriVision Premium Plan - Página ${pageNumber}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    };
+
+    // PAGE 1: COVER & PROFILE
+    drawHeader('NutriVision', 'Plan Nutricional de Alto Rendimiento', primaryColor);
+    drawFooter(1);
+    
+    let y = 65;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+    doc.text('Tu Perfil de Rendimiento', margin, y);
+    y += 15;
+    
+    // Goal Cards
+    const drawGoalCard = (label: string, value: string, x: number, y: number, w: number, h: number = 25) => {
+      doc.setFillColor(248, 250, 252); // slate-50
+      doc.setDrawColor(226, 232, 240); // slate-200
+      doc.roundedRect(x, y, w, h, 4, 4, 'FD');
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(lightTextColor[0], lightTextColor[1], lightTextColor[2]);
+      doc.text(label.toUpperCase(), x + 6, y + 8);
+      
+      doc.setFontSize(14);
+      doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+      doc.text(value, x + 6, y + 18);
+    };
+
+    const cardWidth = (contentWidth - 10) / 3;
+    drawGoalCard('Calorías Diarias', `${goals.calories} kcal`, margin, y, cardWidth);
+    drawGoalCard('Proteínas', `${goals.protein}g`, margin + cardWidth + 5, y, cardWidth);
+    drawGoalCard('Carbohidratos', `${goals.carbs}g`, margin + (cardWidth + 5) * 2, y, cardWidth);
+    y += 30;
+    drawGoalCard('Grasas', `${goals.fat}g`, margin, y, cardWidth);
+    drawGoalCard('Tipo de Dieta', profile.dietType || 'Equilibrada', margin + cardWidth + 5, y, cardWidth * 2 + 5);
+    y += 40;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+    doc.text('Configuración Personalizada', margin, y);
+    y += 12;
+
+    const profileData = [
+      ['Edad', `${profile.age} años`],
+      ['Altura', `${profile.height} cm`],
+      ['Peso Actual', `${weights.length > 0 ? weights[weights.length - 1].weight : '---'} kg`],
+      ['Actividad', `${profile.activityLevel}x`],
+      ['Alergias', profile.allergies || 'Ninguna'],
+      ['No deseados', profile.dislikedFoods || 'Ninguno']
+    ];
+
+    autoTable(doc, {
+      startY: y,
+      head: [],
+      body: profileData,
+      theme: 'plain',
+      styles: { fontSize: 10, cellPadding: 3 },
+      columnStyles: {
+        0: { fontStyle: 'bold', textColor: lightTextColor as [number, number, number], cellWidth: 40 },
+        1: { textColor: textColor as [number, number, number] }
+      },
+      margin: { left: margin }
+    });
+
+    y = (doc as any).lastAutoTable.finalY + 20;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+    doc.text('Recomendaciones del Coach', margin, y);
+    y += 10;
+
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(11);
+    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+    const recommendations = doc.splitTextToSize(generatedMenu.recommendations, contentWidth);
+    doc.text(recommendations, margin, y);
+
+    // PAGE 2+: WEEKLY MENU
+    let pageNum = 2;
+    generatedMenu.days.forEach((dayData) => {
+      doc.addPage();
+      drawHeader('NutriVision', `Menú Detallado: ${dayData.day}`, primaryColor);
+      drawFooter(pageNum++);
+      
+      y = 65;
+      
+      const tableData = dayData.meals.map(meal => [
+        meal.type.toUpperCase(),
+        meal.description,
+        meal.calories ? `${meal.calories} kcal` : '---'
+      ]);
+
+      const dayTotalCals = dayData.meals.reduce((sum, m) => sum + (m.calories || 0), 0);
+
+      autoTable(doc, {
+        startY: y,
+        head: [['COMIDA', 'DESCRIPCIÓN DETALLADA', 'CALORÍAS']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: {
+          fillColor: secondaryColor as [number, number, number],
+          textColor: [255, 255, 255],
+          fontSize: 10,
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        styles: {
+          fontSize: 10,
+          cellPadding: 6,
+          valign: 'middle',
+          lineColor: [230, 230, 230],
+          lineWidth: 0.1
+        },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 30, halign: 'center', textColor: primaryColor as [number, number, number] },
+          1: { cellWidth: 'auto' },
+          2: { cellWidth: 30, halign: 'center', fontStyle: 'bold' }
+        },
+        alternateRowStyles: {
+          fillColor: [252, 252, 252]
+        },
+        margin: { left: margin, right: margin },
+        didDrawPage: (data: any) => {
+          y = data.cursor.y;
+        }
+      });
+
+      y = (doc as any).lastAutoTable.finalY + 10;
+      
+      // Day Summary Box
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(margin, y, contentWidth, 15, 2, 2, 'FD');
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+      doc.text(`TOTAL CALORÍAS ${dayData.day.toUpperCase()}:`, margin + 5, y + 9.5);
+      
+      doc.setFontSize(12);
+      doc.setTextColor(primaryColor[0] - 40, primaryColor[1] - 40, primaryColor[2] - 40);
+      doc.text(`${dayTotalCals} kcal`, pageWidth - margin - 5, y + 9.5, { align: 'right' });
+    });
+
+    // SHOPPING LIST PAGE
+    if (shoppingList) {
+      doc.addPage();
+      drawHeader('NutriVision', 'Lista de la Compra Inteligente', accentColor);
+      drawFooter(pageNum++);
+      y = 65;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+      doc.text('Ingredientes Necesarios', margin, y);
+      y += 10;
+
+      const shoppingData: any[] = [];
+      let totalPrice = 0;
+      let totalCheaperPrice = 0;
+
+      shoppingList.categories.forEach(cat => {
+        shoppingData.push([{ 
+          content: cat.name.toUpperCase(), 
+          colSpan: 2, 
+          styles: { 
+            fillColor: [241, 245, 249], 
+            fontStyle: 'bold', 
+            textColor: accentColor,
+            fontSize: 12,
+            cellPadding: 5
+          } 
+        }]);
+        
+        cat.items.forEach(item => {
+          // Handle both old string format and new object format for backward compatibility
+          if (typeof item === 'string') {
+            shoppingData.push([`[ ]  ${item}`, '']);
+            return;
+          }
+
+          const price = item.price || 0;
+          totalPrice += price;
+          
+          let description = `[ ] ${item.name}\n    Mercadona: ${item.mercadonaProduct}`;
+          let priceText = `${price.toFixed(2)} €`;
+
+          if (item.cheaperAlternative && item.cheaperPrice) {
+             description += `\n    Alternativa: ${item.cheaperAlternative}`;
+             priceText += `\n(${item.cheaperPrice.toFixed(2)} €)`;
+             totalCheaperPrice += item.cheaperPrice;
+          } else {
+             totalCheaperPrice += price;
+          }
+
+          shoppingData.push([{ 
+            content: description, 
+            url: item.url,
+            styles: item.url ? { textColor: [59, 130, 246] } : {} // Blue color for links
+          }, { 
+            content: priceText, 
+            styles: { halign: 'right' } 
+          }]);
+        });
+      });
+
+      if (totalPrice > 0) {
+        shoppingData.push([{
+          content: `TOTAL ESTIMADO`,
+          styles: { fontStyle: 'bold', halign: 'right', fillColor: [241, 245, 249] }
+        }, {
+          content: `${totalPrice.toFixed(2)} €\n(Optimizando: ${totalCheaperPrice.toFixed(2)} €)`,
+          styles: { fontStyle: 'bold', halign: 'right', fillColor: [241, 245, 249] }
+        }]);
+      }
+
+      autoTable(doc, {
+        startY: y,
+        head: [['ARTÍCULO', 'PRECIO']],
+        body: shoppingData,
+        theme: 'plain',
+        styles: {
+          fontSize: 10,
+          cellPadding: 4,
+          textColor: textColor as [number, number, number]
+        },
+        headStyles: {
+          fillColor: accentColor as [number, number, number],
+          textColor: [255, 255, 255],
+          fontSize: 11,
+          fontStyle: 'bold'
+        },
+        columnStyles: {
+          0: { cellWidth: 'auto' },
+          1: { cellWidth: 40, halign: 'right' }
+        },
+        margin: { left: margin, right: margin },
+        didDrawCell: (data) => {
+          if (data.cell.raw && (data.cell.raw as any).url && data.column.index === 0) {
+            doc.link(data.cell.x, data.cell.y, data.cell.width, data.cell.height, { url: (data.cell.raw as any).url });
+          }
+        }
+      });
+    }
+
+    doc.save(`NutriVision_Plan_Premium_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  const handleRecalculateMacros = async () => {
+    if (!editingMeal || !editingMeal.foodName) return;
+    setIsRecalculating(true);
+    try {
+      const remainingCalories = goals.calories - totals.calories;
+      const remainingProtein = goals.protein - totals.protein;
+      const remainingCarbs = goals.carbs - totals.carbs;
+      const remainingFat = goals.fat - totals.fat;
+      const contextStr = `Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas. Dieta: ${profile.dietType}.`;
+
+      const newMacros = await recalculateFoodMacros(editingMeal.foodName, contextStr);
+      setEditingMeal({
+        ...editingMeal,
+        ...newMacros
+      });
+    } catch (error) {
+      setAppError(error instanceof Error ? error.message : "Error al recalcular macros. Inténtalo de nuevo.");
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
+
+  const removeMeal = (id: string) => {
+    setMeals((prev) => prev.filter((m) => m.id !== id));
+  };
+
+  const handleAddWeight = (e: React.FormEvent) => {
+    e.preventDefault();
+    const weightVal = parseFloat(newWeight);
+    if (!isNaN(weightVal) && weightVal > 0) {
+      const newEntry: WeightEntry = {
+        id: Date.now().toString(),
+        weight: weightVal,
+        timestamp: Date.now(),
+      };
+      setWeights(prev => [...prev, newEntry].sort((a, b) => a.timestamp - b.timestamp));
+      setIsWeightModalOpen(false);
+      setNewWeight('');
+    }
+  };
+
+  const handleGenerateMenu = async () => {
+    if (profile.age === 0) return;
+    setIsGeneratingMenu(true);
+    setAppError(null);
+    try {
+      const profileStr = `Edad: ${profile.age}, Peso: ${weights.length > 0 ? weights[weights.length - 1].weight : 'No especificado'}kg, Altura: ${profile.height}cm, Género: ${profile.gender}, Nivel de actividad: ${profile.activityLevel}, Objetivo: ${profile.goal}, Distribución de macros: ${profile.macroDistribution}, Calorías objetivo: ${goals.calories}kcal (${goals.protein}g Proteína, ${goals.carbs}g Carbohidratos, ${goals.fat}g Grasas).`;
+      const preferencesStr = `Tipo de dieta: ${profile.dietType || 'Normal'}. Alergias: ${profile.allergies || 'Ninguna'}. Alimentos no deseados: ${profile.dislikedFoods || 'Ninguno'}.`;
+      
+      const menu = await generateWeeklyMenu(profileStr, preferencesStr);
+      setGeneratedMenu(menu);
+      localStorage.setItem('nutrivision_generated_menu', JSON.stringify(menu));
+      
+      // Automatically generate shopping list as well
+      const list = await generateShoppingList(menu);
+      setShoppingList(list);
+      localStorage.setItem('nutrivision_shopping_list', JSON.stringify(list));
+      
+    } catch (error) {
+      console.error("Error generating menu or shopping list:", error);
+      setAppError("Error al generar el plan. Inténtalo de nuevo.");
+    } finally {
+      setIsGeneratingMenu(false);
+    }
+  };
+
+  const handleFridgeScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsScanningFridge(true);
+    setIsFridgeModalOpen(true);
+    setFridgeRecipe(null);
+
+    try {
+      const base64String = await compressImage(file);
+      const base64Data = base64String.split(',')[1];
+
+      const remainingCalories = goals.calories - totals.calories;
+      const remainingProtein = goals.protein - totals.protein;
+      const remainingCarbs = goals.carbs - totals.carbs;
+      const remainingFat = goals.fat - totals.fat;
+
+      const contextStr = `Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas. Dieta: ${profile.dietType}, Alergias: ${profile.allergies || 'Ninguna'}, No le gusta: ${profile.dislikedFoods || 'Nada'}.`;
+
+      const recipe = await generateFridgeRecipe(base64Data, 'image/jpeg', contextStr);
+      setFridgeRecipe(recipe);
+    } catch (error) {
+      console.error("Error scanning fridge:", error);
+      setFridgeRecipe("Hubo un error al analizar los ingredientes.");
+    } finally {
+      setIsScanningFridge(false);
+    }
+    
+    if (fridgeFileInputRef.current) {
+      fridgeFileInputRef.current.value = '';
+    }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentChatMessage.trim()) return;
+
+    const newUserMessage = currentChatMessage;
+    const newMessages = [...chatMessages, { role: 'user' as const, parts: [{ text: newUserMessage }] }];
+    setChatMessages(newMessages);
+    setCurrentChatMessage('');
+    setIsChatLoading(true);
+
+    try {
+      const contextStr = `- Edad: ${profile.age}, Peso: ${weights.length > 0 ? weights[weights.length - 1].weight : 'N/A'}kg, Altura: ${profile.height}cm, Género: ${profile.gender}
+- Dieta: ${profile.dietType}, Alergias: ${profile.allergies || 'Ninguna'}, No le gusta: ${profile.dislikedFoods || 'Nada'}
+- Calorías objetivo: ${goals.calories} kcal (P: ${goals.protein}g, C: ${goals.carbs}g, G: ${goals.fat}g)
+- Consumido hoy: ${Math.round(totals.calories)} kcal (P: ${Math.round(totals.protein)}g, C: ${Math.round(totals.carbs)}g, G: ${Math.round(totals.fat)}g)
+- Menú semanal actual: ${generatedMenu ? 'Sí, generado' : 'No generado'}`;
+
+      const responseText = await chatWithCoach(newMessages, contextStr);
+      setChatMessages(prev => [...prev, { role: 'model', parts: [{ text: responseText }] }]);
+    } catch (error) {
+      console.error("Chat error:", error);
+      setChatMessages(prev => [...prev, { role: 'model', parts: [{ text: "Hubo un error de conexión. Inténtalo de nuevo." }] }]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  const handleSaveGoal = (e: React.FormEvent) => {
+    e.preventDefault();
+    const weightVal = parseFloat(editWeight);
+    
+    if (isNaN(weightVal) || weightVal <= 0 || editProfile.age <= 0 || editProfile.height <= 0) {
+      return;
+    }
+
+    // Save weight if it's new
+    const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : null;
+    if (weightVal !== latestWeight) {
+      const newEntry: WeightEntry = {
+        id: Date.now().toString(),
+        weight: weightVal,
+        timestamp: Date.now(),
+      };
+      setWeights(prev => [...prev, newEntry].sort((a, b) => a.timestamp - b.timestamp));
+    }
+
+    setProfile(editProfile);
+
+    // Calculate BMR (Mifflin-St Jeor)
+    let bmr = 10 * weightVal + 6.25 * editProfile.height - 5 * editProfile.age;
+    bmr += editProfile.gender === 'male' ? 5 : -161;
+
+    // Calculate TDEE
+    const tdee = bmr * editProfile.activityLevel;
+
+    // Adjust calories based on goal
+    let targetCalories = Math.round(tdee);
+    if (editProfile.goal === 'lose') {
+      targetCalories -= 500; // 500 kcal deficit
+    } else if (editProfile.goal === 'gain') {
+      targetCalories += 300; // 300 kcal surplus
+    }
+
+    // Adjust macros based on distribution
+    let proteinRatio = 0.3;
+    let carbsRatio = 0.4;
+    let fatRatio = 0.3;
+
+    switch (editProfile.macroDistribution) {
+      case 'low_carb':
+        proteinRatio = 0.4;
+        carbsRatio = 0.2;
+        fatRatio = 0.4;
+        break;
+      case 'high_protein':
+        proteinRatio = 0.4;
+        carbsRatio = 0.3;
+        fatRatio = 0.3;
+        break;
+      case 'keto':
+        proteinRatio = 0.25;
+        carbsRatio = 0.05;
+        fatRatio = 0.7;
+        break;
+      case 'balanced':
+      default:
+        proteinRatio = 0.3;
+        carbsRatio = 0.4;
+        fatRatio = 0.3;
+        break;
+    }
+
+    setGoals({
+      calories: targetCalories,
+      protein: Math.round((targetCalories * proteinRatio) / 4),
+      carbs: Math.round((targetCalories * carbsRatio) / 4),
+      fat: Math.round((targetCalories * fatRatio) / 9),
+    });
+    
+    setIsGoalModalOpen(false);
+  };
+
+  const updateHabit = (type: 'water' | 'sleep', value: number) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    setHabits(prev => ({
+      ...prev,
+      [todayStr]: {
+        ...(prev[todayStr] || { water: 0, sleep: 0 }),
+        [type]: value
+      }
+    }));
+  };
+
+  const isStagnant = useMemo(() => {
+    if (weights.length < 3) return false;
+    const latest = weights[weights.length - 1];
+    const twoWeeksAgo = latest.timestamp - 14 * 24 * 60 * 60 * 1000;
+    const recentWeights = weights.filter(w => w.timestamp >= twoWeeksAgo);
+    if (recentWeights.length >= 3) {
+      const max = Math.max(...recentWeights.map(w => w.weight));
+      const min = Math.min(...recentWeights.map(w => w.weight));
+      if (max - min <= 0.5) return true;
+    }
+    return false;
+  }, [weights]);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayHabits = habits[todayStr] || { water: 0, sleep: 0 };
+
+  const handleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Error signing in:", error);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      // Reset state on logout
+      setMeals([]);
+      setWeights([]);
+      setGoals(DEFAULT_GOALS);
+      setProfile({
+        age: 0,
+        height: 170,
+        gender: 'male',
+        activityLevel: 1.55,
+        dietType: 'Normal',
+        allergies: '',
+        dislikedFoods: '',
+        goal: 'maintain',
+        macroDistribution: 'balanced'
+      });
+      setHabits({});
+      setGeneratedMenu(null);
+      setShoppingList(null);
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
+
+  if (!isAuthReady) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-lime-400 animate-spin" />
+      </div>
+    );
+  }
+
+  /* 
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-zinc-950 flex flex-col items-center justify-center p-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-md w-full bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-3xl p-8 text-center"
+        >
+          <div className="w-20 h-20 bg-lime-400/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <Zap className="w-10 h-10 text-lime-400" fill="currentColor" />
+          </div>
+          <h1 className="text-4xl font-display font-black tracking-tighter text-white mb-2">
+            NUTRI<span className="text-lime-400">VISION</span>
+          </h1>
+          <p className="text-zinc-400 mb-8">Tu entrenador y nutricionista personal impulsado por IA.</p>
+          
+          <button
+            onClick={handleLogin}
+            className="w-full bg-white text-zinc-950 font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 hover:bg-zinc-200 transition-colors"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            Continuar con Google
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
+  */
+
+  return (
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-zinc-950 text-zinc-50 pb-24 font-sans selection:bg-lime-500/30">
+      {/* Header */}
+      <header className="pt-12 pb-6 px-6 sticky top-0 bg-zinc-950/60 backdrop-blur-2xl z-10 border-b border-white/5">
+        <div className="flex items-center justify-between max-w-md mx-auto">
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex flex-col"
+          >
+            <h1 className="text-2xl font-display font-black tracking-tighter text-white flex items-center gap-1">
+              NUTRI<span className="text-lime-400">VISION</span>
+              <Zap className="w-5 h-5 text-lime-400 ml-1" fill="currentColor" />
+            </h1>
+            <p className="text-zinc-400 text-xs font-semibold tracking-widest uppercase mt-0.5">Rendimiento Diario</p>
+          </motion.div>
+          <div className="flex items-center gap-3">
+            <motion.button 
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onClick={() => { 
+                setEditProfile(profile);
+                const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
+                setEditWeight(latestWeight);
+                setIsGoalModalOpen(true); 
+              }}
+              className="h-10 w-10 rounded-xl bg-gradient-to-br from-lime-400/20 to-lime-400/5 flex items-center justify-center border border-lime-400/20 shadow-[0_0_15px_rgba(163,230,53,0.15)] hover:scale-105 active:scale-95 transition-all"
+            >
+              <Target className="w-5 h-5 text-lime-400" />
+            </motion.button>
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onClick={handleLogout}
+              className="h-10 w-10 rounded-xl bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+              title="Cerrar sesión"
+            >
+              <LogOut className="w-4 h-4" />
+            </motion.button>
+          </div>
+        </div>
+      </header>
+
+      <main className="px-6 pt-6 max-w-md mx-auto space-y-8">
+        {/* Tabs */}
+        <div className="flex bg-zinc-900/50 p-1 rounded-2xl border border-white/5">
+          <button 
+            onClick={() => setActiveTab('today')}
+            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'today' ? 'bg-lime-400 text-zinc-950 shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+          >
+            Hoy
+          </button>
+          <button 
+            onClick={() => setActiveTab('week')}
+            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'week' ? 'bg-lime-400 text-zinc-950 shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+          >
+            Semana
+          </button>
+          <button 
+            onClick={() => setActiveTab('plan')}
+            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'plan' ? 'bg-lime-400 text-zinc-950 shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+          >
+            Plan
+          </button>
+        </div>
+
+        <AnimatePresence mode="wait">
+          {activeTab === 'today' && (
+            <motion.div
+              key="today"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="space-y-8 pb-32"
+            >
+              {isStagnant && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-amber-500 font-bold text-sm mb-1">Estancamiento Detectado</h4>
+                    <p className="text-zinc-400 text-xs mb-3">Tu peso no ha variado significativamente en las últimas 2 semanas. ¿Quieres ajustar tus calorías objetivo?</p>
+                    <button 
+                      onClick={() => {
+                        setEditProfile(profile);
+                        const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
+                        setEditWeight(latestWeight);
+                        setIsGoalModalOpen(true);
+                      }}
+                      className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-500 px-4 py-2 rounded-lg text-xs font-bold transition-colors"
+                    >
+                      Ajustar Objetivos
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Bento Grid Dashboard */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Calories Bento (Large) */}
+                <div className="col-span-2 bento-item flex flex-col items-center justify-center relative overflow-hidden min-h-[300px]">
+                  <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-lime-400/30 to-transparent"></div>
+                  <div className="absolute -top-24 -right-24 w-48 h-48 bg-lime-400/10 rounded-full blur-3xl"></div>
+                  
+                  <div className="relative w-48 h-48 flex items-center justify-center">
+                    <svg className="w-full h-full transform -rotate-90 drop-shadow-[0_0_15px_rgba(163,230,53,0.3)]" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="45" className="stroke-zinc-800/50" strokeWidth="6" fill="none" />
+                      <motion.circle
+                        cx="50" cy="50" r="45" className="stroke-lime-400" strokeWidth="8" fill="none" strokeLinecap="round"
+                        initial={{ strokeDasharray: "0 283" }}
+                        animate={{ strokeDasharray: `${Math.min((totals.calories / goals.calories) * 283, 283)} 283` }}
+                        transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
+                      />
+                    </svg>
+                    <div className="absolute flex flex-col items-center justify-center text-center">
+                      <Flame className="w-5 h-5 text-lime-400 mb-1 animate-pulse" fill="currentColor" />
+                      <span className="text-5xl font-display font-black text-white tracking-tighter text-glow-lime">
+                        {Math.round(totals.calories)}
+                      </span>
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">
+                        Meta: {goals.calories} kcal
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Protein Bento */}
+                <div className="bento-item flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <div className="p-2 bg-blue-500/10 rounded-lg">
+                      <Beef className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase">Proteína</span>
+                  </div>
+                  <div className="mt-4">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl font-display font-bold text-white">{Math.round(totals.protein)}</span>
+                      <span className="text-xs text-zinc-500">/ {goals.protein}g</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-zinc-800 rounded-full mt-2 overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min((totals.protein / goals.protein) * 100, 100)}%` }}
+                        className="h-full bg-blue-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Carbs Bento */}
+                <div className="bento-item flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <div className="p-2 bg-amber-500/10 rounded-lg">
+                      <Wheat className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase">Carbos</span>
+                  </div>
+                  <div className="mt-4">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl font-display font-bold text-white">{Math.round(totals.carbs)}</span>
+                      <span className="text-xs text-zinc-500">/ {goals.carbs}g</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-zinc-800 rounded-full mt-2 overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min((totals.carbs / goals.carbs) * 100, 100)}%` }}
+                        className="h-full bg-amber-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Fats Bento */}
+                <div className="bento-item flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <div className="p-2 bg-rose-500/10 rounded-lg">
+                      <Droplet className="w-4 h-4 text-rose-400" />
+                    </div>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase">Grasas</span>
+                  </div>
+                  <div className="mt-4">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl font-display font-bold text-white">{Math.round(totals.fat)}</span>
+                      <span className="text-xs text-zinc-500">/ {goals.fat}g</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-zinc-800 rounded-full mt-2 overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min((totals.fat / goals.fat) * 100, 100)}%` }}
+                        className="h-full bg-rose-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Water Tracker Bento */}
+                <div className="bento-item flex flex-col justify-between relative overflow-hidden">
+                  <div className="flex items-center justify-between z-10">
+                    <div className="p-2 bg-sky-500/10 rounded-lg">
+                      <Activity className="w-4 h-4 text-sky-400" />
+                    </div>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase">Hidratación</span>
+                  </div>
+                  
+                  <div className="mt-4 z-10">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl font-display font-bold text-white">{todayHabits.water}</span>
+                      <span className="text-xs text-zinc-500">/ 8 vasos</span>
+                    </div>
+                    <div className="flex gap-1 mt-3">
+                      {[...Array(8)].map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => updateHabit('water', i + 1 === todayHabits.water ? i : i + 1)}
+                          className={`flex-1 h-6 rounded-md transition-all ${i < todayHabits.water ? 'bg-sky-400 shadow-[0_0_10px_rgba(56,189,248,0.4)]' : 'bg-zinc-800 hover:bg-zinc-700'}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Water Wave Animation */}
+                  <motion.div 
+                    animate={{ 
+                      y: [0, -5, 0],
+                      rotate: [0, 2, 0]
+                    }}
+                    transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                    className="absolute bottom-0 left-0 right-0 h-1/2 bg-sky-500/5 -z-0 blur-xl pointer-events-none"
+                  />
+                </div>
+              </div>
+
+        {/* Meal List */}
+        <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-display font-bold text-white tracking-tight uppercase">Comidas de hoy</h2>
+                  <span className="text-[10px] font-bold bg-lime-400/10 text-lime-400 px-2.5 py-1 rounded-full border border-lime-400/20 uppercase tracking-wider">
+                    {todaysMeals.length} {todaysMeals.length === 1 ? 'registro' : 'registros'}
+                  </span>
+                </div>
+                
+                <div className="space-y-3">
+                  <AnimatePresence mode="popLayout">
+                    {todaysMeals.length === 0 ? (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-center py-12 bg-zinc-900/30 rounded-[2rem] border border-white/5 border-dashed"
+                      >
+                        <p className="text-zinc-500 font-medium">Aún no has registrado comidas hoy.</p>
+                        <p className="text-zinc-600 text-sm mt-1">Toca el botón para empezar.</p>
+                      </motion.div>
+                    ) : (
+                      todaysMeals.map((meal) => (
+                        <motion.div
+                          key={meal.id}
+                          layout
+                          initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+                          whileHover={{ scale: 1.01, backgroundColor: "rgba(39, 39, 42, 0.8)" }}
+                          className="bg-zinc-900/50 border border-white/5 rounded-2xl p-4 flex flex-col gap-3 group transition-colors shadow-lg"
+                        >
+                          <div className="flex gap-4 items-start">
+                            <div className="w-16 h-16 rounded-xl overflow-hidden bg-zinc-800 shrink-0 relative mt-1 ring-1 ring-white/10">
+                              <img src={meal.imageUrl} alt={meal.foodName} className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/20"></div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <h3 className="font-semibold text-zinc-100 truncate">{meal.foodName}</h3>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => setEditingMeal(meal)}
+                                    className="p-1.5 -mt-1.5 text-zinc-500 hover:text-blue-400 hover:bg-blue-400/10 rounded-full transition-colors"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => removeMeal(meal.id)}
+                                    className="p-1.5 -mt-1.5 -mr-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-full transition-colors"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-3 mt-1 text-xs font-medium">
+                                <span className="text-lime-400">{Math.round(meal.calories)} kcal</span>
+                                {meal.totalWeight && (
+                                  <>
+                                    <span className="text-zinc-500">•</span>
+                                    <span className="text-zinc-400">{meal.totalWeight}g</span>
+                                  </>
+                                )}
+                                <span className="text-zinc-500">•</span>
+                                <NutriScoreBadge score={meal.nutriScore} />
+                              </div>
+                              
+                              <div className="flex items-center gap-3 mt-1 text-[10px] font-medium">
+                                <span className="text-blue-400">P: {Math.round(meal.protein)}g</span>
+                                <span className="text-amber-400">H: {Math.round(meal.carbs)}g</span>
+                                <span className="text-rose-400">G: {Math.round(meal.fat)}g</span>
+                              </div>
+
+                              {/* Confidence Badge */}
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                {meal.isHealthy !== undefined && (
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${meal.isHealthy ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
+                                    {meal.isHealthy ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                                    {meal.isHealthy ? 'Saludable' : 'Moderación'}
+                                  </span>
+                                )}
+                                {meal.confidence === 'alta' && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
+                                    <CheckCircle2 className="w-3 h-3" /> Confianza Alta
+                                  </span>
+                                )}
+                                {meal.confidence === 'media' && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-medium border border-amber-500/20">
+                                    <Info className="w-3 h-3" /> Confianza Media
+                                  </span>
+                                )}
+                                {meal.confidence === 'baja' && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 text-[10px] font-medium border border-rose-500/20">
+                                    <AlertTriangle className="w-3 h-3" /> Confianza Baja
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Confidence Details (if not high) */}
+                          <div className="mt-1 pt-3 border-t border-zinc-800/50 text-xs space-y-2">
+                            {meal.healthAnalysis && (
+                              <p className="text-zinc-400 leading-relaxed">
+                                <span className={`font-semibold ${meal.isHealthy ? 'text-emerald-400' : 'text-amber-400'}`}>Análisis:</span> {meal.healthAnalysis}
+                              </p>
+                            )}
+                            {meal.recommendations && (
+                              <p className="text-zinc-400 leading-relaxed">
+                                <span className="font-semibold text-blue-400">Sugerencia para hoy:</span> {meal.recommendations}
+                              </p>
+                            )}
+                            {(meal.confidence === 'media' || meal.confidence === 'baja') && (
+                              <>
+                                <p className="text-zinc-400 leading-relaxed">
+                                  <span className="font-semibold text-zinc-300">Nota de la IA:</span> {meal.confidenceMessage}
+                                </p>
+                                {meal.alternatives && meal.alternatives.length > 0 && (
+                                  <div className="mt-1">
+                                    <span className="font-semibold text-zinc-300">Otras posibilidades: </span>
+                                    <span className="text-zinc-400">{meal.alternatives.join(', ')}</span>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </motion.div>
+                      ))
+                    )}
+                  </AnimatePresence>
+                </div>
+              </section>
+            </motion.div>
+          )}
+          {activeTab === 'week' && (
+            <motion.div
+              key="week"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8 pb-8"
+            >
+              {/* Weekly Summary */}
+              <section className="space-y-6">
+                <div className="bg-gradient-to-b from-zinc-900/80 to-zinc-900/30 rounded-[2rem] p-8 border border-white/5 flex flex-col items-center justify-center relative overflow-hidden shadow-xl">
+                  <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-lime-400/30 to-transparent"></div>
+                  <div className="absolute -top-24 -right-24 w-48 h-48 bg-lime-400/10 rounded-full blur-3xl"></div>
+                  
+                  <div className="relative w-52 h-52 flex items-center justify-center">
+                    <svg className="w-full h-full transform -rotate-90 drop-shadow-[0_0_10px_rgba(163,230,53,0.3)]" viewBox="0 0 100 100">
+                      <circle cx="50" cy="50" r="45" className="stroke-zinc-800/80" strokeWidth="6" fill="none" />
+                      <motion.circle
+                        cx="50" cy="50" r="45" className="stroke-lime-400" strokeWidth="8" fill="none" strokeLinecap="round"
+                        initial={{ strokeDasharray: "0 283" }}
+                        animate={{ strokeDasharray: `${Math.min((weeklyStats.calories / weeklyGoals.calories) * 283, 283)} 283` }}
+                        transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
+                      />
+                    </svg>
+                    <div className="absolute flex flex-col items-center justify-center text-center">
+                      <Flame className="w-6 h-6 text-lime-400 mb-1 drop-shadow-[0_0_8px_rgba(163,230,53,0.8)]" />
+                      <span className="text-4xl font-display font-black text-white tracking-tighter">
+                        {Math.round(weeklyStats.calories)}
+                      </span>
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">
+                        / {weeklyGoals.calories} kcal<br/>(Semana)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <MacroCard icon={<Beef className="w-4 h-4 text-blue-400" />} label="Proteínas" current={weeklyStats.protein} goal={weeklyGoals.protein} color="bg-blue-400" bgGradient="from-blue-500/10 to-zinc-900/40" borderColor="border-blue-500/10" unit="g" />
+                  <MacroCard icon={<Wheat className="w-4 h-4 text-amber-400" />} label="Hidratos" current={weeklyStats.carbs} goal={weeklyGoals.carbs} color="bg-amber-400" bgGradient="from-amber-500/10 to-zinc-900/40" borderColor="border-amber-500/10" unit="g" />
+                  <MacroCard icon={<Droplet className="w-4 h-4 text-rose-400" />} label="Grasas" current={weeklyStats.fat} goal={weeklyGoals.fat} color="bg-rose-400" bgGradient="from-rose-500/10 to-zinc-900/40" borderColor="border-rose-500/10" unit="g" />
+                </div>
+              </section>
+
+              {/* Trends Panel */}
+              <section>
+                <div className="bg-gradient-to-b from-zinc-900/80 to-zinc-900/30 rounded-[2rem] p-6 border border-white/5 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-lime-400/5 rounded-full blur-3xl"></div>
+                  <div className="flex items-center gap-3 mb-6 relative z-10">
+                    <div className="p-2 bg-lime-400/10 rounded-xl border border-lime-400/20">
+                      <TrendingUp className="w-5 h-5 text-lime-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-display font-bold text-white tracking-tight uppercase">Historial de Calorías</h2>
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Consumo vs Objetivo</p>
+                    </div>
+                  </div>
+
+                  <div className="h-48 w-full -ml-4 relative z-10">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={trendsData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                        <XAxis 
+                          dataKey="name" 
+                          stroke="#52525b" 
+                          fontSize={10} 
+                          tickLine={false} 
+                          axisLine={false}
+                          tick={{ fill: '#71717a', fontWeight: 600 }}
+                          dy={10}
+                        />
+                        <YAxis yAxisId="cal" orientation="left" hide domain={[0, 'dataMax + 500']} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '16px', color: '#fff' }}
+                          itemStyle={{ fontSize: '12px', fontWeight: 600 }}
+                          labelStyle={{ color: '#a1a1aa', marginBottom: '4px', fontSize: '10px', fontWeight: 700 }}
+                          cursor={{ fill: '#27272a', opacity: 0.4 }}
+                        />
+                        <Bar 
+                          yAxisId="cal" 
+                          dataKey="calories" 
+                          fill="#a3e635" 
+                          radius={[6, 6, 6, 6]} 
+                          barSize={12} 
+                          name="Consumidas" 
+                        />
+                        <Line 
+                          yAxisId="cal" 
+                          type="monotone" 
+                          dataKey="goal" 
+                          stroke="#818cf8" 
+                          strokeWidth={2} 
+                          strokeDasharray="5 5"
+                          dot={false}
+                          name="Objetivo" 
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                  
+                  <div className="mt-4 flex items-center justify-center gap-6 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-sm bg-lime-400"></div>
+                      <span>Consumidas</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-0.5 bg-indigo-400 border-t border-dashed border-indigo-400"></div>
+                      <span>Objetivo</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </motion.div>
+          )}
+          {activeTab === 'plan' && (
+            <motion.div
+              key="plan"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6 pb-8"
+            >
+              {profile.age === 0 ? (
+                <div className="bg-zinc-900/80 rounded-[2rem] p-8 border border-white/5 text-center">
+                  <Target className="w-12 h-12 text-lime-400 mx-auto mb-4 opacity-50" />
+                  <h3 className="text-xl font-display font-bold text-white mb-2">Configura tu Perfil</h3>
+                  <p className="text-zinc-400 text-sm mb-6">Introduce tu edad, peso y altura en la configuración para calcular tus macros y recibir un plan personalizado.</p>
+                  <button 
+                    onClick={() => { 
+                      setEditProfile(profile);
+                      const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
+                      setEditWeight(latestWeight);
+                      setIsGoalModalOpen(true); 
+                    }}
+                    className="bg-lime-400 text-zinc-950 px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-sm"
+                  >
+                    Configurar ahora
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Fridge Scanner Button */}
+                  <section>
+                    <button 
+                      onClick={() => fridgeFileInputRef.current?.click()}
+                      className="w-full bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 border border-emerald-500/30 rounded-3xl p-6 flex items-center justify-between transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-emerald-500/20 rounded-2xl group-hover:scale-110 transition-transform">
+                          <ChefHat className="w-6 h-6 text-emerald-400" />
+                        </div>
+                        <div className="text-left">
+                          <h3 className="text-emerald-400 font-bold text-lg">Cocinando con lo que hay</h3>
+                          <p className="text-zinc-400 text-xs mt-1">Sube una foto de tu nevera y la IA creará una receta para tus macros restantes.</p>
+                        </div>
+                      </div>
+                      <Camera className="w-5 h-5 text-emerald-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      capture="environment"
+                      className="hidden" 
+                      ref={fridgeFileInputRef}
+                      onChange={handleFridgeScan}
+                    />
+                  </section>
+
+                  <div className="bg-gradient-to-br from-lime-400/10 to-zinc-900/80 rounded-[2rem] p-6 border border-lime-400/20">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <Utensils className="w-6 h-6 text-lime-400" />
+                        <h2 className="text-xl font-display font-bold text-white uppercase tracking-tight">Plan Nutricional</h2>
+                      </div>
+                      <div className="flex gap-2">
+                        {generatedMenu && (
+                          <button 
+                            onClick={downloadMenuPDF}
+                            className="bg-lime-400/20 hover:bg-lime-400/30 text-lime-400 p-2 rounded-xl transition-colors"
+                            title="Descargar PDF"
+                          >
+                            <Download className="w-5 h-5" />
+                          </button>
+                        )}
+                        <button 
+                          onClick={handleGenerateMenu}
+                          disabled={isGeneratingMenu}
+                          className="bg-lime-400/20 hover:bg-lime-400/30 text-lime-400 p-2 rounded-xl transition-colors disabled:opacity-50"
+                          title="Regenerar Plan Nutricional"
+                        >
+                          {isGeneratingMenu ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    </div>
+                    {generatedMenu ? (
+                      <div className="space-y-6">
+                        <div className="text-center py-8 bg-zinc-950/30 rounded-2xl border border-white/5">
+                          <CheckCircle2 className="w-12 h-12 text-lime-400 mx-auto mb-3 opacity-50" />
+                          <p className="text-zinc-300 font-bold mb-4">¡Plan y lista de compra listos!</p>
+                          <p className="text-zinc-500 text-xs mb-6 px-8">Usa el botón de descarga en la parte superior derecha para obtener tu plan completo en PDF.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-zinc-500 text-sm mb-4">Genera tu menú semanal y lista de la compra adaptados a tus preferencias.</p>
+                        <button 
+                          onClick={handleGenerateMenu}
+                          disabled={isGeneratingMenu}
+                          className="bg-lime-400 text-zinc-950 px-6 py-2 rounded-xl font-bold uppercase tracking-wider text-xs"
+                        >
+                          {isGeneratingMenu ? 'Generando...' : 'Generar Plan'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+
+      {/* FAB */}
+      <div className="fixed bottom-6 left-0 right-0 flex justify-center z-20 pointer-events-none px-6">
+        <div className="max-w-md w-full flex justify-center">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            animate={{ 
+              boxShadow: [
+                "0 0 20px -5px rgba(163,230,53,0.4)", 
+                "0 0 40px 0px rgba(163,230,53,0.6)", 
+                "0 0 20px -5px rgba(163,230,53,0.4)"
+              ] 
+            }}
+            transition={{ boxShadow: { repeat: Infinity, duration: 2 } }}
+            onClick={() => fileInputRef.current?.click()}
+            className="pointer-events-auto flex items-center gap-2 bg-lime-400 text-zinc-950 px-8 py-4 rounded-full font-display font-black tracking-wide transition-colors"
+          >
+            <Camera className="w-5 h-5" />
+            <span>ANALIZAR COMIDA</span>
+          </motion.button>
+        </div>
+      </div>
+
+      <input
+        type="file"
+        accept="image/*"
+        capture="environment"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
+      {/* Analyzing Overlay */}
+      <AnimatePresence>
+        {isAnalyzing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6"
+          >
+            <div className="w-full max-w-sm space-y-8 flex flex-col items-center">
+              <div className="relative w-64 h-64 rounded-3xl overflow-hidden shadow-2xl border border-zinc-800 bg-zinc-900 flex items-center justify-center">
+                {previewImage ? (
+                  <img src={previewImage} alt="Preview" className="w-full h-full object-cover opacity-50" />
+                ) : (
+                  <Camera className="w-16 h-16 text-zinc-700" />
+                )}
+                
+                {/* Scanning animation */}
+                <motion.div
+                  className="absolute inset-0 border-t-2 border-lime-400 bg-gradient-to-b from-lime-400/20 to-transparent"
+                  animate={{ y: ["-100%", "100%"] }}
+                  transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                />
+              </div>
+              
+              <div className="text-center space-y-2">
+                <div className="flex items-center justify-center gap-3 text-lime-400">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="font-display font-bold text-lg">Analizando con IA...</span>
+                </div>
+                <p className="text-zinc-400 text-sm font-medium">Calculando calorías y macronutrientes</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Weight Modal */}
+      <AnimatePresence>
+        {isWeightModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 w-full max-w-sm"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-display font-bold text-white">Registrar Peso</h3>
+                <button onClick={() => setIsWeightModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <form onSubmit={handleAddWeight} className="space-y-4">
+                <NumberInput
+                  label="Peso (kg)"
+                  value={newWeight}
+                  onChange={setNewWeight}
+                  step={0.1}
+                  min={30}
+                  max={300}
+                  placeholder="Ej. 75.5"
+                />
+                <button 
+                  type="submit"
+                  disabled={!newWeight}
+                  className="w-full bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
+                >
+                  Guardar
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Goal Modal */}
+      <AnimatePresence>
+        {isGoalModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 w-full max-w-lg max-h-[90vh] flex flex-col"
+            >
+              <div className="flex justify-between items-center mb-6 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-lime-400/10 rounded-xl border border-lime-400/20">
+                    <Target className="w-6 h-6 text-lime-400" />
+                  </div>
+                  <h3 className="text-xl font-display font-bold text-white uppercase">Configuración de Perfil</h3>
+                </div>
+                <button onClick={() => setIsGoalModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <form onSubmit={handleSaveGoal} className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar">
+                <div className="grid grid-cols-1 gap-4">
+                  <NumberInput
+                    label="Peso Actual (kg)"
+                    value={editWeight}
+                    onChange={setEditWeight}
+                    step={0.1}
+                    min={30}
+                    max={300}
+                    placeholder="Ej. 75.5"
+                  />
+                  <NumberInput
+                    label="Altura (cm)"
+                    value={editProfile.height || ''}
+                    onChange={(val: string) => setEditProfile({...editProfile, height: parseInt(val) || 0})}
+                    step={1}
+                    min={100}
+                    max={250}
+                    placeholder="Ej. 175"
+                  />
+                  <NumberInput
+                    label="Edad"
+                    value={editProfile.age || ''}
+                    onChange={(val: string) => setEditProfile({...editProfile, age: parseInt(val) || 0})}
+                    step={1}
+                    min={12}
+                    max={120}
+                    placeholder="Ej. 42"
+                  />
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Género</label>
+                    <select 
+                      value={editProfile.gender}
+                      onChange={(e) => setEditProfile({...editProfile, gender: e.target.value as 'male' | 'female'})}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
+                    >
+                      <option value="male">Hombre</option>
+                      <option value="female">Mujer</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Nivel de Actividad Física</label>
+                  <select 
+                    value={editProfile.activityLevel}
+                    onChange={(e) => setEditProfile({...editProfile, activityLevel: parseFloat(e.target.value)})}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
+                  >
+                    <option value={1.2}>Sedentario (Poco o ningún ejercicio)</option>
+                    <option value={1.375}>Ligero (Ejercicio 1-3 días/sem)</option>
+                    <option value={1.55}>Moderado (Ejercicio 3-5 días/sem)</option>
+                    <option value={1.725}>Intenso (Ejercicio 6-7 días/sem)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Objetivo</label>
+                  <select 
+                    value={editProfile.goal}
+                    onChange={(e) => setEditProfile({...editProfile, goal: e.target.value as any})}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
+                  >
+                    <option value="lose">Perder Peso (Déficit -500 kcal)</option>
+                    <option value="maintain">Mantener Peso</option>
+                    <option value="gain">Ganar Masa Muscular (Superávit +300 kcal)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Distribución de Macros</label>
+                  <select 
+                    value={editProfile.macroDistribution}
+                    onChange={(e) => setEditProfile({...editProfile, macroDistribution: e.target.value as any})}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
+                  >
+                    <option value="balanced">Equilibrada (30% P, 40% C, 30% G)</option>
+                    <option value="low_carb">Baja en Carbohidratos (40% P, 20% C, 40% G)</option>
+                    <option value="high_protein">Alta en Proteínas (40% P, 30% C, 30% G)</option>
+                    <option value="keto">Cetogénica (25% P, 5% C, 70% G)</option>
+                  </select>
+                </div>
+                
+                <div className="bg-lime-400/5 border border-lime-400/20 rounded-2xl p-4">
+                  <div className="flex gap-3">
+                    <Info className="w-5 h-5 text-lime-400 shrink-0" />
+                    <p className="text-zinc-400 text-xs leading-relaxed">
+                      Calculamos automáticamente tus calorías y macros según tu objetivo y distribución seleccionada.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t border-zinc-800">
+                  <h4 className="text-sm font-bold text-white uppercase tracking-wider">Preferencias de Alimentación</h4>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Tipo de Dieta</label>
+                      <select 
+                        value={editProfile.dietType}
+                        onChange={(e) => setEditProfile({...editProfile, dietType: e.target.value})}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
+                      >
+                        <option value="Normal">Normal (Omnívora)</option>
+                        <option value="Vegetariana">Vegetariana</option>
+                        <option value="Vegana">Vegana</option>
+                        <option value="Pescetariana">Pescetariana</option>
+                        <option value="Keto">Keto</option>
+                        <option value="Paleo">Paleo</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Alergias / Intolerancias</label>
+                      <input 
+                        type="text" 
+                        value={editProfile.allergies}
+                        onChange={(e) => setEditProfile({...editProfile, allergies: e.target.value})}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-500 transition-colors"
+                        placeholder="Ej. Gluten, Lactosa, Frutos secos"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Alimentos a Evitar</label>
+                      <input 
+                        type="text" 
+                        value={editProfile.dislikedFoods}
+                        onChange={(e) => setEditProfile({...editProfile, dislikedFoods: e.target.value})}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-500 transition-colors"
+                        placeholder="Ej. Brócoli, Pescado"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sticky bottom-0 pt-4 bg-zinc-900 pb-2">
+                  <button 
+                    type="submit"
+                    disabled={!editWeight || !editProfile.age || !editProfile.height}
+                    className="w-full bg-lime-400 hover:bg-lime-300 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-950 font-black uppercase tracking-widest py-4 rounded-xl transition-all shadow-lg shadow-lime-400/10"
+                  >
+                    Calcular y Guardar
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Chatbot FAB */}
+      <button
+        onClick={() => setIsChatOpen(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-indigo-500 hover:bg-indigo-400 text-white rounded-full shadow-[0_0_20px_rgba(99,102,241,0.4)] flex items-center justify-center transition-transform hover:scale-110 active:scale-95 z-40"
+      >
+        <MessageCircle className="w-6 h-6" />
+      </button>
+
+      {/* Chatbot Modal */}
+      <AnimatePresence>
+        {isChatOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed inset-x-4 bottom-24 top-24 md:inset-auto md:bottom-24 md:right-6 md:w-96 md:h-[600px] bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl z-50 flex flex-col overflow-hidden"
+          >
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-500/20 rounded-full flex items-center justify-center border border-indigo-500/30">
+                  <Bot className="w-5 h-5 text-indigo-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-bold text-sm">Coach NutriVision</h3>
+                  <p className="text-zinc-500 text-[10px] uppercase tracking-widest">En línea 24/7</p>
+                </div>
+              </div>
+              <button onClick={() => setIsChatOpen(false)} className="text-zinc-500 hover:text-white transition-colors p-2">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {chatMessages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] rounded-2xl p-3 text-sm ${msg.role === 'user' ? 'bg-indigo-500 text-white rounded-br-sm' : 'bg-zinc-800 text-zinc-200 rounded-bl-sm'}`}>
+                    <div className="prose prose-invert prose-sm max-w-none prose-p:leading-snug prose-p:m-0 prose-ul:m-0 prose-li:m-0">
+                      <Markdown>
+                        {msg.parts[0].text}
+                      </Markdown>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {isChatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-zinc-800 text-zinc-400 rounded-2xl rounded-bl-sm p-3 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-xs">Escribiendo...</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleSendMessage} className="p-4 border-t border-zinc-800 bg-zinc-950/50 flex gap-2">
+              <input
+                type="text"
+                value={currentChatMessage}
+                onChange={(e) => setCurrentChatMessage(e.target.value)}
+                placeholder="Pregúntame lo que quieras..."
+                className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+              />
+              <button 
+                type="submit"
+                disabled={!currentChatMessage.trim() || isChatLoading}
+                className="bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white p-2 rounded-xl transition-colors shrink-0 flex items-center justify-center w-10 h-10"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Fridge Scanner Modal */}
+      <AnimatePresence>
+        {isFridgeModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 w-full max-w-lg max-h-[90vh] flex flex-col"
+            >
+              <div className="flex justify-between items-center mb-6 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-500/20 rounded-xl">
+                    <ChefHat className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <h3 className="text-xl font-display font-bold text-white">Receta de Rescate</h3>
+                </div>
+                <button onClick={() => setIsFridgeModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                {isScanningFridge ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="relative w-20 h-20 mb-6">
+                      <div className="absolute inset-0 border-4 border-emerald-500/20 rounded-full"></div>
+                      <div className="absolute inset-0 border-4 border-emerald-400 rounded-full border-t-transparent animate-spin"></div>
+                      <ChefHat className="absolute inset-0 m-auto w-8 h-8 text-emerald-400 animate-pulse" />
+                    </div>
+                    <p className="text-white font-bold text-lg mb-2">Analizando ingredientes...</p>
+                    <p className="text-zinc-400 text-sm max-w-xs">Buscando la receta perfecta para tus macros restantes.</p>
+                  </div>
+                ) : fridgeRecipe ? (
+                  <div className="prose prose-invert prose-sm max-w-none prose-p:text-zinc-400 prose-li:text-zinc-400 prose-headings:text-white prose-strong:text-emerald-400">
+                    <Markdown>{fridgeRecipe}</Markdown>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <p className="text-zinc-500">No se pudo generar la receta.</p>
+                  </div>
+                )}
+              </div>
+              
+              {!isScanningFridge && (
+                <div className="mt-6 pt-4 border-t border-zinc-800 shrink-0">
+                  <button 
+                    onClick={() => setIsFridgeModalOpen(false)}
+                    className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-3 rounded-xl transition-colors"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Edit Meal Modal */}
+      <AnimatePresence>
+        {editingMeal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-zinc-900 border border-white/10 rounded-3xl p-6 w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh]"
+            >
+              <div className="flex justify-between items-center mb-6 sticky top-0 bg-zinc-900 z-10 pb-2 border-b border-white/5">
+                <h3 className="text-xl font-display font-bold text-white">Revisar Análisis</h3>
+                <button onClick={() => setEditingMeal(null)} className="text-zinc-500 hover:text-white transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="w-full h-40 rounded-2xl overflow-hidden mb-6 relative shrink-0">
+                <img src={editingMeal.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 to-transparent"></div>
+              </div>
+
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const existingIndex = meals.findIndex(m => m.id === editingMeal.id);
+                  if (existingIndex >= 0) {
+                    setMeals(prev => {
+                      const copy = [...prev];
+                      copy[existingIndex] = editingMeal;
+                      return copy;
+                    });
+                  } else {
+                    setMeals(prev => [editingMeal, ...prev]);
+                  }
+                  setEditingMeal(null);
+                }}
+                className="space-y-4"
+              >
+                {/* Macro Percentages */}
+                <div className="pb-2">
+                  <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">
+                    <span>Distribución de Macros</span>
+                  </div>
+                  <div className="h-2 w-full bg-zinc-950 rounded-full overflow-hidden flex">
+                    {(() => {
+                      const total = editingMeal.protein + editingMeal.carbs + editingMeal.fat;
+                      if (total === 0) return <div className="w-full bg-zinc-800" />;
+                      const pPct = (editingMeal.protein / total) * 100;
+                      const cPct = (editingMeal.carbs / total) * 100;
+                      const fPct = (editingMeal.fat / total) * 100;
+                      return (
+                        <>
+                          <div style={{ width: `${pPct}%` }} className="bg-blue-400 h-full" title={`Proteínas: ${Math.round(pPct)}%`} />
+                          <div style={{ width: `${cPct}%` }} className="bg-amber-400 h-full" title={`Carbohidratos: ${Math.round(cPct)}%`} />
+                          <div style={{ width: `${fPct}%` }} className="bg-rose-400 h-full" title={`Grasas: ${Math.round(fPct)}%`} />
+                        </>
+                      );
+                    })()}
+                  </div>
+                  <div className="flex justify-between text-[10px] font-medium text-zinc-400 mt-2">
+                    <span className="text-blue-400">Prot: {Math.round((editingMeal.protein / (editingMeal.protein + editingMeal.carbs + editingMeal.fat || 1)) * 100)}%</span>
+                    <span className="text-amber-400">Carbs: {Math.round((editingMeal.carbs / (editingMeal.protein + editingMeal.carbs + editingMeal.fat || 1)) * 100)}%</span>
+                    <span className="text-rose-400">Grasas: {Math.round((editingMeal.fat / (editingMeal.protein + editingMeal.carbs + editingMeal.fat || 1)) * 100)}%</span>
+                  </div>
+                </div>
+
+                {/* NutriScore & Density Analysis */}
+                {editingMeal.nutriScore && (
+                  <div className="bg-zinc-950 rounded-2xl p-4 border border-white/5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Calidad Nutricional</span>
+                      <div className="flex items-center gap-3">
+                        {editingMeal.totalWeight && (
+                          <span className="text-[10px] font-bold text-zinc-400 bg-zinc-900 px-2 py-1 rounded border border-white/5">
+                            {editingMeal.totalWeight}g ESTIMADOS
+                          </span>
+                        )}
+                        <NutriScoreBadge score={editingMeal.nutriScore} />
+                      </div>
+                    </div>
+                    {editingMeal.densityAnalysis && (
+                      <p className="text-xs text-zinc-400 leading-relaxed italic">
+                        "{editingMeal.densityAnalysis}"
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Ingredients Breakdown */}
+                {editingMeal.ingredients && editingMeal.ingredients.length > 0 && (
+                  <div className="bg-zinc-950/50 rounded-2xl p-4 border border-white/5">
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-3">Desglose de Ingredientes</span>
+                    <div className="space-y-2">
+                      {editingMeal.ingredients.map((ing, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-xs">
+                          <span className="text-zinc-300">{ing.name}</span>
+                          <span className="text-lime-400 font-mono font-bold">{ing.amount}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Nombre del Alimento</label>
+                    <input type="text" value={editingMeal.foodName} onChange={(e) => setEditingMeal({...editingMeal, foodName: e.target.value})} className="w-full bg-zinc-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-400 transition-colors" required />
+                  </div>
+                  <NumberInput
+                    label="Peso Total (g)"
+                    value={editingMeal.totalWeight}
+                    onChange={(val: string) => setEditingMeal({...editingMeal, totalWeight: parseFloat(val) || 0})}
+                    step={10}
+                    min={0}
+                    max={2000}
+                  />
+                  <NumberInput
+                    label="Calorías (kcal)"
+                    value={editingMeal.calories}
+                    onChange={(val: string) => setEditingMeal({...editingMeal, calories: parseFloat(val) || 0})}
+                    step={10}
+                    min={0}
+                    max={3000}
+                  />
+                  <NumberInput
+                    label="Proteínas (g)"
+                    value={editingMeal.protein}
+                    onChange={(val: string) => setEditingMeal({...editingMeal, protein: parseFloat(val) || 0})}
+                    step={1}
+                    min={0}
+                    max={200}
+                  />
+                  <NumberInput
+                    label="Carbohidratos (g)"
+                    value={editingMeal.carbs}
+                    onChange={(val: string) => setEditingMeal({...editingMeal, carbs: parseFloat(val) || 0})}
+                    step={1}
+                    min={0}
+                    max={300}
+                  />
+                  <NumberInput
+                    label="Grasas (g)"
+                    value={editingMeal.fat}
+                    onChange={(val: string) => setEditingMeal({...editingMeal, fat: parseFloat(val) || 0})}
+                    step={1}
+                    min={0}
+                    max={200}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Alimento (Edita para recalcular)</label>
+                  <div className="flex flex-col gap-2">
+                    <input 
+                      type="text" 
+                      value={editingMeal.foodName} 
+                      onChange={(e) => setEditingMeal({...editingMeal, foodName: e.target.value})}
+                      className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-400 transition-colors" 
+                      required 
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRecalculateMacros}
+                      disabled={isRecalculating || !editingMeal.foodName}
+                      className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white p-3 rounded-xl transition-colors border border-white/5 flex items-center justify-center gap-2 text-sm font-medium"
+                    >
+                      {isRecalculating ? <Loader2 className="w-4 h-4 animate-spin text-lime-400" /> : <RefreshCw className="w-4 h-4 text-lime-400" />}
+                      Recalcular Calorías y Macros
+                    </button>
+                  </div>
+                </div>
+
+                {editingMeal.healthAnalysis && (
+                  <div className="mt-6 p-4 bg-zinc-950 rounded-2xl border border-white/5 text-sm space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className={`p-2 rounded-xl shrink-0 ${editingMeal.isHealthy ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                        {editingMeal.isHealthy ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+                      </div>
+                      <p className="text-zinc-300 leading-relaxed">{editingMeal.healthAnalysis}</p>
+                    </div>
+                    {editingMeal.recommendations && (
+                      <div className="flex items-start gap-3 pt-3 border-t border-white/5">
+                        <div className="p-2 rounded-xl shrink-0 bg-blue-500/10 text-blue-400">
+                          <Info className="w-5 h-5" />
+                        </div>
+                        <p className="text-zinc-400 leading-relaxed"><span className="text-zinc-300 font-semibold">Sugerencia:</span> {editingMeal.recommendations}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="pt-4">
+                  <button type="submit" className="w-full bg-lime-400 text-zinc-950 font-bold uppercase tracking-wider py-4 rounded-xl hover:bg-lime-300 transition-colors">
+                    Guardar Registro
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Error Toast */}
+      <AnimatePresence>
+        {appError && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-24 left-4 right-4 z-[60] flex justify-center pointer-events-none"
+          >
+            <div className="bg-rose-500 text-white px-6 py-4 rounded-2xl shadow-2xl font-medium text-sm flex items-center gap-3 pointer-events-auto max-w-md w-full border border-rose-400/50">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <p className="flex-1">{appError}</p>
+              <button 
+                onClick={() => setAppError(null)}
+                className="p-1 hover:bg-rose-600 rounded-lg transition-colors shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function MacroCard({ icon, label, current, goal, color, bgGradient, borderColor, unit }: { icon: React.ReactNode, label: string, current: number, goal: number, color: string, bgGradient: string, borderColor: string, unit: string }) {
+  const percentage = Math.min((current / goal) * 100, 100);
+  
+  return (
+    <motion.div 
+      whileHover={{ y: -2, scale: 1.02 }}
+      className={`bento-item flex flex-col shadow-lg ${borderColor}`}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <div className="p-1.5 bg-zinc-950/50 rounded-lg border border-white/5">
+          {icon}
+        </div>
+        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{label}</span>
+      </div>
+      
+      <div className="mt-auto">
+        <div className="flex items-baseline gap-1 mb-2">
+          <span className="text-2xl font-display font-black text-white tracking-tighter">{Math.round(current)}</span>
+          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">/ {goal}{unit}</span>
+        </div>
+        
+        <div className="h-1.5 w-full bg-zinc-950/50 rounded-full overflow-hidden border border-white/5">
+          <motion.div
+            className={`h-full ${color} shadow-[0_0_10px_currentColor]`}
+            initial={{ width: 0 }}
+            animate={{ width: `${percentage}%` }}
+            transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
+          />
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
