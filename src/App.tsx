@@ -2249,6 +2249,21 @@ export default function App() {
                       </div>
                     )}
 
+                    <div className="space-y-2 mt-4">
+                      <button
+                        type="button"
+                        onClick={handleRecalculateMacros}
+                        disabled={isRecalculating || !editingMeal.foodName}
+                        className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white p-3 rounded-xl transition-colors border border-white/5 flex items-center justify-center gap-2 text-sm font-medium"
+                      >
+                        {isRecalculating ? <Loader2 className="w-4 h-4 animate-spin text-lime-400" /> : <RefreshCw className="w-4 h-4 text-lime-400" />}
+                        Recalcular Calorías y Macros
+                      </button>
+                      <p className="text-[10px] text-zinc-500 text-center px-4">
+                        Si modificas el nombre de la comida o los gramos de los ingredientes, pulsa este botón para recalcular los datos nutricionales.
+                      </p>
+                    </div>
+
 
                   </div>
                 </div>
@@ -2324,16 +2339,6 @@ export default function App() {
                     <span className="text-lg font-display font-bold text-rose-400">{editingMeal.fat} <span className="text-xs text-zinc-500">g</span></span>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={handleRecalculateMacros}
-                  disabled={isRecalculating || !editingMeal.foodName}
-                  className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white p-3 rounded-xl transition-colors border border-white/5 flex items-center justify-center gap-2 text-sm font-medium mt-4"
-                >
-                  {isRecalculating ? <Loader2 className="w-4 h-4 animate-spin text-lime-400" /> : <RefreshCw className="w-4 h-4 text-lime-400" />}
-                  Recalcular Calorías y Macros
-                </button>
 
                 {(editingMeal.coachMessage || editingMeal.healthAnalysis) && (
                   <div className="mt-6 space-y-3">
