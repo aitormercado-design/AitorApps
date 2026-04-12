@@ -20,6 +20,9 @@
         "shoppingList": {
           "type": "object"
         },
+        "chatMessages": {
+          "type": "array"
+        },
         "meals": {
           "type": "array"
         },

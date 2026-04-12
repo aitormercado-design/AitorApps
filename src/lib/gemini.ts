@@ -23,6 +23,9 @@ export type NutritionalInfo = {
   recommendations?: string;
   nutriScore?: "A" | "B" | "C" | "D" | "E";
   densityAnalysis?: string;
+  interpretation?: string;
+  coachMessage?: string;
+  actionableRecommendation?: string;
 };
 
 export async function analyzeFoodImage(base64Image: string, mimeType: string, contextStr?: string): Promise<NutritionalInfo> {
@@ -54,7 +57,7 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
         ],
       },
       config: {
-        systemInstruction: "Eres un experto nutricionista deportivo de élite. Tu tarea es analizar imágenes de comida y estimar de forma precisa su contenido nutricional y peso. Evalúa la calidad nutricional asignando un NutriScore de A (excelente densidad de nutrientes) a E (pobre, altamente procesado). Proporciona un análisis de densidad (densityAnalysis) explicando la puntuación. Evalúa si el alimento es saludable (isHealthy) y da un breve análisis (healthAnalysis). Además, debes dar recomendaciones (recommendations) sobre qué comer el resto del día para equilibrar la dieta. Evalúa tu nivel de confianza en la detección (alta, media, baja). Desglosa los ingredientes principales con sus gramos estimados.",
+        systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es analizar imágenes de comida y estimar de forma precisa su contenido nutricional y peso. Evalúa la calidad nutricional asignando un NutriScore de A a E. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida. Evalúa tu nivel de confianza en la detección. Desglosa los ingredientes principales con sus gramos estimados. Sé consistente con las estimaciones de peso y calorías.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -80,13 +83,12 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
             confidence: { type: Type.STRING, enum: ["alta", "media", "baja"], description: "Nivel de confianza en la detección" },
             confidenceMessage: { type: Type.STRING, description: "Mensaje detallando por qué se tiene este nivel de confianza" },
             alternatives: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Posibles alimentos alternativos si la detección es incierta" },
-            isHealthy: { type: Type.BOOLEAN, description: "¿Es este alimento generalmente considerado saludable?" },
-            healthAnalysis: { type: Type.STRING, description: "Breve análisis de por qué es o no saludable y su impacto." },
-            recommendations: { type: Type.STRING, description: "Sugerencias de qué comer el resto del día para equilibrar los macros, basado en el contexto." },
+            interpretation: { type: Type.STRING, description: "Interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas', 'Baja en proteína')" },
+            coachMessage: { type: Type.STRING, description: "Mensaje humano, cercano y motivador del coach sobre esta comida, sin tecnicismos." },
+            actionableRecommendation: { type: Type.STRING, description: "Recomendación inmediata y concreta (ej. 'Compensa con cena ligera', 'Añade proteína en la próxima comida')" },
             nutriScore: { type: Type.STRING, enum: ["A", "B", "C", "D", "E"], description: "Calificación nutricional de A a E" },
-            densityAnalysis: { type: Type.STRING, description: "Explicación detallada de la densidad nutricional y el NutriScore asignado" },
           },
-          required: ["foodName", "totalWeight", "calories", "protein", "carbs", "fat", "ingredients", "confidence", "confidenceMessage", "isHealthy", "healthAnalysis", "recommendations", "nutriScore", "densityAnalysis"],
+          required: ["foodName", "totalWeight", "calories", "protein", "carbs", "fat", "ingredients", "confidence", "confidenceMessage", "interpretation", "coachMessage", "actionableRecommendation", "nutriScore"],
         },
       },
     });
@@ -133,6 +135,69 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
   }
 }
 
+export async function analyzeFoodText(foodDescription: string, contextStr?: string): Promise<NutritionalInfo> {
+  try {
+    const prompt = contextStr 
+      ? `Analiza este alimento o comida: "${foodDescription}". Ten en cuenta el contexto: "${contextStr}". Calcula un NutriScore (A-E) basado en la densidad nutricional. Devuelve un objeto JSON.`
+      : `Analiza este alimento o comida: "${foodDescription}". Calcula un NutriScore (A-E) basado en la densidad nutricional. Devuelve un objeto JSON.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es estimar de forma precisa el contenido nutricional del alimento descrito. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida, teniendo en cuenta el contexto proporcionado. Devuelve un objeto JSON estructurado.",
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            foodName: { type: Type.STRING, description: "Nombre del plato o alimento en español" },
+            totalWeight: { type: Type.NUMBER, description: "Peso total estimado del plato en gramos (g)" },
+            calories: { type: Type.NUMBER, description: "Calorías totales estimadas (kcal)" },
+            protein: { type: Type.NUMBER, description: "Proteínas estimadas en gramos" },
+            carbs: { type: Type.NUMBER, description: "Carbohidratos estimados en gramos" },
+            fat: { type: Type.NUMBER, description: "Grasas estimadas en gramos" },
+            ingredients: { 
+              type: Type.ARRAY, 
+              items: { 
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING, description: "Nombre del ingrediente" },
+                  amount: { type: Type.STRING, description: "Cantidad estimada (ej: '150g', '1 unidad', '20g')" }
+                },
+                required: ["name", "amount"]
+              },
+              description: "Lista de ingredientes principales detectados"
+            },
+            confidence: { type: Type.STRING, enum: ["alta", "media", "baja"], description: "Nivel de confianza en la detección" },
+            confidenceMessage: { type: Type.STRING, description: "Mensaje detallando por qué se tiene este nivel de confianza" },
+            interpretation: { type: Type.STRING, description: "Interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas', 'Baja en proteína')" },
+            coachMessage: { type: Type.STRING, description: "Mensaje humano, cercano y motivador del coach sobre esta comida, sin tecnicismos." },
+            actionableRecommendation: { type: Type.STRING, description: "Recomendación inmediata y concreta (ej. 'Compensa con cena ligera', 'Añade proteína en la próxima comida')" },
+            nutriScore: { type: Type.STRING, enum: ["A", "B", "C", "D", "E"], description: "Calificación nutricional de A a E" },
+          },
+          required: ["foodName", "totalWeight", "calories", "protein", "carbs", "fat", "ingredients", "confidence", "confidenceMessage", "interpretation", "coachMessage", "actionableRecommendation", "nutriScore"],
+        },
+      },
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No se recibió respuesta del modelo.");
+    
+    let cleanText = text;
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      cleanText = jsonMatch[0];
+    } else {
+      cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
+    }
+    
+    return JSON.parse(cleanText) as NutritionalInfo;
+  } catch (error) {
+    console.error("Error analyzing food text:", error);
+    throw new Error("No se pudo analizar el texto. Inténtalo de nuevo.");
+  }
+}
+
 export async function recalculateFoodMacros(foodDescription: string, contextStr?: string): Promise<Partial<NutritionalInfo>> {
   try {
     const prompt = contextStr 
@@ -143,7 +208,7 @@ export async function recalculateFoodMacros(foodDescription: string, contextStr?
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Eres un experto nutricionista deportivo. Tu tarea es estimar de forma precisa el contenido nutricional (calorías y macronutrientes) del alimento descrito en texto. Es CRÍTICO que prestes especial atención al tamaño de las porciones descritas (si es una porción pequeña, ajusta los valores a la baja) y a los métodos de preparación (aceite añadido, salsas, frituras, etc.). Evalúa si es saludable (isHealthy) y da un breve análisis (healthAnalysis). Además, da recomendaciones (recommendations) sobre qué comer el resto del día para equilibrar la dieta, teniendo en cuenta el contexto proporcionado.",
+        systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es estimar de forma precisa el contenido nutricional (calorías y macronutrientes) del alimento descrito. Es CRÍTICO que prestes especial atención al tamaño de las porciones descritas y a los métodos de preparación. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida, teniendo en cuenta el contexto.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -152,11 +217,11 @@ export async function recalculateFoodMacros(foodDescription: string, contextStr?
             protein: { type: Type.NUMBER, description: "Proteínas estimadas en gramos" },
             carbs: { type: Type.NUMBER, description: "Carbohidratos estimados en gramos" },
             fat: { type: Type.NUMBER, description: "Grasas estimadas en gramos" },
-            isHealthy: { type: Type.BOOLEAN, description: "¿Es este alimento generalmente considerado saludable?" },
-            healthAnalysis: { type: Type.STRING, description: "Breve análisis de por qué es o no saludable y su impacto." },
-            recommendations: { type: Type.STRING, description: "Sugerencias de qué comer el resto del día para equilibrar los macros, basado en el contexto." },
+            interpretation: { type: Type.STRING, description: "Interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas', 'Baja en proteína')" },
+            coachMessage: { type: Type.STRING, description: "Mensaje humano, cercano y motivador del coach sobre esta comida, sin tecnicismos." },
+            actionableRecommendation: { type: Type.STRING, description: "Recomendación inmediata y concreta (ej. 'Compensa con cena ligera', 'Añade proteína en la próxima comida')" },
           },
-          required: ["calories", "protein", "carbs", "fat", "isHealthy", "healthAnalysis", "recommendations"],
+          required: ["calories", "protein", "carbs", "fat", "interpretation", "coachMessage", "actionableRecommendation"],
         },
       },
     });
@@ -252,11 +317,7 @@ export async function generateWeeklyMenu(profileStr: string, preferencesStr: str
 
 export type ShoppingItem = {
   name: string;
-  mercadonaProduct: string;
-  price: number;
-  cheaperAlternative?: string;
-  cheaperPrice?: number;
-  url?: string;
+  amount: string;
 };
 
 export type ShoppingList = {
@@ -270,9 +331,19 @@ export async function generateShoppingList(menu: WeeklyMenu): Promise<ShoppingLi
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Basado en el siguiente menú semanal, genera una lista de la compra organizada por categorías. Para cada ingrediente, sugiere un producto específico de Mercadona (Hacendado, Bosque Verde, Deliplus, etc. si aplica), su precio estimado en euros, y si existe, una alternativa más barata con su precio estimado. También incluye una URL de búsqueda en Google para el producto (ej. https://www.google.com/search?q=mercadona+nombre_producto). Menú:\n\n${JSON.stringify(menu)}`,
+      contents: `Genera la lista de la compra para este menú semanal.
+      
+      INSTRUCCIONES PARA CADA INGREDIENTE:
+      1. Agrupa la cantidad total semanal necesaria.
+      2. CÁLCULO DE UNIDADES: Compara la cantidad que necesitas con tamaños de envase estándar. Calcula cuántas unidades necesitas comprar para que CUBRA AL MENOS la cantidad necesaria (puede sobrar).
+      
+      Menú:\n\n${JSON.stringify(menu)}`,
       config: {
-        systemInstruction: "Eres un asistente de compras experto en supermercados españoles, especialmente Mercadona. Extrae los ingredientes del menú y agrúpalos por categorías. Para cada ingrediente proporciona el nombre genérico, el nombre del producto en Mercadona, un precio estimado realista, opcionalmente una alternativa más barata con su precio, y una URL de búsqueda en Google para encontrar el producto.",
+        systemInstruction: `Eres un asistente de compras experto. Tu objetivo es crear una lista de la compra organizada por categorías (ej. Frutas y Verduras, Carnes, Lácteos, etc.).
+        
+        REGLAS CRÍTICAS:
+        1. CANTIDADES: Asegúrate de calcular cuántos envases/unidades se necesitan para cubrir la cantidad de la receta. En 'amount' indica la cantidad total a comprar (ej: "3 uds (600g)").
+        2. Procesa TODOS los ingredientes del menú. No te dejes ninguno.`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -289,13 +360,9 @@ export async function generateShoppingList(menu: WeeklyMenu): Promise<ShoppingLi
                       type: Type.OBJECT,
                       properties: {
                         name: { type: Type.STRING },
-                        mercadonaProduct: { type: Type.STRING },
-                        price: { type: Type.NUMBER },
-                        cheaperAlternative: { type: Type.STRING },
-                        cheaperPrice: { type: Type.NUMBER },
-                        url: { type: Type.STRING }
+                        amount: { type: Type.STRING }
                       },
-                      required: ["name", "mercadonaProduct", "price", "url"]
+                      required: ["name", "amount"]
                     } 
                   }
                 },
@@ -373,11 +440,11 @@ export async function chatWithCoach(messages: {role: 'user' | 'model', parts: {t
     const chat = ai.chats.create({
       model: "gemini-3-flash-preview",
       config: {
-        systemInstruction: `Eres un entrenador personal y nutricionista experto de élite, actuando como asistente 24/7 en una app.
+        systemInstruction: `Eres un entrenador personal y nutricionista experto, actuando como un coach muy empático, positivo y motivador 24/7 en una app.
 Contexto del usuario:
 ${contextStr}
 
-Responde de forma concisa, motivadora y directa a las preguntas o comentarios del usuario.`,
+Responde de forma concisa, muy alentadora y directa a las preguntas o comentarios del usuario, sin ser estricto ni condescendiente.`,
       }
     });
     
@@ -390,11 +457,11 @@ Responde de forma concisa, motivadora y directa a las preguntas o comentarios de
     const chatWithHistory = ai.chats.create({
       model: "gemini-3-flash-preview",
       config: {
-        systemInstruction: `Eres un entrenador personal y nutricionista experto de élite, actuando como asistente 24/7 en una app.
+        systemInstruction: `Eres un entrenador personal y nutricionista experto, actuando como un coach muy empático, positivo y motivador 24/7 en una app.
 Contexto del usuario:
 ${contextStr}
 
-Responde de forma concisa, motivadora y directa a las preguntas o comentarios del usuario.`,
+Responde de forma concisa, muy alentadora y directa a las preguntas o comentarios del usuario, sin ser estricto ni condescendiente.`,
       },
       history: history
     });

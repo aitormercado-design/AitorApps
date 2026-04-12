@@ -1,14 +1,65 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, Download, LogOut } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, Download, LogOut, Banana } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { analyzeFoodImage, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, WeeklyMenu, ShoppingList } from './lib/gemini';
+import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, WeeklyMenu, ShoppingList } from './lib/gemini';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocFromServer } from 'firebase/firestore';
 import { auth, db } from './firebase';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 type Meal = NutritionalInfo & {
   id: string;
@@ -68,9 +119,9 @@ const NumberInput = ({ value, onChange, label, step = 1, min = 0, max = 300, pla
   const cleanLabel = label.replace(/\s*\([^)]+\)/, '');
 
   return (
-    <div className="space-y-3 bg-zinc-900/50 p-4 rounded-2xl border border-white/5">
+    <div className="space-y-2 bg-zinc-950 p-3 rounded-xl border border-zinc-800">
       <div className="flex justify-between items-center">
-        <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest">{cleanLabel}</label>
+        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{cleanLabel}</label>
         <div className="flex items-baseline gap-1">
           <input 
             type="number" 
@@ -79,14 +130,14 @@ const NumberInput = ({ value, onChange, label, step = 1, min = 0, max = 300, pla
             max={max}
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="bg-transparent text-right text-xl font-display font-bold text-lime-400 focus:outline-none w-20"
+            className="bg-transparent text-right text-lg font-display font-bold text-lime-400 focus:outline-none w-16"
             placeholder={placeholder}
             style={{ MozAppearance: 'textfield' }}
           />
-          {unit && <span className="text-zinc-500 text-sm font-medium">{unit}</span>}
+          {unit && <span className="text-zinc-600 text-[10px] font-medium">{unit}</span>}
         </div>
       </div>
-      <div className="relative pt-2">
+      <div className="relative pt-1">
         <input 
           type="range" 
           min={min} 
@@ -94,7 +145,7 @@ const NumberInput = ({ value, onChange, label, step = 1, min = 0, max = 300, pla
           step={step} 
           value={parseFloat(value) || min} 
           onChange={(e) => onChange(e.target.value)}
-          className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-lime-400 focus:outline-none focus:ring-2 focus:ring-lime-400/50"
+          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-lime-400 focus:outline-none"
         />
       </div>
     </div>
@@ -126,7 +177,17 @@ export default function App() {
   const [newWeight, setNewWeight] = useState('');
   
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
-  const [editProfile, setEditProfile] = useState<UserProfile>(profile);
+  const [editProfile, setEditProfile] = useState<UserProfile>({
+    age: 0,
+    height: 170,
+    gender: 'male',
+    activityLevel: 1.55,
+    dietType: 'Normal',
+    allergies: '',
+    dislikedFoods: '',
+    goal: 'maintain',
+    macroDistribution: 'balanced'
+  });
   const [editWeight, setEditWeight] = useState('');
 
   const [isCapturing, setIsCapturing] = useState(false);
@@ -139,12 +200,7 @@ export default function App() {
   const [generatedMenu, setGeneratedMenu] = useState<WeeklyMenu | null>(null);
   const [shoppingList, setShoppingList] = useState<ShoppingList | null>(null);
   const [isGeneratingMenu, setIsGeneratingMenu] = useState(false);
-
-  // Fridge Scanner State
-  const [isScanningFridge, setIsScanningFridge] = useState(false);
-  const [fridgeRecipe, setFridgeRecipe] = useState<string | null>(null);
-  const [isFridgeModalOpen, setIsFridgeModalOpen] = useState(false);
-  const fridgeFileInputRef = useRef<HTMLInputElement>(null);
+  const [isGeneratingShoppingList, setIsGeneratingShoppingList] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
 
   // Chatbot State
@@ -158,6 +214,18 @@ export default function App() {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   useEffect(() => {
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('unavailable'))) {
+          console.error("Please check your Firebase configuration. The client is offline or the database is unavailable.");
+          setAppError("Error de conexión con la base de datos. Por favor, recarga la página o comprueba tu conexión a internet.");
+        }
+      }
+    };
+    testConnection();
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
@@ -166,16 +234,54 @@ export default function App() {
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             const data = docSnap.data();
-            if (data.profile) setProfile(data.profile);
+            if (data.profile) {
+              const loadedProfile = {
+                ...data.profile,
+                allergies: data.profile.allergies || '',
+                dislikedFoods: data.profile.dislikedFoods || ''
+              };
+              setProfile(loadedProfile);
+            }
             if (data.goals) setGoals(data.goals);
             if (data.habits) setHabits(data.habits);
             if (data.generatedMenu) setGeneratedMenu(data.generatedMenu);
             if (data.shoppingList) setShoppingList(data.shoppingList);
             if (data.meals) setMeals(data.meals);
             if (data.weights) setWeights(data.weights);
+            if (data.chatMessages) setChatMessages(data.chatMessages);
           }
         } catch (error) {
-          console.error("Error loading user data:", error);
+          handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
+        }
+      } else {
+        // Load from localStorage if not logged in
+        try {
+          const savedProfile = localStorage.getItem('nutritivapp_profile');
+          const savedGoals = localStorage.getItem('nutritivapp_goals');
+          const savedHabits = localStorage.getItem('nutritivapp_habits');
+          const savedMenu = localStorage.getItem('nutritivapp_generated_menu');
+          const savedShoppingList = localStorage.getItem('nutritivapp_shopping_list');
+          const savedMeals = localStorage.getItem('nutritivapp_meals');
+          const savedWeights = localStorage.getItem('nutritivapp_weights');
+          const savedChat = localStorage.getItem('nutritivapp_chat');
+
+          if (savedProfile) {
+            const parsed = JSON.parse(savedProfile);
+            setProfile({
+              ...parsed,
+              allergies: parsed.allergies || '',
+              dislikedFoods: parsed.dislikedFoods || ''
+            });
+          }
+          if (savedGoals) setGoals(JSON.parse(savedGoals));
+          if (savedHabits) setHabits(JSON.parse(savedHabits));
+          if (savedMenu) setGeneratedMenu(JSON.parse(savedMenu));
+          if (savedShoppingList) setShoppingList(JSON.parse(savedShoppingList));
+          if (savedMeals) setMeals(JSON.parse(savedMeals));
+          if (savedWeights) setWeights(JSON.parse(savedWeights));
+          if (savedChat) setChatMessages(JSON.parse(savedChat));
+        } catch (e) {
+          console.error("Error loading from localStorage:", e);
         }
       }
       setIsDataLoaded(true);
@@ -185,46 +291,76 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (user && isDataLoaded) {
-      setDoc(doc(db, 'users', user.uid), { meals }, { merge: true });
+    if (isDataLoaded) {
+      localStorage.setItem('nutritivapp_meals', JSON.stringify(meals));
+      if (user) {
+        setDoc(doc(db, 'users', user.uid), { meals }, { merge: true }).catch(error => handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`));
+      }
     }
   }, [meals, user, isDataLoaded]);
 
   useEffect(() => {
-    if (user && isDataLoaded) {
-      setDoc(doc(db, 'users', user.uid), { weights }, { merge: true });
+    if (isDataLoaded) {
+      localStorage.setItem('nutritivapp_weights', JSON.stringify(weights));
+      if (user) {
+        setDoc(doc(db, 'users', user.uid), { weights }, { merge: true }).catch(error => handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`));
+      }
     }
   }, [weights, user, isDataLoaded]);
 
   useEffect(() => {
-    if (user && isDataLoaded) {
-      setDoc(doc(db, 'users', user.uid), { goals }, { merge: true });
+    if (isDataLoaded) {
+      localStorage.setItem('nutritivapp_goals', JSON.stringify(goals));
+      if (user) {
+        setDoc(doc(db, 'users', user.uid), { goals }, { merge: true }).catch(error => handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`));
+      }
     }
   }, [goals, user, isDataLoaded]);
 
   useEffect(() => {
-    if (user && isDataLoaded) {
-      setDoc(doc(db, 'users', user.uid), { profile }, { merge: true });
+    if (isDataLoaded) {
+      localStorage.setItem('nutritivapp_profile', JSON.stringify(profile));
+      if (user) {
+        setDoc(doc(db, 'users', user.uid), { profile }, { merge: true }).catch(error => handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`));
+      }
     }
   }, [profile, user, isDataLoaded]);
 
   useEffect(() => {
-    if (user && isDataLoaded) {
-      setDoc(doc(db, 'users', user.uid), { habits }, { merge: true });
+    if (isDataLoaded) {
+      localStorage.setItem('nutritivapp_habits', JSON.stringify(habits));
+      if (user) {
+        setDoc(doc(db, 'users', user.uid), { habits }, { merge: true }).catch(error => handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`));
+      }
     }
   }, [habits, user, isDataLoaded]);
 
   useEffect(() => {
-    if (user && isDataLoaded && generatedMenu) {
-      setDoc(doc(db, 'users', user.uid), { generatedMenu }, { merge: true });
+    if (isDataLoaded && generatedMenu) {
+      localStorage.setItem('nutritivapp_generated_menu', JSON.stringify(generatedMenu));
+      if (user) {
+        setDoc(doc(db, 'users', user.uid), { generatedMenu }, { merge: true }).catch(error => handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`));
+      }
     }
   }, [generatedMenu, user, isDataLoaded]);
 
   useEffect(() => {
-    if (user && isDataLoaded && shoppingList) {
-      setDoc(doc(db, 'users', user.uid), { shoppingList }, { merge: true });
+    if (isDataLoaded && shoppingList) {
+      localStorage.setItem('nutritivapp_shopping_list', JSON.stringify(shoppingList));
+      if (user) {
+        setDoc(doc(db, 'users', user.uid), { shoppingList }, { merge: true }).catch(error => handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`));
+      }
     }
   }, [shoppingList, user, isDataLoaded]);
+
+  useEffect(() => {
+    if (isDataLoaded) {
+      localStorage.setItem('nutritivapp_chat', JSON.stringify(chatMessages));
+      if (user) {
+        setDoc(doc(db, 'users', user.uid), { chatMessages }, { merge: true }).catch(error => handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`));
+      }
+    }
+  }, [chatMessages, user, isDataLoaded]);
 
   // Calculate today's totals
   const todaysMeals = useMemo(() => {
@@ -242,6 +378,59 @@ export default function App() {
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
+
+  const getAssistantState = () => {
+    const remainingCalories = goals.calories - totals.calories;
+    const remainingProtein = goals.protein - totals.protein;
+    
+    let message = "";
+    let subMessage = "";
+    let stateType: 'good' | 'over' | 'under' | 'start' = 'good';
+
+    if (totals.calories === 0) {
+      stateType = 'start';
+      message = "¡Buenos días!";
+      subMessage = "Vamos a por tus objetivos de hoy con energía.";
+    } else if (remainingCalories < -100) {
+      stateType = 'over';
+      message = "¡No pasa nada! Seguimos adelante";
+      subMessage = "Un pequeño desvío es normal. Ajustamos en la próxima comida y listo.";
+    } else if (remainingCalories > 500) {
+      stateType = 'under';
+      message = "¡Buen ritmo! Recuerda nutrirte bien";
+      subMessage = "Aún tienes margen, aprovecha para darle a tu cuerpo la energía que necesita.";
+    } else {
+      stateType = 'good';
+      message = "¡Excelente trabajo!";
+      subMessage = "Vas por muy buen camino, mantén este ritmo.";
+    }
+
+    // Generate 3 recommendations based on state
+    const recommendations = [
+      {
+        type: 'protein',
+        title: 'Opción alta en proteína',
+        description: remainingProtein > 30 ? 'Pollo a la plancha con ensalada o salmón al horno.' : 'Yogur griego o un batido de proteínas.',
+        icon: '🥩'
+      },
+      {
+        type: 'balanced',
+        title: 'Opción equilibrada',
+        description: 'Plato combinado: 50% verduras, 25% proteína, 25% carbohidratos complejos.',
+        icon: '🥗'
+      },
+      {
+        type: 'flexible',
+        title: 'Opción flexible',
+        description: remainingCalories > 300 ? 'Tienes margen para un capricho moderado (ej. un trozo de chocolate negro o un helado pequeño).' : 'Mejor opta por fruta fresca si te apetece algo dulce.',
+        icon: '🍫'
+      }
+    ];
+
+    return { message, subMessage, stateType, recommendations, remainingCalories };
+  };
+
+  const assistant = getAssistantState();
 
   // Calculate weekly totals
   const weeklyStats = useMemo(() => {
@@ -331,6 +520,39 @@ export default function App() {
     });
   };
 
+  const handleTextFoodSubmit = async (text: string) => {
+    if (!text.trim()) return;
+    
+    setIsCapturing(true);
+    setIsAnalyzing(true);
+    setAppError(null);
+
+    try {
+      const remainingCalories = goals.calories - totals.calories;
+      const remainingProtein = goals.protein - totals.protein;
+      const remainingCarbs = goals.carbs - totals.carbs;
+      const remainingFat = goals.fat - totals.fat;
+      const contextStr = `Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas para cumplir el objetivo del día. Dieta: ${profile.dietType}.`;
+
+      const info = await analyzeFoodText(text, contextStr);
+      
+      const newMeal: Meal = {
+        id: Date.now().toString(),
+        ...info,
+        imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(info.foodName)}&background=27272a&color=a3e635&size=200`,
+        timestamp: Date.now(),
+      };
+
+      setEditingMeal(newMeal);
+    } catch (error) {
+      console.error("Error in handleTextFoodSubmit:", error);
+      setAppError(error instanceof Error ? error.message : "Error al analizar el texto");
+    } finally {
+      setIsAnalyzing(false);
+      setIsCapturing(false);
+    }
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     console.log("handleFileChange triggered");
     const file = e.target.files?.[0];
@@ -418,9 +640,9 @@ export default function App() {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(32);
       doc.setTextColor(color[0], color[1], color[2]);
-      doc.text('NUTRI', margin, 25);
+      doc.text('Nutritiv', margin, 25);
       doc.setTextColor(255, 255, 255);
-      doc.text('VISION', margin + 38, 25);
+      doc.text('App', margin + 42, 25);
       
       doc.setFontSize(10);
       doc.setTextColor(161, 161, 170); // zinc-400
@@ -435,11 +657,11 @@ export default function App() {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       doc.setTextColor(161, 161, 170);
-      doc.text(`NutriVision Premium Plan - Página ${pageNumber}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+      doc.text(`NutritivApp Premium Plan - Página ${pageNumber}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
     };
 
     // PAGE 1: COVER & PROFILE
-    drawHeader('NutriVision', 'Plan Nutricional de Alto Rendimiento', primaryColor);
+    drawHeader('NutritivApp', 'Plan Nutricional de Alto Rendimiento', primaryColor);
     drawFooter(1);
     
     let y = 65;
@@ -520,7 +742,7 @@ export default function App() {
     let pageNum = 2;
     generatedMenu.days.forEach((dayData) => {
       doc.addPage();
-      drawHeader('NutriVision', `Menú Detallado: ${dayData.day}`, primaryColor);
+      drawHeader('NutritivApp', `Menú Detallado: ${dayData.day}`, primaryColor);
       drawFooter(pageNum++);
       
       y = 65;
@@ -584,108 +806,108 @@ export default function App() {
       doc.text(`${dayTotalCals} kcal`, pageWidth - margin - 5, y + 9.5, { align: 'right' });
     });
 
-    // SHOPPING LIST PAGE
-    if (shoppingList) {
-      doc.addPage();
-      drawHeader('NutriVision', 'Lista de la Compra Inteligente', accentColor);
-      drawFooter(pageNum++);
-      y = 65;
+    doc.save(`NutritivApp_Plan_Premium_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
 
+  const downloadShoppingListPDF = () => {
+    if (!shoppingList) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const contentWidth = pageWidth - (margin * 2);
+    
+    const primaryColor = [163, 230, 53]; // lime-400
+    const secondaryColor = [24, 24, 27]; // zinc-900
+    const accentColor = [16, 185, 129]; // emerald-500
+    const textColor = [40, 40, 40];
+    const lightTextColor = [113, 113, 122]; // zinc-500
+
+    const drawHeader = (title: string, subtitle: string, color: number[]) => {
+      doc.setFillColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+      doc.rect(0, 0, pageWidth, 50, 'F');
+      
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(18);
-      doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-      doc.text('Ingredientes Necesarios', margin, y);
-      y += 10;
+      doc.setFontSize(32);
+      doc.setTextColor(color[0], color[1], color[2]);
+      doc.text('Nutritiv', margin, 25);
+      doc.setTextColor(255, 255, 255);
+      doc.text('App', margin + 42, 25);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(161, 161, 170); // zinc-400
+      doc.text(subtitle.toUpperCase(), margin, 38);
+      
+      doc.setDrawColor(color[0], color[1], color[2]);
+      doc.setLineWidth(1.5);
+      doc.line(margin, 42, margin + 60, 42);
+    };
 
-      const shoppingData: any[] = [];
-      let totalPrice = 0;
-      let totalCheaperPrice = 0;
+    const drawFooter = (pageNumber: number) => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(161, 161, 170);
+      doc.text(`NutritivApp Premium Plan - Página ${pageNumber}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    };
 
-      shoppingList.categories.forEach(cat => {
-        shoppingData.push([{ 
-          content: cat.name.toUpperCase(), 
-          colSpan: 2, 
-          styles: { 
-            fillColor: [241, 245, 249], 
-            fontStyle: 'bold', 
-            textColor: accentColor,
-            fontSize: 12,
-            cellPadding: 5
-          } 
-        }]);
-        
-        cat.items.forEach(item => {
-          // Handle both old string format and new object format for backward compatibility
-          if (typeof item === 'string') {
-            shoppingData.push([`[ ]  ${item}`, '']);
-            return;
-          }
+    let pageNum = 1;
+    drawHeader('NutritivApp', `Lista de la Compra`, accentColor);
+    drawFooter(pageNum++);
+    let y = 65;
 
-          const price = item.price || 0;
-          totalPrice += price;
-          
-          let description = `[ ] ${item.name}\n    Mercadona: ${item.mercadonaProduct}`;
-          let priceText = `${price.toFixed(2)} €`;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+    doc.text('Ingredientes Necesarios', margin, y);
+    y += 10;
 
-          if (item.cheaperAlternative && item.cheaperPrice) {
-             description += `\n    Alternativa: ${item.cheaperAlternative}`;
-             priceText += `\n(${item.cheaperPrice.toFixed(2)} €)`;
-             totalCheaperPrice += item.cheaperPrice;
-          } else {
-             totalCheaperPrice += price;
-          }
+    const shoppingData: any[] = [];
+    let totalPrice = 0;
 
-          shoppingData.push([{ 
-            content: description, 
-            url: item.url,
-            styles: item.url ? { textColor: [59, 130, 246] } : {} // Blue color for links
-          }, { 
-            content: priceText, 
-            styles: { halign: 'right' } 
-          }]);
-        });
+    shoppingList.categories.forEach(cat => {
+      shoppingData.push([{ 
+        content: cat.name.toUpperCase(), 
+        colSpan: 1, 
+        styles: { 
+          fillColor: [241, 245, 249], 
+          fontStyle: 'bold', 
+          textColor: accentColor,
+          fontSize: 12,
+          cellPadding: 5
+        } 
+      }]);
+      
+      cat.items.forEach(item => {
+        shoppingData.push([
+          { content: `[ ] ${item.name} (${item.amount})` }
+        ]);
       });
+    });
 
-      if (totalPrice > 0) {
-        shoppingData.push([{
-          content: `TOTAL ESTIMADO`,
-          styles: { fontStyle: 'bold', halign: 'right', fillColor: [241, 245, 249] }
-        }, {
-          content: `${totalPrice.toFixed(2)} €\n(Optimizando: ${totalCheaperPrice.toFixed(2)} €)`,
-          styles: { fontStyle: 'bold', halign: 'right', fillColor: [241, 245, 249] }
-        }]);
-      }
+    autoTable(doc, {
+      startY: y,
+      head: [['ARTÍCULO']],
+      body: shoppingData,
+      theme: 'plain',
+      styles: {
+        fontSize: 10,
+        cellPadding: 4,
+        textColor: textColor as [number, number, number]
+      },
+      headStyles: {
+        fillColor: accentColor as [number, number, number],
+        textColor: [255, 255, 255],
+        fontSize: 11,
+        fontStyle: 'bold'
+      },
+      columnStyles: {
+        0: { cellWidth: contentWidth }
+      },
+      margin: { left: margin, right: margin }
+    });
 
-      autoTable(doc, {
-        startY: y,
-        head: [['ARTÍCULO', 'PRECIO']],
-        body: shoppingData,
-        theme: 'plain',
-        styles: {
-          fontSize: 10,
-          cellPadding: 4,
-          textColor: textColor as [number, number, number]
-        },
-        headStyles: {
-          fillColor: accentColor as [number, number, number],
-          textColor: [255, 255, 255],
-          fontSize: 11,
-          fontStyle: 'bold'
-        },
-        columnStyles: {
-          0: { cellWidth: 'auto' },
-          1: { cellWidth: 40, halign: 'right' }
-        },
-        margin: { left: margin, right: margin },
-        didDrawCell: (data) => {
-          if (data.cell.raw && (data.cell.raw as any).url && data.column.index === 0) {
-            doc.link(data.cell.x, data.cell.y, data.cell.width, data.cell.height, { url: (data.cell.raw as any).url });
-          }
-        }
-      });
-    }
-
-    doc.save(`NutriVision_Plan_Premium_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`NutritivApp_Compra_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const handleRecalculateMacros = async () => {
@@ -696,9 +918,16 @@ export default function App() {
       const remainingProtein = goals.protein - totals.protein;
       const remainingCarbs = goals.carbs - totals.carbs;
       const remainingFat = goals.fat - totals.fat;
+      
+      let foodDescription = editingMeal.foodName;
+      if (editingMeal.ingredients && editingMeal.ingredients.length > 0) {
+        const ingredientsList = editingMeal.ingredients.map(i => `${i.name}: ${i.amount}`).join(', ');
+        foodDescription = `${editingMeal.foodName} (Ingredientes: ${ingredientsList})`;
+      }
+
       const contextStr = `Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas. Dieta: ${profile.dietType}.`;
 
-      const newMacros = await recalculateFoodMacros(editingMeal.foodName, contextStr);
+      const newMacros = await recalculateFoodMacros(foodDescription, contextStr);
       setEditingMeal({
         ...editingMeal,
         ...newMacros
@@ -732,6 +961,7 @@ export default function App() {
   const handleGenerateMenu = async () => {
     if (profile.age === 0) return;
     setIsGeneratingMenu(true);
+    setShoppingList(null);
     setAppError(null);
     try {
       const profileStr = `Edad: ${profile.age}, Peso: ${weights.length > 0 ? weights[weights.length - 1].weight : 'No especificado'}kg, Altura: ${profile.height}cm, Género: ${profile.gender}, Nivel de actividad: ${profile.activityLevel}, Objetivo: ${profile.goal}, Distribución de macros: ${profile.macroDistribution}, Calorías objetivo: ${goals.calories}kcal (${goals.protein}g Proteína, ${goals.carbs}g Carbohidratos, ${goals.fat}g Grasas).`;
@@ -739,51 +969,39 @@ export default function App() {
       
       const menu = await generateWeeklyMenu(profileStr, preferencesStr);
       setGeneratedMenu(menu);
-      localStorage.setItem('nutrivision_generated_menu', JSON.stringify(menu));
       
       // Automatically generate shopping list as well
-      const list = await generateShoppingList(menu);
-      setShoppingList(list);
-      localStorage.setItem('nutrivision_shopping_list', JSON.stringify(list));
+      setIsGeneratingShoppingList(true);
+      try {
+        const list = await generateShoppingList(menu);
+        setShoppingList(list);
+      } catch (err) {
+        console.error("Error generating initial shopping list:", err);
+      } finally {
+        setIsGeneratingShoppingList(false);
+      }
       
     } catch (error) {
-      console.error("Error generating menu or shopping list:", error);
+      console.error("Error generating menu:", error);
       setAppError("Error al generar el plan. Inténtalo de nuevo.");
     } finally {
       setIsGeneratingMenu(false);
     }
   };
 
-  const handleFridgeScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsScanningFridge(true);
-    setIsFridgeModalOpen(true);
-    setFridgeRecipe(null);
-
+  const handleGenerateShoppingList = async () => {
+    if (!generatedMenu) return;
+    setIsGeneratingShoppingList(true);
+    setShoppingList(null);
+    setAppError(null);
     try {
-      const base64String = await compressImage(file);
-      const base64Data = base64String.split(',')[1];
-
-      const remainingCalories = goals.calories - totals.calories;
-      const remainingProtein = goals.protein - totals.protein;
-      const remainingCarbs = goals.carbs - totals.carbs;
-      const remainingFat = goals.fat - totals.fat;
-
-      const contextStr = `Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas. Dieta: ${profile.dietType}, Alergias: ${profile.allergies || 'Ninguna'}, No le gusta: ${profile.dislikedFoods || 'Nada'}.`;
-
-      const recipe = await generateFridgeRecipe(base64Data, 'image/jpeg', contextStr);
-      setFridgeRecipe(recipe);
+      const list = await generateShoppingList(generatedMenu);
+      setShoppingList(list);
     } catch (error) {
-      console.error("Error scanning fridge:", error);
-      setFridgeRecipe("Hubo un error al analizar los ingredientes.");
+      console.error("Error generating shopping list:", error);
+      setAppError("Error al generar la lista de la compra. Inténtalo de nuevo.");
     } finally {
-      setIsScanningFridge(false);
-    }
-    
-    if (fridgeFileInputRef.current) {
-      fridgeFileInputRef.current.value = '';
+      setIsGeneratingShoppingList(false);
     }
   };
 
@@ -928,6 +1146,16 @@ export default function App() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      // Clear localStorage on logout
+      localStorage.removeItem('nutritivapp_meals');
+      localStorage.removeItem('nutritivapp_weights');
+      localStorage.removeItem('nutritivapp_goals');
+      localStorage.removeItem('nutritivapp_profile');
+      localStorage.removeItem('nutritivapp_habits');
+      localStorage.removeItem('nutritivapp_generated_menu');
+      localStorage.removeItem('nutritivapp_shopping_list');
+      localStorage.removeItem('nutritivapp_chat');
+
       // Reset state on logout
       setMeals([]);
       setWeights([]);
@@ -946,6 +1174,9 @@ export default function App() {
       setHabits({});
       setGeneratedMenu(null);
       setShoppingList(null);
+      setChatMessages([
+        { role: 'model', parts: [{ text: '¡Hola! Soy tu entrenador y nutricionista personal. ¿En qué te puedo ayudar hoy?' }] }
+      ]);
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -959,7 +1190,6 @@ export default function App() {
     );
   }
 
-  /* 
   if (!user) {
     return (
       <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-zinc-950 flex flex-col items-center justify-center p-6">
@@ -968,11 +1198,11 @@ export default function App() {
           animate={{ opacity: 1, y: 0 }}
           className="max-w-md w-full bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-3xl p-8 text-center"
         >
-          <div className="w-20 h-20 bg-lime-400/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <Zap className="w-10 h-10 text-lime-400" fill="currentColor" />
+          <div className="w-20 h-20 bg-lime-400 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-lime-400/20">
+            <Banana className="w-12 h-12 text-zinc-950" />
           </div>
           <h1 className="text-4xl font-display font-black tracking-tighter text-white mb-2">
-            NUTRI<span className="text-lime-400">VISION</span>
+            Nutritiv<span className="text-lime-400">App</span>
           </h1>
           <p className="text-zinc-400 mb-8">Tu entrenador y nutricionista personal impulsado por IA.</p>
           
@@ -992,21 +1222,20 @@ export default function App() {
       </div>
     );
   }
-  */
 
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-zinc-950 text-zinc-50 pb-24 font-sans selection:bg-lime-500/30">
       {/* Header */}
-      <header className="pt-12 pb-6 px-6 sticky top-0 bg-zinc-950/60 backdrop-blur-2xl z-10 border-b border-white/5">
+      <header className="pt-12 pb-6 px-6 sticky top-0 bg-zinc-950/60 backdrop-blur-2xl z-50 border-b border-white/5">
         <div className="flex items-center justify-between max-w-md mx-auto">
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className="flex flex-col"
           >
-            <h1 className="text-2xl font-display font-black tracking-tighter text-white flex items-center gap-1">
-              NUTRI<span className="text-lime-400">VISION</span>
-              <Zap className="w-5 h-5 text-lime-400 ml-1" fill="currentColor" />
+            <h1 className="text-2xl font-display font-black tracking-tighter text-white flex items-center gap-2">
+              <Banana className="w-6 h-6 text-lime-400 fill-lime-400/20" />
+              Nutritiv<span className="text-lime-400">App</span>
             </h1>
             <p className="text-zinc-400 text-xs font-semibold tracking-widest uppercase mt-0.5">Rendimiento Diario</p>
           </motion.div>
@@ -1015,7 +1244,11 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               onClick={() => { 
-                setEditProfile(profile);
+                setEditProfile({
+                  ...profile,
+                  allergies: profile.allergies || '',
+                  dislikedFoods: profile.dislikedFoods || ''
+                });
                 const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
                 setEditWeight(latestWeight);
                 setIsGoalModalOpen(true); 
@@ -1077,7 +1310,11 @@ export default function App() {
                     <p className="text-zinc-400 text-xs mb-3">Tu peso no ha variado significativamente en las últimas 2 semanas. ¿Quieres ajustar tus calorías objetivo?</p>
                     <button 
                       onClick={() => {
-                        setEditProfile(profile);
+                        setEditProfile({
+                          ...profile,
+                          allergies: profile.allergies || '',
+                          dislikedFoods: profile.dislikedFoods || ''
+                        });
                         const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
                         setEditWeight(latestWeight);
                         setIsGoalModalOpen(true);
@@ -1090,139 +1327,118 @@ export default function App() {
                 </div>
               )}
 
-              {/* Bento Grid Dashboard */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Calories Bento (Large) */}
-                <div className="col-span-2 bento-item flex flex-col items-center justify-center relative overflow-hidden min-h-[300px]">
-                  <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-lime-400/30 to-transparent"></div>
-                  <div className="absolute -top-24 -right-24 w-48 h-48 bg-lime-400/10 rounded-full blur-3xl"></div>
+              {/* Assistant Header */}
+              <div className="bg-zinc-900/50 border border-white/5 rounded-3xl p-6 relative overflow-hidden">
+                {/* Background glow based on state */}
+                <div className={`absolute -top-24 -right-24 w-48 h-48 rounded-full blur-3xl ${
+                  assistant.stateType === 'good' || assistant.stateType === 'start' ? 'bg-lime-400/10' :
+                  assistant.stateType === 'over' ? 'bg-rose-400/10' :
+                  'bg-amber-400/10'
+                }`}></div>
+                
+                <div className="relative z-10 text-center">
+                  <h2 className="text-6xl font-display font-black text-white mb-2 tracking-tighter">
+                    {Math.round(assistant.remainingCalories)}
+                  </h2>
+                  <p className="text-zinc-400 font-medium uppercase tracking-widest text-xs mb-6">Kcal Restantes</p>
                   
-                  <div className="relative w-48 h-48 flex items-center justify-center">
-                    <svg className="w-full h-full transform -rotate-90 drop-shadow-[0_0_15px_rgba(163,230,53,0.3)]" viewBox="0 0 100 100">
-                      <circle cx="50" cy="50" r="45" className="stroke-zinc-800/50" strokeWidth="6" fill="none" />
-                      <motion.circle
-                        cx="50" cy="50" r="45" className="stroke-lime-400" strokeWidth="8" fill="none" strokeLinecap="round"
-                        initial={{ strokeDasharray: "0 283" }}
-                        animate={{ strokeDasharray: `${Math.min((totals.calories / goals.calories) * 283, 283)} 283` }}
-                        transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
-                      />
-                    </svg>
-                    <div className="absolute flex flex-col items-center justify-center text-center">
-                      <Flame className="w-5 h-5 text-lime-400 mb-1 animate-pulse" fill="currentColor" />
-                      <span className="text-5xl font-display font-black text-white tracking-tighter text-glow-lime">
-                        {Math.round(totals.calories)}
-                      </span>
-                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">
-                        Meta: {goals.calories} kcal
-                      </span>
+                  <div className={`inline-block backdrop-blur-md border rounded-2xl px-6 py-4 ${
+                    assistant.stateType === 'good' || assistant.stateType === 'start' ? 'bg-lime-500/10 border-lime-500/20' :
+                    assistant.stateType === 'over' ? 'bg-rose-500/10 border-rose-500/20' :
+                    'bg-amber-500/10 border-amber-500/20'
+                  }`}>
+                    <h3 className={`text-xl font-bold mb-1 ${
+                      assistant.stateType === 'good' || assistant.stateType === 'start' ? 'text-lime-400' :
+                      assistant.stateType === 'over' ? 'text-rose-400' :
+                      'text-amber-400'
+                    }`}>
+                      {assistant.message}
+                    </h3>
+                    <p className="text-sm text-zinc-300">{assistant.subMessage}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Próximo paso */}
+              {meals.length > 0 && (meals[0].actionableRecommendation || meals[0].recommendations) && (
+                <div>
+                  <h3 className="text-lg font-display font-bold text-white tracking-tight uppercase mb-4">Próximo paso</h3>
+                  <div className="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-4 flex items-start gap-4">
+                    <div className="text-3xl bg-blue-500/10 text-blue-400 p-3 rounded-xl border border-blue-500/20 flex items-center justify-center w-14 h-14 shrink-0">
+                      <Info className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-blue-400 text-sm mb-1">Sugerencia del Coach</h4>
+                      <p className="text-xs text-zinc-300 leading-relaxed">{meals[0].actionableRecommendation || meals[0].recommendations}</p>
                     </div>
                   </div>
                 </div>
+              )}
 
-                {/* Protein Bento */}
-                <div className="bento-item flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <div className="p-2 bg-blue-500/10 rounded-lg">
-                      <Beef className="w-4 h-4 text-blue-400" />
-                    </div>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase">Proteína</span>
-                  </div>
-                  <div className="mt-4">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-2xl font-display font-bold text-white">{Math.round(totals.protein)}</span>
-                      <span className="text-xs text-zinc-500">/ {goals.protein}g</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-zinc-800 rounded-full mt-2 overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.min((totals.protein / goals.protein) * 100, 100)}%` }}
-                        className="h-full bg-blue-400"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Carbs Bento */}
-                <div className="bento-item flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <div className="p-2 bg-amber-500/10 rounded-lg">
-                      <Wheat className="w-4 h-4 text-amber-400" />
-                    </div>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase">Carbos</span>
-                  </div>
-                  <div className="mt-4">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-2xl font-display font-bold text-white">{Math.round(totals.carbs)}</span>
-                      <span className="text-xs text-zinc-500">/ {goals.carbs}g</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-zinc-800 rounded-full mt-2 overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.min((totals.carbs / goals.carbs) * 100, 100)}%` }}
-                        className="h-full bg-amber-400"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Fats Bento */}
-                <div className="bento-item flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <div className="p-2 bg-rose-500/10 rounded-lg">
-                      <Droplet className="w-4 h-4 text-rose-400" />
-                    </div>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase">Grasas</span>
-                  </div>
-                  <div className="mt-4">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-2xl font-display font-bold text-white">{Math.round(totals.fat)}</span>
-                      <span className="text-xs text-zinc-500">/ {goals.fat}g</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-zinc-800 rounded-full mt-2 overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${Math.min((totals.fat / goals.fat) * 100, 100)}%` }}
-                        className="h-full bg-rose-400"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Water Tracker Bento */}
-                <div className="bento-item flex flex-col justify-between relative overflow-hidden">
-                  <div className="flex items-center justify-between z-10">
-                    <div className="p-2 bg-sky-500/10 rounded-lg">
-                      <Activity className="w-4 h-4 text-sky-400" />
-                    </div>
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase">Hidratación</span>
-                  </div>
-                  
-                  <div className="mt-4 z-10">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-2xl font-display font-bold text-white">{todayHabits.water}</span>
-                      <span className="text-xs text-zinc-500">/ 8 vasos</span>
-                    </div>
-                    <div className="flex gap-1 mt-3">
-                      {[...Array(8)].map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => updateHabit('water', i + 1 === todayHabits.water ? i : i + 1)}
-                          className={`flex-1 h-6 rounded-md transition-all ${i < todayHabits.water ? 'bg-sky-400 shadow-[0_0_10px_rgba(56,189,248,0.4)]' : 'bg-zinc-800 hover:bg-zinc-700'}`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Water Wave Animation */}
-                  <motion.div 
-                    animate={{ 
-                      y: [0, -5, 0],
-                      rotate: [0, 2, 0]
+              {/* Primary Food Entry */}
+              <div className="bg-zinc-900/80 border border-white/10 rounded-3xl p-5 shadow-xl">
+                <h3 className="text-lg font-display font-bold text-white tracking-tight uppercase mb-4">Añadir Comida</h3>
+                
+                {/* Text Input */}
+                <div className="relative mb-4">
+                  <input
+                    type="text"
+                    placeholder="Ej: He comido arroz con pollo..."
+                    className="w-full bg-zinc-950 border border-white/10 rounded-2xl pl-4 pr-14 py-4 text-white placeholder:text-zinc-500 focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400 transition-all text-base"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleTextFoodSubmit(e.currentTarget.value);
+                        e.currentTarget.value = '';
+                      }
                     }}
-                    transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-                    className="absolute bottom-0 left-0 right-0 h-1/2 bg-sky-500/5 -z-0 blur-xl pointer-events-none"
                   />
+                  <button 
+                    className="absolute right-2 top-2 bottom-2 bg-lime-400 text-zinc-950 px-4 rounded-xl hover:bg-lime-300 transition-colors flex items-center justify-center"
+                    onClick={() => {
+                      const input = document.querySelector('input[placeholder="Ej: He comido arroz con pollo..."]') as HTMLInputElement;
+                      if (input && input.value) {
+                        handleTextFoodSubmit(input.value);
+                        input.value = '';
+                      }
+                    }}
+                  >
+                    <Send className="w-5 h-5" />
+                  </button>
                 </div>
+
+                {/* Quick Buttons */}
+                <div className="grid grid-cols-3 gap-2 mb-4 hidden">
+                  <button 
+                    onClick={() => handleTextFoodSubmit("Comida ligera")} 
+                    className="flex flex-col items-center justify-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 p-3 rounded-2xl transition-colors border border-white/5"
+                  >
+                    <span className="text-xl">🥗</span>
+                    <span className="text-xs font-medium">Ligera</span>
+                  </button>
+                  <button 
+                    onClick={() => handleTextFoodSubmit("Comida normal")} 
+                    className="flex flex-col items-center justify-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 p-3 rounded-2xl transition-colors border border-white/5"
+                  >
+                    <span className="text-xl">🍽️</span>
+                    <span className="text-xs font-medium">Normal</span>
+                  </button>
+                  <button 
+                    onClick={() => handleTextFoodSubmit("Comida fuerte")} 
+                    className="flex flex-col items-center justify-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 p-3 rounded-2xl transition-colors border border-white/5"
+                  >
+                    <span className="text-xl">🥩</span>
+                    <span className="text-xs font-medium">Fuerte</span>
+                  </button>
+                </div>
+
+                {/* Camera Option */}
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 bg-zinc-950 text-zinc-400 hover:text-white p-4 rounded-2xl transition-colors border border-white/5"
+                >
+                  <Camera className="w-5 h-5" />
+                  <span className="text-sm font-medium">Escanear con cámara (Opcional)</span>
+                </button>
               </div>
 
         {/* Meal List */}
@@ -1325,18 +1541,20 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* Confidence Details (if not high) */}
+                          {/* Coach Analysis */}
                           <div className="mt-1 pt-3 border-t border-zinc-800/50 text-xs space-y-2">
-                            {meal.healthAnalysis && (
+                            {(meal.interpretation || meal.isHealthy !== undefined) && (
+                              <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-800/50 text-zinc-300">
+                                <Activity className="w-3 h-3 text-lime-400" />
+                                {meal.interpretation || (meal.isHealthy ? 'Equilibrado' : 'A tener en cuenta')}
+                              </div>
+                            )}
+                            {(meal.coachMessage || meal.healthAnalysis) && (
                               <p className="text-zinc-400 leading-relaxed">
-                                <span className={`font-semibold ${meal.isHealthy ? 'text-emerald-400' : 'text-amber-400'}`}>Análisis:</span> {meal.healthAnalysis}
+                                <span className="font-semibold text-lime-400">Coach:</span> {meal.coachMessage || meal.healthAnalysis}
                               </p>
                             )}
-                            {meal.recommendations && (
-                              <p className="text-zinc-400 leading-relaxed">
-                                <span className="font-semibold text-blue-400">Sugerencia para hoy:</span> {meal.recommendations}
-                              </p>
-                            )}
+
                             {(meal.confidence === 'media' || meal.confidence === 'baja') && (
                               <>
                                 <p className="text-zinc-400 leading-relaxed">
@@ -1367,40 +1585,20 @@ export default function App() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-8 pb-8"
             >
-              {/* Weekly Summary */}
-              <section className="space-y-6">
-                <div className="bg-gradient-to-b from-zinc-900/80 to-zinc-900/30 rounded-[2rem] p-8 border border-white/5 flex flex-col items-center justify-center relative overflow-hidden shadow-xl">
-                  <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-lime-400/30 to-transparent"></div>
-                  <div className="absolute -top-24 -right-24 w-48 h-48 bg-lime-400/10 rounded-full blur-3xl"></div>
-                  
-                  <div className="relative w-52 h-52 flex items-center justify-center">
-                    <svg className="w-full h-full transform -rotate-90 drop-shadow-[0_0_10px_rgba(163,230,53,0.3)]" viewBox="0 0 100 100">
-                      <circle cx="50" cy="50" r="45" className="stroke-zinc-800/80" strokeWidth="6" fill="none" />
-                      <motion.circle
-                        cx="50" cy="50" r="45" className="stroke-lime-400" strokeWidth="8" fill="none" strokeLinecap="round"
-                        initial={{ strokeDasharray: "0 283" }}
-                        animate={{ strokeDasharray: `${Math.min((weeklyStats.calories / weeklyGoals.calories) * 283, 283)} 283` }}
-                        transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
-                      />
-                    </svg>
-                    <div className="absolute flex flex-col items-center justify-center text-center">
-                      <Flame className="w-6 h-6 text-lime-400 mb-1 drop-shadow-[0_0_8px_rgba(163,230,53,0.8)]" />
-                      <span className="text-4xl font-display font-black text-white tracking-tighter">
-                        {Math.round(weeklyStats.calories)}
-                      </span>
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">
-                        / {weeklyGoals.calories} kcal<br/>(Semana)
-                      </span>
-                    </div>
-                  </div>
+              {/* Coach Weekly Advice */}
+              <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-3xl p-6 flex items-start gap-4">
+                <div className="p-3 bg-indigo-500/20 rounded-2xl">
+                  <Bot className="w-6 h-6 text-indigo-400" />
                 </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <MacroCard icon={<Beef className="w-4 h-4 text-blue-400" />} label="Proteínas" current={weeklyStats.protein} goal={weeklyGoals.protein} color="bg-blue-400" bgGradient="from-blue-500/10 to-zinc-900/40" borderColor="border-blue-500/10" unit="g" />
-                  <MacroCard icon={<Wheat className="w-4 h-4 text-amber-400" />} label="Hidratos" current={weeklyStats.carbs} goal={weeklyGoals.carbs} color="bg-amber-400" bgGradient="from-amber-500/10 to-zinc-900/40" borderColor="border-amber-500/10" unit="g" />
-                  <MacroCard icon={<Droplet className="w-4 h-4 text-rose-400" />} label="Grasas" current={weeklyStats.fat} goal={weeklyGoals.fat} color="bg-rose-400" bgGradient="from-rose-500/10 to-zinc-900/40" borderColor="border-rose-500/10" unit="g" />
+                <div>
+                  <h3 className="text-indigo-400 font-bold text-lg mb-1">Consejo del Coach</h3>
+                  <p className="text-zinc-300 text-sm leading-relaxed">
+                    {weeklyStats.calories > weeklyGoals.calories 
+                      ? "Esta semana has superado ligeramente tu objetivo calórico. No te preocupes, mantén la constancia y prioriza proteínas en tus próximas comidas para equilibrar."
+                      : "Vas por muy buen camino esta semana. Tu adherencia al plan es excelente. Sigue así para ver resultados consistentes en tu composición corporal."}
+                  </p>
                 </div>
-              </section>
+              </div>
 
               {/* Trends Panel */}
               <section>
@@ -1477,7 +1675,7 @@ export default function App() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-6 pb-8"
+              className="space-y-6 pb-32"
             >
               {profile.age === 0 ? (
                 <div className="bg-zinc-900/80 rounded-[2rem] p-8 border border-white/5 text-center">
@@ -1486,7 +1684,11 @@ export default function App() {
                   <p className="text-zinc-400 text-sm mb-6">Introduce tu edad, peso y altura en la configuración para calcular tus macros y recibir un plan personalizado.</p>
                   <button 
                     onClick={() => { 
-                      setEditProfile(profile);
+                      setEditProfile({
+                        ...profile,
+                        allergies: profile.allergies || '',
+                        dislikedFoods: profile.dislikedFoods || ''
+                      });
                       const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
                       setEditWeight(latestWeight);
                       setIsGoalModalOpen(true); 
@@ -1498,65 +1700,96 @@ export default function App() {
                 </div>
               ) : (
                 <>
-                  {/* Fridge Scanner Button */}
-                  <section>
-                    <button 
-                      onClick={() => fridgeFileInputRef.current?.click()}
-                      className="w-full bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 border border-emerald-500/30 rounded-3xl p-6 flex items-center justify-between transition-all group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-emerald-500/20 rounded-2xl group-hover:scale-110 transition-transform">
-                          <ChefHat className="w-6 h-6 text-emerald-400" />
-                        </div>
-                        <div className="text-left">
-                          <h3 className="text-emerald-400 font-bold text-lg">Cocinando con lo que hay</h3>
-                          <p className="text-zinc-400 text-xs mt-1">Sube una foto de tu nevera y la IA creará una receta para tus macros restantes.</p>
-                        </div>
-                      </div>
-                      <Camera className="w-5 h-5 text-emerald-400 opacity-50 group-hover:opacity-100 transition-opacity" />
-                    </button>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      capture="environment"
-                      className="hidden" 
-                      ref={fridgeFileInputRef}
-                      onChange={handleFridgeScan}
-                    />
-                  </section>
-
                   <div className="bg-gradient-to-br from-lime-400/10 to-zinc-900/80 rounded-[2rem] p-6 border border-lime-400/20">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center gap-3">
                         <Utensils className="w-6 h-6 text-lime-400" />
                         <h2 className="text-xl font-display font-bold text-white uppercase tracking-tight">Plan Nutricional</h2>
                       </div>
-                      <div className="flex gap-2">
-                        {generatedMenu && (
-                          <button 
-                            onClick={downloadMenuPDF}
-                            className="bg-lime-400/20 hover:bg-lime-400/30 text-lime-400 p-2 rounded-xl transition-colors"
-                            title="Descargar PDF"
-                          >
-                            <Download className="w-5 h-5" />
-                          </button>
-                        )}
-                        <button 
-                          onClick={handleGenerateMenu}
-                          disabled={isGeneratingMenu}
-                          className="bg-lime-400/20 hover:bg-lime-400/30 text-lime-400 p-2 rounded-xl transition-colors disabled:opacity-50"
-                          title="Regenerar Plan Nutricional"
-                        >
-                          {isGeneratingMenu ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
-                        </button>
-                      </div>
                     </div>
                     {generatedMenu ? (
                       <div className="space-y-6">
-                        <div className="text-center py-8 bg-zinc-950/30 rounded-2xl border border-white/5">
+                        <div className="bg-zinc-950/30 rounded-2xl border border-white/5 p-6 text-center">
                           <CheckCircle2 className="w-12 h-12 text-lime-400 mx-auto mb-3 opacity-50" />
-                          <p className="text-zinc-300 font-bold mb-4">¡Plan y lista de compra listos!</p>
-                          <p className="text-zinc-500 text-xs mb-6 px-8">Usa el botón de descarga en la parte superior derecha para obtener tu plan completo en PDF.</p>
+                          <p className="text-zinc-300 font-bold mb-2">¡Plan y lista de compra listos!</p>
+                          <p className="text-zinc-500 text-xs mb-6 px-4">Tu plan nutricional personalizado y la lista de la compra optimizada ya están disponibles.</p>
+                          
+                          <div className="grid grid-cols-2 gap-3">
+                            <button 
+                              type="button"
+                              onClick={downloadMenuPDF}
+                              className="flex flex-col items-center gap-2 bg-lime-400/10 hover:bg-lime-400/20 text-lime-400 p-4 rounded-2xl border border-lime-400/20 transition-all group"
+                            >
+                              <Download className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                              <span className="text-[10px] font-bold uppercase tracking-widest">Descargar Plan</span>
+                            </button>
+                            <button 
+                              onClick={handleGenerateMenu}
+                              disabled={isGeneratingMenu}
+                              className="flex flex-col items-center gap-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 p-4 rounded-2xl border border-white/5 transition-all group disabled:opacity-50"
+                            >
+                              {isGeneratingMenu ? <Loader2 className="w-6 h-6 animate-spin" /> : <RefreshCw className="w-6 h-6 group-hover:rotate-180 transition-transform duration-500" />}
+                              <span className="text-[10px] font-bold uppercase tracking-widest">Regenerar Plan</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Unified Shopping List Section */}
+                        <div className="bg-zinc-900/50 rounded-3xl p-6 border border-white/5 space-y-6">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+                              <ShoppingCart className="w-6 h-6 text-emerald-400" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <h2 className="text-xl font-bold text-white">Lista de la Compra</h2>
+                                {generatedMenu && (
+                                  <button
+                                    onClick={handleGenerateShoppingList}
+                                    disabled={isGeneratingShoppingList}
+                                    className="p-2 rounded-xl bg-zinc-800/50 text-zinc-400 hover:text-lime-400 transition-colors disabled:opacity-50"
+                                    title="Regenerar lista de la compra"
+                                  >
+                                    <RefreshCw className={`w-4 h-4 ${isGeneratingShoppingList ? 'animate-spin' : ''}`} />
+                                  </button>
+                                )}
+                              </div>
+                              <p className="text-zinc-400 text-sm">Lista de ingredientes necesarios</p>
+                            </div>
+                          </div>
+
+                          {!shoppingList || isGeneratingShoppingList ? (
+                            <div className="text-center py-4">
+                              <Loader2 className="w-8 h-8 text-lime-400 animate-spin mx-auto mb-2" />
+                              <p className="text-zinc-500 text-xs">
+                                {isGeneratingShoppingList ? 'Generando lista...' : 'Cargando lista de la compra...'}
+                              </p>
+                            </div>
+                          ) : shoppingList.categories.length === 0 ? (
+                            <div className="text-center py-8 bg-zinc-950/50 rounded-2xl border border-white/5">
+                              <Info className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
+                              <p className="text-zinc-400 text-sm">No se han podido detectar ingredientes.</p>
+                              <p className="text-zinc-600 text-[10px] mt-1">Intenta generar el menú de nuevo.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-center">
+                                <p className="text-emerald-400 text-sm font-medium mb-1">¡Lista generada con éxito!</p>
+                                <p className="text-zinc-400 text-xs mb-4">Descarga el PDF para ver todos los ingredientes y cantidades necesarias para tu menú semanal.</p>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    downloadShoppingListPDF();
+                                  }}
+                                  className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-emerald-500 text-zinc-950 hover:bg-emerald-400 transition-colors font-bold text-xs uppercase tracking-widest"
+                                >
+                                  <Download className="w-4 h-4" />
+                                  Descargar PDF
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ) : (
@@ -1579,29 +1812,6 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      {/* FAB */}
-      <div className="fixed bottom-6 left-0 right-0 flex justify-center z-20 pointer-events-none px-6">
-        <div className="max-w-md w-full flex justify-center">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            animate={{ 
-              boxShadow: [
-                "0 0 20px -5px rgba(163,230,53,0.4)", 
-                "0 0 40px 0px rgba(163,230,53,0.6)", 
-                "0 0 20px -5px rgba(163,230,53,0.4)"
-              ] 
-            }}
-            transition={{ boxShadow: { repeat: Infinity, duration: 2 } }}
-            onClick={() => fileInputRef.current?.click()}
-            className="pointer-events-auto flex items-center gap-2 bg-lime-400 text-zinc-950 px-8 py-4 rounded-full font-display font-black tracking-wide transition-colors"
-          >
-            <Camera className="w-5 h-5" />
-            <span>ANALIZAR COMIDA</span>
-          </motion.button>
-        </div>
-      </div>
-
       <input
         type="file"
         accept="image/*"
@@ -1623,17 +1833,25 @@ export default function App() {
             <div className="w-full max-w-sm space-y-8 flex flex-col items-center">
               <div className="relative w-64 h-64 rounded-3xl overflow-hidden shadow-2xl border border-zinc-800 bg-zinc-900 flex items-center justify-center">
                 {previewImage ? (
-                  <img src={previewImage} alt="Preview" className="w-full h-full object-cover opacity-50" />
+                  <>
+                    <img src={previewImage} alt="Preview" className="w-full h-full object-cover opacity-50" />
+                    {/* Scanning animation */}
+                    <motion.div
+                      className="absolute inset-0 border-t-2 border-lime-400 bg-gradient-to-b from-lime-400/20 to-transparent"
+                      animate={{ y: ["-100%", "100%"] }}
+                      transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                    />
+                  </>
                 ) : (
-                  <Camera className="w-16 h-16 text-zinc-700" />
+                  <div className="flex flex-col items-center gap-4">
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                    >
+                      <Bot className="w-16 h-16 text-lime-400" />
+                    </motion.div>
+                  </div>
                 )}
-                
-                {/* Scanning animation */}
-                <motion.div
-                  className="absolute inset-0 border-t-2 border-lime-400 bg-gradient-to-b from-lime-400/20 to-transparent"
-                  animate={{ y: ["-100%", "100%"] }}
-                  transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-                />
               </div>
               
               <div className="text-center space-y-2">
@@ -1669,7 +1887,7 @@ export default function App() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <form onSubmit={handleAddWeight} className="space-y-4">
+              <form onSubmit={handleAddWeight} className="space-y-4 pb-12">
                 <NumberInput
                   label="Peso (kg)"
                   value={newWeight}
@@ -1719,16 +1937,25 @@ export default function App() {
                 </button>
               </div>
               
-              <form onSubmit={handleSaveGoal} className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar">
-                <div className="grid grid-cols-1 gap-4">
+              <form onSubmit={handleSaveGoal} className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-24">
+                <div className="bg-lime-400/5 border border-lime-400/20 rounded-xl p-3">
+                  <div className="flex gap-2">
+                    <Info className="w-4 h-4 text-lime-400 shrink-0" />
+                    <p className="text-zinc-400 text-[10px] leading-relaxed">
+                      Calculamos automáticamente tus calorías y macros según tu objetivo y distribución seleccionada.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
                   <NumberInput
-                    label="Peso Actual (kg)"
+                    label="Peso (kg)"
                     value={editWeight}
                     onChange={setEditWeight}
                     step={0.1}
                     min={30}
                     max={300}
-                    placeholder="Ej. 75.5"
+                    placeholder="75.5"
                   />
                   <NumberInput
                     label="Altura (cm)"
@@ -1737,7 +1964,7 @@ export default function App() {
                     step={1}
                     min={100}
                     max={250}
-                    placeholder="Ej. 175"
+                    placeholder="175"
                   />
                   <NumberInput
                     label="Edad"
@@ -1746,14 +1973,14 @@ export default function App() {
                     step={1}
                     min={12}
                     max={120}
-                    placeholder="Ej. 42"
+                    placeholder="42"
                   />
                   <div>
-                    <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Género</label>
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Género</label>
                     <select 
                       value={editProfile.gender}
                       onChange={(e) => setEditProfile({...editProfile, gender: e.target.value as 'male' | 'female'})}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
                     >
                       <option value="male">Hombre</option>
                       <option value="female">Mujer</option>
@@ -1762,64 +1989,55 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Nivel de Actividad Física</label>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Nivel de Actividad</label>
                   <select 
                     value={editProfile.activityLevel}
                     onChange={(e) => setEditProfile({...editProfile, activityLevel: parseFloat(e.target.value)})}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
                   >
-                    <option value={1.2}>Sedentario (Poco o ningún ejercicio)</option>
-                    <option value={1.375}>Ligero (Ejercicio 1-3 días/sem)</option>
-                    <option value={1.55}>Moderado (Ejercicio 3-5 días/sem)</option>
-                    <option value={1.725}>Intenso (Ejercicio 6-7 días/sem)</option>
+                    <option value={1.2}>Sedentario</option>
+                    <option value={1.375}>Ligero (1-3 días/sem)</option>
+                    <option value={1.55}>Moderado (3-5 días/sem)</option>
+                    <option value={1.725}>Intenso (6-7 días/sem)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Objetivo</label>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Objetivo</label>
                   <select 
                     value={editProfile.goal}
                     onChange={(e) => setEditProfile({...editProfile, goal: e.target.value as any})}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
                   >
-                    <option value="lose">Perder Peso (Déficit -500 kcal)</option>
+                    <option value="lose">Perder Peso (-500 kcal)</option>
                     <option value="maintain">Mantener Peso</option>
-                    <option value="gain">Ganar Masa Muscular (Superávit +300 kcal)</option>
+                    <option value="gain">Ganar Músculo (+300 kcal)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Distribución de Macros</label>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Macros</label>
                   <select 
                     value={editProfile.macroDistribution}
                     onChange={(e) => setEditProfile({...editProfile, macroDistribution: e.target.value as any})}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
                   >
-                    <option value="balanced">Equilibrada (30% P, 40% C, 30% G)</option>
-                    <option value="low_carb">Baja en Carbohidratos (40% P, 20% C, 40% G)</option>
-                    <option value="high_protein">Alta en Proteínas (40% P, 30% C, 30% G)</option>
-                    <option value="keto">Cetogénica (25% P, 5% C, 70% G)</option>
+                    <option value="balanced">Equilibrada (30/40/30)</option>
+                    <option value="low_carb">Baja en Carbohidratos (40/20/40)</option>
+                    <option value="high_protein">Alta en Proteínas (40/30/30)</option>
+                    <option value="keto">Cetogénica (25/5/70)</option>
                   </select>
                 </div>
                 
-                <div className="bg-lime-400/5 border border-lime-400/20 rounded-2xl p-4">
-                  <div className="flex gap-3">
-                    <Info className="w-5 h-5 text-lime-400 shrink-0" />
-                    <p className="text-zinc-400 text-xs leading-relaxed">
-                      Calculamos automáticamente tus calorías y macros según tu objetivo y distribución seleccionada.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-4 pt-4 border-t border-zinc-800">
-                  <h4 className="text-sm font-bold text-white uppercase tracking-wider">Preferencias de Alimentación</h4>
-                  <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-3 pt-3 border-t border-zinc-800">
+                  <h4 className="text-[10px] font-bold text-white uppercase tracking-wider">Preferencias de Alimentación</h4>
+                  <div className="grid grid-cols-1 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Tipo de Dieta</label>
+                      <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Tipo de Dieta</label>
                       <select 
                         value={editProfile.dietType}
                         onChange={(e) => setEditProfile({...editProfile, dietType: e.target.value})}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
                       >
                         <option value="Normal">Normal (Omnívora)</option>
                         <option value="Vegetariana">Vegetariana</option>
@@ -1829,30 +2047,32 @@ export default function App() {
                         <option value="Paleo">Paleo</option>
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Alergias / Intolerancias</label>
-                      <input 
-                        type="text" 
-                        value={editProfile.allergies}
-                        onChange={(e) => setEditProfile({...editProfile, allergies: e.target.value})}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-500 transition-colors"
-                        placeholder="Ej. Gluten, Lactosa, Frutos secos"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Alimentos a Evitar</label>
-                      <input 
-                        type="text" 
-                        value={editProfile.dislikedFoods}
-                        onChange={(e) => setEditProfile({...editProfile, dislikedFoods: e.target.value})}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-500 transition-colors"
-                        placeholder="Ej. Brócoli, Pescado"
-                      />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Alergias</label>
+                        <input 
+                          type="text" 
+                          value={editProfile.allergies}
+                          onChange={(e) => setEditProfile({...editProfile, allergies: e.target.value})}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors"
+                          placeholder="Gluten..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">A Evitar</label>
+                        <input 
+                          type="text" 
+                          value={editProfile.dislikedFoods}
+                          onChange={(e) => setEditProfile({...editProfile, dislikedFoods: e.target.value})}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors"
+                          placeholder="Brócoli..."
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="sticky bottom-0 pt-4 bg-zinc-900 pb-2">
+                <div className="pt-4 border-t border-zinc-800">
                   <button 
                     type="submit"
                     disabled={!editWeight || !editProfile.age || !editProfile.height}
@@ -1890,7 +2110,7 @@ export default function App() {
                   <Bot className="w-5 h-5 text-indigo-400" />
                 </div>
                 <div>
-                  <h3 className="text-white font-bold text-sm">Coach NutriVision</h3>
+                  <h3 className="text-white font-bold text-sm">Coach NutritivApp</h3>
                   <p className="text-zinc-500 text-[10px] uppercase tracking-widest">En línea 24/7</p>
                 </div>
               </div>
@@ -1941,69 +2161,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Fridge Scanner Modal */}
-      <AnimatePresence>
-        {isFridgeModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6"
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 w-full max-w-lg max-h-[90vh] flex flex-col"
-            >
-              <div className="flex justify-between items-center mb-6 shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-emerald-500/20 rounded-xl">
-                    <ChefHat className="w-6 h-6 text-emerald-400" />
-                  </div>
-                  <h3 className="text-xl font-display font-bold text-white">Receta de Rescate</h3>
-                </div>
-                <button onClick={() => setIsFridgeModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                {isScanningFridge ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <div className="relative w-20 h-20 mb-6">
-                      <div className="absolute inset-0 border-4 border-emerald-500/20 rounded-full"></div>
-                      <div className="absolute inset-0 border-4 border-emerald-400 rounded-full border-t-transparent animate-spin"></div>
-                      <ChefHat className="absolute inset-0 m-auto w-8 h-8 text-emerald-400 animate-pulse" />
-                    </div>
-                    <p className="text-white font-bold text-lg mb-2">Analizando ingredientes...</p>
-                    <p className="text-zinc-400 text-sm max-w-xs">Buscando la receta perfecta para tus macros restantes.</p>
-                  </div>
-                ) : fridgeRecipe ? (
-                  <div className="prose prose-invert prose-sm max-w-none prose-p:text-zinc-400 prose-li:text-zinc-400 prose-headings:text-white prose-strong:text-emerald-400">
-                    <Markdown>{fridgeRecipe}</Markdown>
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <p className="text-zinc-500">No se pudo generar la receta.</p>
-                  </div>
-                )}
-              </div>
-              
-              {!isScanningFridge && (
-                <div className="mt-6 pt-4 border-t border-zinc-800 shrink-0">
-                  <button 
-                    onClick={() => setIsFridgeModalOpen(false)}
-                    className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-semibold py-3 rounded-xl transition-colors"
-                  >
-                    Cerrar
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
       {/* Edit Meal Modal */}
       <AnimatePresence>
         {editingMeal && (
@@ -2046,8 +2203,56 @@ export default function App() {
                   }
                   setEditingMeal(null);
                 }}
-                className="space-y-4"
+                className="space-y-4 pb-32"
               >
+                {/* Food Name & Ingredients (Configurable Parameters) */}
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Nombre de la comida</label>
+                  <div className="flex flex-col gap-4">
+                    <input 
+                      type="text" 
+                      value={editingMeal.foodName} 
+                      onChange={(e) => setEditingMeal({...editingMeal, foodName: e.target.value})}
+                      className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-400 transition-colors" 
+                      required 
+                    />
+                    
+                    {/* Interpretación Automática */}
+                    {(editingMeal.interpretation || editingMeal.isHealthy !== undefined) && (
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900 border border-white/10 text-xs font-medium text-zinc-300 w-fit">
+                        <Activity className="w-3.5 h-3.5 text-lime-400" />
+                        {editingMeal.interpretation || (editingMeal.isHealthy ? 'Comida equilibrada' : 'A tener en cuenta')}
+                      </div>
+                    )}
+                    
+                    {/* Ingredients Breakdown */}
+                    {editingMeal.ingredients && editingMeal.ingredients.length > 0 && (
+                      <div className="bg-zinc-950/50 rounded-2xl p-4 border border-white/5">
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-3">Desglose de Ingredientes</span>
+                        <div className="space-y-2">
+                          {editingMeal.ingredients.map((ing, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-xs gap-3">
+                              <span className="text-zinc-300 flex-1 truncate">{ing.name}</span>
+                              <input
+                                type="text"
+                                value={ing.amount}
+                                onChange={(e) => {
+                                  const newIngredients = [...editingMeal.ingredients!];
+                                  newIngredients[idx] = { ...ing, amount: e.target.value };
+                                  setEditingMeal({ ...editingMeal, ingredients: newIngredients });
+                                }}
+                                className="w-24 bg-zinc-900 border border-white/10 rounded-lg px-2 py-1.5 text-right text-lime-400 font-mono font-bold focus:outline-none focus:border-lime-400 transition-colors"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+
+                  </div>
+                </div>
+
                 {/* Macro Percentages */}
                 <div className="pb-2">
                   <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">
@@ -2098,106 +2303,49 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Ingredients Breakdown */}
-                {editingMeal.ingredients && editingMeal.ingredients.length > 0 && (
-                  <div className="bg-zinc-950/50 rounded-2xl p-4 border border-white/5">
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-3">Desglose de Ingredientes</span>
-                    <div className="space-y-2">
-                      {editingMeal.ingredients.map((ing, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-xs">
-                          <span className="text-zinc-300">{ing.name}</span>
-                          <span className="text-lime-400 font-mono font-bold">{ing.amount}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
+
+                {/* Read-Only Macros */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2">
-                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Nombre del Alimento</label>
-                    <input type="text" value={editingMeal.foodName} onChange={(e) => setEditingMeal({...editingMeal, foodName: e.target.value})} className="w-full bg-zinc-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-400 transition-colors" required />
+                  <div className="bg-zinc-900/50 p-3 rounded-xl border border-white/5">
+                    <span className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Calorías</span>
+                    <span className="text-lg font-display font-bold text-lime-400">{editingMeal.calories} <span className="text-xs text-zinc-500">kcal</span></span>
                   </div>
-                  <NumberInput
-                    label="Peso Total (g)"
-                    value={editingMeal.totalWeight}
-                    onChange={(val: string) => setEditingMeal({...editingMeal, totalWeight: parseFloat(val) || 0})}
-                    step={10}
-                    min={0}
-                    max={2000}
-                  />
-                  <NumberInput
-                    label="Calorías (kcal)"
-                    value={editingMeal.calories}
-                    onChange={(val: string) => setEditingMeal({...editingMeal, calories: parseFloat(val) || 0})}
-                    step={10}
-                    min={0}
-                    max={3000}
-                  />
-                  <NumberInput
-                    label="Proteínas (g)"
-                    value={editingMeal.protein}
-                    onChange={(val: string) => setEditingMeal({...editingMeal, protein: parseFloat(val) || 0})}
-                    step={1}
-                    min={0}
-                    max={200}
-                  />
-                  <NumberInput
-                    label="Carbohidratos (g)"
-                    value={editingMeal.carbs}
-                    onChange={(val: string) => setEditingMeal({...editingMeal, carbs: parseFloat(val) || 0})}
-                    step={1}
-                    min={0}
-                    max={300}
-                  />
-                  <NumberInput
-                    label="Grasas (g)"
-                    value={editingMeal.fat}
-                    onChange={(val: string) => setEditingMeal({...editingMeal, fat: parseFloat(val) || 0})}
-                    step={1}
-                    min={0}
-                    max={200}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Alimento (Edita para recalcular)</label>
-                  <div className="flex flex-col gap-2">
-                    <input 
-                      type="text" 
-                      value={editingMeal.foodName} 
-                      onChange={(e) => setEditingMeal({...editingMeal, foodName: e.target.value})}
-                      className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-400 transition-colors" 
-                      required 
-                    />
-                    <button
-                      type="button"
-                      onClick={handleRecalculateMacros}
-                      disabled={isRecalculating || !editingMeal.foodName}
-                      className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white p-3 rounded-xl transition-colors border border-white/5 flex items-center justify-center gap-2 text-sm font-medium"
-                    >
-                      {isRecalculating ? <Loader2 className="w-4 h-4 animate-spin text-lime-400" /> : <RefreshCw className="w-4 h-4 text-lime-400" />}
-                      Recalcular Calorías y Macros
-                    </button>
+                  <div className="bg-zinc-900/50 p-3 rounded-xl border border-white/5">
+                    <span className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Proteínas</span>
+                    <span className="text-lg font-display font-bold text-blue-400">{editingMeal.protein} <span className="text-xs text-zinc-500">g</span></span>
+                  </div>
+                  <div className="bg-zinc-900/50 p-3 rounded-xl border border-white/5">
+                    <span className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Carbohidratos</span>
+                    <span className="text-lg font-display font-bold text-amber-400">{editingMeal.carbs} <span className="text-xs text-zinc-500">g</span></span>
+                  </div>
+                  <div className="bg-zinc-900/50 p-3 rounded-xl border border-white/5">
+                    <span className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Grasas</span>
+                    <span className="text-lg font-display font-bold text-rose-400">{editingMeal.fat} <span className="text-xs text-zinc-500">g</span></span>
                   </div>
                 </div>
 
-                {editingMeal.healthAnalysis && (
-                  <div className="mt-6 p-4 bg-zinc-950 rounded-2xl border border-white/5 text-sm space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2 rounded-xl shrink-0 ${editingMeal.isHealthy ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
-                        {editingMeal.isHealthy ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+                <button
+                  type="button"
+                  onClick={handleRecalculateMacros}
+                  disabled={isRecalculating || !editingMeal.foodName}
+                  className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white p-3 rounded-xl transition-colors border border-white/5 flex items-center justify-center gap-2 text-sm font-medium mt-4"
+                >
+                  {isRecalculating ? <Loader2 className="w-4 h-4 animate-spin text-lime-400" /> : <RefreshCw className="w-4 h-4 text-lime-400" />}
+                  Recalcular Calorías y Macros
+                </button>
+
+                {(editingMeal.coachMessage || editingMeal.healthAnalysis) && (
+                  <div className="mt-6 space-y-3">
+                    {/* Mensaje del Coach */}
+                    <div className="p-4 bg-zinc-900/50 rounded-2xl border border-white/5 flex items-start gap-3">
+                      <div className="p-2 rounded-xl shrink-0 bg-lime-500/10 text-lime-400">
+                        <Bot className="w-5 h-5" />
                       </div>
-                      <p className="text-zinc-300 leading-relaxed">{editingMeal.healthAnalysis}</p>
+                      <p className="text-sm text-zinc-300 leading-relaxed pt-0.5">
+                        {editingMeal.coachMessage || editingMeal.healthAnalysis}
+                      </p>
                     </div>
-                    {editingMeal.recommendations && (
-                      <div className="flex items-start gap-3 pt-3 border-t border-white/5">
-                        <div className="p-2 rounded-xl shrink-0 bg-blue-500/10 text-blue-400">
-                          <Info className="w-5 h-5" />
-                        </div>
-                        <p className="text-zinc-400 leading-relaxed"><span className="text-zinc-300 font-semibold">Sugerencia:</span> {editingMeal.recommendations}</p>
-                      </div>
-                    )}
                   </div>
                 )}
 

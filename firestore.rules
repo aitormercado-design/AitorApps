@@ -30,10 +30,24 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function isValidUser() {
+      let allowedKeys = ['profile', 'goals', 'habits', 'generatedMenu', 'shoppingList', 'meals', 'weights', 'chatMessages'];
+      let data = request.resource.data;
+      
+      let hasValidKeys = data.keys().hasOnly(allowedKeys);
+      
+      // Size limits to prevent 1MB attacks and resource exhaustion
+      let validMeals = !('meals' in data) || (data.meals is list && data.meals.size() <= 2000);
+      let validWeights = !('weights' in data) || (data.weights is list && data.weights.size() <= 2000);
+      let validChat = !('chatMessages' in data) || (data.chatMessages is list && data.chatMessages.size() <= 1000);
+      
+      return hasValidKeys && validMeals && validWeights && validChat;
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser();
+      allow update: if isOwner(userId) && isValidUser();
       allow delete: if isOwner(userId);
     }
   }
