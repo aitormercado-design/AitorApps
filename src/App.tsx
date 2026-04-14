@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, Download, LogOut, Banana } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, Download, LogOut, Banana, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, WeeklyMenu, ShoppingList } from './lib/gemini';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, getDocFromServer } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
@@ -1171,16 +1171,6 @@ export default function App() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-    } catch (error: any) {
-      console.error("Error signing in with Google:", error);
-      setAuthError("Error al iniciar sesión con Google.");
-    }
-  };
-
   const handlePasswordReset = async () => {
     if (!authEmail) {
       setAuthError("Por favor, introduce tu email para restablecer la contraseña.");
@@ -1338,29 +1328,6 @@ export default function App() {
                 {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
               </button>
             </div>
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10"></div>
-              </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="bg-zinc-900/50 px-2 text-zinc-500">O continúa con</span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              className="w-full bg-white text-zinc-950 font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-3 hover:bg-zinc-200 transition-colors"
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-              </svg>
-              Google
-            </button>
           </form>
         </motion.div>
       </div>
@@ -1397,9 +1364,22 @@ export default function App() {
                 setEditWeight(latestWeight);
                 setIsGoalModalOpen(true); 
               }}
-              className="h-10 w-10 rounded-xl bg-gradient-to-br from-lime-400/20 to-lime-400/5 flex items-center justify-center border border-lime-400/20 shadow-[0_0_15px_rgba(163,230,53,0.15)] hover:scale-105 active:scale-95 transition-all"
+              className={`relative h-10 px-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
+                profile.age === 0 
+                  ? 'bg-lime-400 shadow-[0_0_20px_rgba(163,230,53,0.4)] hover:bg-lime-500' 
+                  : 'bg-gradient-to-br from-lime-400/20 to-lime-400/5 border border-lime-400/20 shadow-[0_0_15px_rgba(163,230,53,0.15)] hover:scale-105 active:scale-95'
+              }`}
             >
-              <Target className="w-5 h-5 text-lime-400" />
+              <UserIcon className={`w-5 h-5 ${profile.age === 0 ? 'text-zinc-950' : 'text-lime-400'}`} />
+              <span className={`text-[10px] font-bold uppercase tracking-wider hidden sm:block ${profile.age === 0 ? 'text-zinc-950' : 'text-lime-400'}`}>
+                Configuración usuario
+              </span>
+              {profile.age === 0 && (
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                </span>
+              )}
             </motion.button>
             <motion.button
               initial={{ opacity: 0, scale: 0.8 }}
@@ -1413,6 +1393,21 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* Global Profile Warning */}
+      {profile.age === 0 && (
+        <div className="max-w-md mx-auto px-6 pt-4">
+          <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-rose-400 font-bold text-sm mb-1">Perfil incompleto</h3>
+              <p className="text-rose-400/80 text-xs">
+                Para calcular tus macros y generar planes personalizados, necesitas configurar tu perfil. Toca el botón resaltado arriba a la derecha.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="px-6 pt-6 max-w-md mx-auto space-y-8">
         {/* Tabs */}
@@ -1823,7 +1818,7 @@ export default function App() {
             >
               {profile.age === 0 ? (
                 <div className="bg-zinc-900/80 rounded-[2rem] p-8 border border-white/5 text-center">
-                  <Target className="w-12 h-12 text-lime-400 mx-auto mb-4 opacity-50" />
+                  <UserIcon className="w-12 h-12 text-lime-400 mx-auto mb-4 opacity-50" />
                   <h3 className="text-xl font-display font-bold text-white mb-2">Configura tu Perfil</h3>
                   <p className="text-zinc-400 text-sm mb-6">Introduce tu edad, peso y altura en la configuración para calcular tus macros y recibir un plan personalizado.</p>
                   <button 
@@ -2072,7 +2067,7 @@ export default function App() {
               <div className="flex justify-between items-center mb-6 shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-lime-400/10 rounded-xl border border-lime-400/20">
-                    <Target className="w-6 h-6 text-lime-400" />
+                    <UserIcon className="w-6 h-6 text-lime-400" />
                   </div>
                   <h3 className="text-xl font-display font-bold text-white uppercase">Configuración de Perfil</h3>
                 </div>
