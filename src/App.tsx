@@ -6,7 +6,7 @@ import Markdown from 'react-markdown';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, WeeklyMenu, ShoppingList } from './lib/gemini';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, User } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, getDocFromServer } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
@@ -1171,6 +1171,22 @@ export default function App() {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error: any) {
+      console.error("Error signing in with Google:", error);
+      if (error.code === 'auth/popup-closed-by-user') {
+        setAuthError("Has cerrado la ventana de inicio de sesión.");
+      } else if (error.code === 'auth/unauthorized-domain') {
+        setAuthError("Dominio no autorizado. Añade esta URL en la consola de Firebase.");
+      } else {
+        setAuthError("Error al iniciar sesión con Google.");
+      }
+    }
+  };
+
   const handlePasswordReset = async () => {
     if (!authEmail) {
       setAuthError("Por favor, introduce tu email para restablecer la contraseña.");
@@ -1248,53 +1264,67 @@ export default function App() {
           animate={{ opacity: 1, y: 0 }}
           className="max-w-md w-full bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-3xl p-8 text-center"
         >
-          <div className="w-20 h-20 bg-lime-400 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-lime-400/20">
-            <Banana className="w-12 h-12 text-zinc-950" />
+          <div className="w-16 h-16 bg-lime-400 rounded-full flex items-center justify-center mx-auto mb-8 shadow-lg shadow-lime-400/20">
+            <Banana className="w-10 h-10 text-zinc-950" />
           </div>
-          <h1 className="text-4xl font-display font-black tracking-tighter text-white mb-2">
-            Nutritiv<span className="text-lime-400">App</span>
+          <h1 className="text-3xl font-display font-black tracking-tighter text-white mb-8 text-center">
+            {isRegistering ? 'Regístrate para empezar' : 'Inicia sesión en NutritivApp'}
           </h1>
-          <p className="text-zinc-400 mb-8">Tu entrenador y nutricionista personal impulsado por IA.</p>
           
-          <form onSubmit={handleEmailAuth} className="space-y-4 text-left">
+          <div className="space-y-3 mb-8">
+            <button
+              onClick={handleGoogleLogin}
+              className="w-full bg-transparent border border-zinc-500 text-white font-bold py-3 px-6 rounded-full flex items-center justify-center gap-3 hover:border-lime-400 hover:text-lime-400 transition-all"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+              Continuar con Google
+            </button>
+          </div>
+
+          <div className="relative mb-8">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-zinc-800"></div>
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-zinc-950 px-4 text-zinc-400">o</span>
+            </div>
+          </div>
+          
+          <form onSubmit={handleEmailAuth} className="space-y-5 text-left">
             {authError && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-400 text-sm">
+              <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-400 text-sm">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                 <p>{authError}</p>
               </div>
             )}
 
             {resetEmailSent && (
-              <div className="p-3 rounded-xl bg-lime-500/10 border border-lime-500/20 flex items-start gap-2 text-lime-400 text-sm">
+              <div className="p-3 rounded-lg bg-lime-500/10 border border-lime-500/20 flex items-start gap-2 text-lime-400 text-sm">
                 <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-                <p>Se ha enviado un email para restablecer tu contraseña. Revisa tu bandeja de entrada.</p>
+                <p>Se ha enviado un email para restablecer tu contraseña.</p>
               </div>
             )}
             
             <div>
-              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Email</label>
+              <label className="block text-sm font-bold text-white mb-2">Dirección de correo electrónico</label>
               <input 
                 type="email" 
                 value={authEmail}
                 onChange={(e) => setAuthEmail(e.target.value)}
                 required
-                className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-400 transition-colors"
-                placeholder="tu@email.com"
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-lime-400/50 transition-all placeholder:text-zinc-500"
+                placeholder="Correo electrónico"
               />
             </div>
             
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider">Contraseña</label>
-                {!isRegistering && (
-                  <button
-                    type="button"
-                    onClick={handlePasswordReset}
-                    className="text-xs text-lime-400 hover:text-lime-300 transition-colors"
-                  >
-                    ¿Olvidaste tu contraseña?
-                  </button>
-                )}
+                <label className="block text-sm font-bold text-white">Contraseña</label>
               </div>
               <input 
                 type="password" 
@@ -1302,31 +1332,46 @@ export default function App() {
                 onChange={(e) => setAuthPassword(e.target.value)}
                 required
                 minLength={6}
-                className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-lime-400 transition-colors"
-                placeholder="••••••••"
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-lime-400/50 transition-all placeholder:text-zinc-500"
+                placeholder="Contraseña"
               />
             </div>
 
             <button
               type="submit"
               disabled={isAuthenticating}
-              className="w-full bg-lime-400 text-zinc-950 font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 hover:bg-lime-500 transition-colors disabled:opacity-50 mt-6"
+              className="w-full bg-lime-400 text-zinc-950 font-bold py-3.5 px-6 rounded-full flex items-center justify-center gap-2 hover:bg-lime-500 hover:scale-105 transition-all disabled:opacity-50 mt-8 uppercase tracking-wider text-sm"
             >
               {isAuthenticating ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-              {isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}
+              {isRegistering ? 'Registrarse' : 'Iniciar sesión'}
             </button>
             
-            <div className="text-center mt-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRegistering(!isRegistering);
-                  setAuthError(null);
-                }}
-                className="text-sm text-zinc-400 hover:text-lime-400 transition-colors"
-              >
-                {isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
-              </button>
+            <div className="text-center mt-8 space-y-4">
+              {!isRegistering && (
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  className="text-sm text-lime-400 font-bold hover:underline transition-all block mx-auto"
+                >
+                  ¿Has olvidado tu contraseña?
+                </button>
+              )}
+              
+              <div className="pt-8 border-t border-zinc-800">
+                <p className="text-zinc-400 text-sm mb-4">
+                  {isRegistering ? '¿Ya tienes una cuenta?' : '¿No tienes cuenta?'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRegistering(!isRegistering);
+                    setAuthError(null);
+                  }}
+                  className="text-white font-bold hover:text-lime-400 hover:underline transition-all"
+                >
+                  {isRegistering ? 'Inicia sesión aquí' : 'Regístrate en NutritivApp'}
+                </button>
+              </div>
             </div>
           </form>
         </motion.div>
