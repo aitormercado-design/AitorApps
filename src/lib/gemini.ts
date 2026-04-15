@@ -125,13 +125,13 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
       console.error("Failed to parse JSON:", e, "Clean text:", cleanText);
       throw new Error("Error al procesar la respuesta del servidor.");
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Detailed error in analyzeFoodImage:", error);
-    if (error instanceof Error) {
-      console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
+    const errorMessage = error.message || "Error desconocido";
+    if (errorMessage.includes("API key not valid")) {
+      throw new Error("La clave de API de Gemini no es válida. Por favor, revísala en los secretos.");
     }
-    throw new Error("No se pudo analizar la imagen. Inténtalo de nuevo.");
+    throw new Error(`Error al analizar la imagen: ${errorMessage}`);
   }
 }
 
@@ -239,9 +239,13 @@ export async function recalculateFoodMacros(foodDescription: string, contextStr?
     }
     
     return JSON.parse(cleanText);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error recalculating macros:", error);
-    throw new Error("No se pudo recalcular. Inténtalo de nuevo.");
+    const errorMessage = error.message || "Error desconocido";
+    if (errorMessage.includes("API key not valid")) {
+      throw new Error("La clave de API de Gemini no es válida. Por favor, revísala en los secretos.");
+    }
+    throw new Error(`Error al recalcular: ${errorMessage}`);
   }
 }
 
@@ -517,7 +521,7 @@ export async function findRestaurants(location: string, preferences: string): Pr
     Devuelve un objeto JSON con la estructura: { restaurants: [{ name: string, rating: number, address: string, description: string, specialty: string, priceLevel: number, distance: number }] }.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-flash-latest",
       contents: prompt,
       config: {
         systemInstruction: "Eres un experto buscador de restaurantes y crítico gastronómico especializado en dietas especiales (vegana, sin gluten, keto, etc.). Tu objetivo es encontrar lugares reales y de alta calidad que se ajusten perfectamente a las necesidades del usuario. Sé muy específico con las direcciones y por qué recomiendas cada lugar. Estima el nivel de precio (1-4) y la distancia aproximada (0.1 a 10.0 km).",
@@ -560,8 +564,12 @@ export async function findRestaurants(location: string, preferences: string): Pr
     
     const data = JSON.parse(cleanText);
     return data.restaurants;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error finding restaurants:", error);
-    throw new Error("No se pudieron encontrar restaurantes. Inténtalo de nuevo.");
+    const errorMessage = error.message || "Error desconocido";
+    if (errorMessage.includes("API key not valid")) {
+      throw new Error("La clave de API de Gemini no es válida. Por favor, revísala en los secretos.");
+    }
+    throw new Error(`Error al buscar restaurantes: ${errorMessage}`);
   }
 }

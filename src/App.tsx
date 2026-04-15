@@ -245,7 +245,7 @@ export default function App() {
     dietType: true,
     other: ''
   });
-  const [restaurantSort, setRestaurantSort] = useState<'rating' | 'distance' | 'price'>('rating');
+  const [restaurantSort, setRestaurantSort] = useState<'rating' | 'price'>('rating');
   const [restaurantSortOrder, setRestaurantSortOrder] = useState<'asc' | 'desc'>('desc');
   const [restaurantPage, setRestaurantPage] = useState(1);
   const [resultsLimit, setResultsLimit] = useState(15);
@@ -255,7 +255,6 @@ export default function App() {
     return [...restaurants].sort((a, b) => {
       let comparison = 0;
       if (restaurantSort === 'rating') comparison = b.rating - a.rating;
-      else if (restaurantSort === 'distance') comparison = (a.distance || 0) - (b.distance || 0);
       else if (restaurantSort === 'price') comparison = a.priceLevel - b.priceLevel;
       
       return restaurantSortOrder === 'desc' ? comparison : -comparison;
@@ -275,7 +274,8 @@ export default function App() {
         setRestaurantLocation(loc);
         handleSearchRestaurants(undefined, loc);
       }, (error) => {
-        setAppError("No se pudo obtener tu ubicación. Por favor, permítelo en tu navegador.");
+        console.error("Geolocation error:", error);
+        setAppError("No se pudo obtener tu ubicación. Prueba a abrir la app en una pestaña nueva o introduce tu ciudad manualmente.");
       });
     } else {
       setAppError("Tu navegador no soporta geolocalización.");
@@ -2285,18 +2285,8 @@ export default function App() {
                       value={restaurantLocation}
                       onChange={(e) => setRestaurantLocation(e.target.value)}
                       placeholder="Indica tu ubicación (ej: Madrid, Chueca...)"
-                      className="w-full bg-zinc-950 border border-white/10 rounded-2xl pl-12 pr-12 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-lime-400 transition-all"
+                      className="w-full bg-zinc-950 border border-white/10 rounded-2xl pl-12 pr-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-lime-400 transition-all"
                     />
-                    <button
-                      type="button"
-                      onClick={handleNearMe}
-                      disabled={isSearchingRestaurants}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-3 py-1.5 bg-lime-400/10 hover:bg-lime-400/20 text-lime-400 rounded-lg border border-lime-400/20 disabled:opacity-30 transition-all group"
-                      title="Cerca de mí"
-                    >
-                      <Target className={`w-4 h-4 ${isSearchingRestaurants ? 'animate-pulse' : ''}`} />
-                      <span className="text-[9px] font-black uppercase tracking-widest hidden xs:block">Cerca de mí</span>
-                    </button>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2362,12 +2352,6 @@ export default function App() {
                       className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all ${restaurantSort === 'rating' ? 'bg-lime-400 text-zinc-950 border-lime-400' : 'bg-zinc-900 text-zinc-400 border-white/5 hover:border-white/20'}`}
                     >
                       Valoración
-                    </button>
-                    <button
-                      onClick={() => setRestaurantSort('distance')}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all ${restaurantSort === 'distance' ? 'bg-lime-400 text-zinc-950 border-lime-400' : 'bg-zinc-900 text-zinc-400 border-white/5 hover:border-white/20'}`}
-                    >
-                      Distancia
                     </button>
                     <button
                       onClick={() => setRestaurantSort('price')}
