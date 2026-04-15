@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const apiKey = process.env.GEMINI_API_KEY;
+const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
 if (!apiKey) {
   console.error("CRITICAL: GEMINI_API_KEY is not defined in the environment.");
 }
@@ -33,7 +33,7 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
   
   if (!apiKey) {
     console.error("API Key is missing in analyzeFoodImage");
-    throw new Error("La clave de API de Gemini no está configurada. Por favor, añádela en los secretos.");
+    throw new Error("La clave de API de Gemini no está configurada. Si no puedes editar GEMINI_API_KEY, añade una nueva variable llamada VITE_GEMINI_API_KEY en los secretos.");
   }
 
   try {
@@ -259,7 +259,7 @@ export type WeeklyMenu = {
 
 export async function generateWeeklyMenu(profileStr: string, preferencesStr: string): Promise<WeeklyMenu> {
   if (!apiKey) {
-    throw new Error("La clave de API de Gemini no está configurada. Por favor, añádela en los secretos.");
+    throw new Error("La clave de API de Gemini no está configurada. Si no puedes editar GEMINI_API_KEY, añade una nueva variable llamada VITE_GEMINI_API_KEY en los secretos.");
   }
 
   try {
@@ -342,7 +342,7 @@ export type ShoppingList = {
 
 export async function generateShoppingList(menu: WeeklyMenu, supermarket: string = 'Mercadona'): Promise<ShoppingList> {
   if (!apiKey) {
-    throw new Error("La clave de API de Gemini no está configurada.");
+    throw new Error("La clave de API de Gemini no está configurada. Si no puedes editar GEMINI_API_KEY, añade una nueva variable llamada VITE_GEMINI_API_KEY en los secretos.");
   }
 
   try {
