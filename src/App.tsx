@@ -245,6 +245,42 @@ export default function App() {
     dietType: true,
     other: ''
   });
+  const [restaurantSort, setRestaurantSort] = useState<'rating' | 'distance' | 'price'>('rating');
+  const [restaurantSortOrder, setRestaurantSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [restaurantPage, setRestaurantPage] = useState(1);
+  const [resultsLimit, setResultsLimit] = useState(15);
+  const resultsPerPage = 5;
+
+  const sortedRestaurants = useMemo(() => {
+    return [...restaurants].sort((a, b) => {
+      let comparison = 0;
+      if (restaurantSort === 'rating') comparison = b.rating - a.rating;
+      else if (restaurantSort === 'distance') comparison = (a.distance || 0) - (b.distance || 0);
+      else if (restaurantSort === 'price') comparison = a.priceLevel - b.priceLevel;
+      
+      return restaurantSortOrder === 'desc' ? comparison : -comparison;
+    });
+  }, [restaurants, restaurantSort, restaurantSortOrder]);
+
+  const displayedRestaurants = useMemo(() => {
+    const start = (restaurantPage - 1) * resultsPerPage;
+    return sortedRestaurants.slice(start, start + resultsPerPage);
+  }, [sortedRestaurants, restaurantPage]);
+
+  const handleNearMe = () => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        const { latitude, longitude } = position.coords;
+        const loc = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+        setRestaurantLocation(loc);
+        handleSearchRestaurants(undefined, loc);
+      }, (error) => {
+        setAppError("No se pudo obtener tu ubicación. Por favor, permítelo en tu navegador.");
+      });
+    } else {
+      setAppError("Tu navegador no soporta geolocalización.");
+    }
+  };
 
   useEffect(() => {
     const testConnection = async () => {
@@ -1351,6 +1387,8 @@ export default function App() {
       
       const results = await findRestaurants(location, prefs);
       setRestaurants(results);
+      setRestaurantPage(1);
+      setResultsLimit(15);
     } catch (error: any) {
       setAppError(error.message);
     } finally {
@@ -1571,7 +1609,7 @@ export default function App() {
             >
               <UserIcon className={`w-5 h-5 ${profile.age === 0 ? 'text-zinc-950' : 'text-lime-400'}`} />
               <span className={`text-[10px] font-bold uppercase tracking-wider hidden sm:block ${profile.age === 0 ? 'text-zinc-950' : 'text-lime-400'}`}>
-                Configuración usuario
+                Perfil
               </span>
               {profile.age === 0 && (
                 <span className="absolute -top-1 -right-1 flex h-3 w-3">
@@ -1629,12 +1667,14 @@ export default function App() {
           >
             Plan
           </button>
-          <button 
-            onClick={() => setActiveTab('restaurants')}
-            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'restaurants' ? 'bg-lime-400 text-zinc-950 shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
-          >
-            Capricho
-          </button>
+          {profile.freeMealEnabled && (
+            <button 
+              onClick={() => setActiveTab('restaurants')}
+              className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'restaurants' ? 'bg-lime-400 text-zinc-950 shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              Libre
+            </button>
+          )}
         </div>
 
         <AnimatePresence mode="wait">
@@ -2227,10 +2267,10 @@ export default function App() {
                     <div className="p-2 bg-lime-400/20 rounded-xl border border-lime-400/30">
                       <Star className="w-6 h-6 text-lime-400" />
                     </div>
-                    <h2 className="text-xl font-display font-black text-white uppercase tracking-tight">¡Date un capricho, {profile.name || 'campeón'}!</h2>
+                    <h2 className="text-xl font-display font-black text-white uppercase tracking-tight">¡Tu comida libre, {profile.name || 'campeón'}!</h2>
                   </div>
                   <p className="text-zinc-300 text-sm leading-relaxed">
-                    Te lo has ganado. Comer fuera no significa romper tus objetivos. He buscado los mejores sitios que se adaptan a tu estilo de vida y restricciones.
+                    Disfruta de tu momento. He buscado los mejores sitios que se adaptan a tus preferencias para que tu comida libre sea espectacular.
                   </p>
                 </div>
               </div>
@@ -2245,8 +2285,18 @@ export default function App() {
                       value={restaurantLocation}
                       onChange={(e) => setRestaurantLocation(e.target.value)}
                       placeholder="Indica tu ubicación (ej: Madrid, Chueca...)"
-                      className="w-full bg-zinc-950 border border-white/10 rounded-2xl pl-12 pr-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-lime-400 transition-all"
+                      className="w-full bg-zinc-950 border border-white/10 rounded-2xl pl-12 pr-12 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-lime-400 transition-all"
                     />
+                    <button
+                      type="button"
+                      onClick={handleNearMe}
+                      disabled={isSearchingRestaurants}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-3 py-1.5 bg-lime-400/10 hover:bg-lime-400/20 text-lime-400 rounded-lg border border-lime-400/20 disabled:opacity-30 transition-all group"
+                      title="Cerca de mí"
+                    >
+                      <Target className={`w-4 h-4 ${isSearchingRestaurants ? 'animate-pulse' : ''}`} />
+                      <span className="text-[9px] font-black uppercase tracking-widest hidden xs:block">Cerca de mí</span>
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2290,6 +2340,45 @@ export default function App() {
                 </form>
               </div>
 
+              {/* Sorting Section */}
+              {restaurants.length > 0 && (
+                <div className="space-y-3 px-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Ordenar resultados por:</span>
+                    <button
+                      onClick={() => setRestaurantSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                      className="flex items-center gap-1.5 text-[10px] font-bold text-lime-400 uppercase tracking-widest hover:text-lime-300 transition-colors"
+                    >
+                      {restaurantSortOrder === 'desc' ? (
+                        <>Descendente <TrendingUp className="w-3 h-3 rotate-180" /></>
+                      ) : (
+                        <>Ascendente <TrendingUp className="w-3 h-3" /></>
+                      )}
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => setRestaurantSort('rating')}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all ${restaurantSort === 'rating' ? 'bg-lime-400 text-zinc-950 border-lime-400' : 'bg-zinc-900 text-zinc-400 border-white/5 hover:border-white/20'}`}
+                    >
+                      Valoración
+                    </button>
+                    <button
+                      onClick={() => setRestaurantSort('distance')}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all ${restaurantSort === 'distance' ? 'bg-lime-400 text-zinc-950 border-lime-400' : 'bg-zinc-900 text-zinc-400 border-white/5 hover:border-white/20'}`}
+                    >
+                      Distancia
+                    </button>
+                    <button
+                      onClick={() => setRestaurantSort('price')}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all ${restaurantSort === 'price' ? 'bg-lime-400 text-zinc-950 border-lime-400' : 'bg-zinc-900 text-zinc-400 border-white/5 hover:border-white/20'}`}
+                    >
+                      Precio
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Results */}
               <div className="space-y-4">
                 {isSearchingRestaurants ? (
@@ -2325,12 +2414,12 @@ export default function App() {
                     )}
 
                     <div className="space-y-4">
-                      {restaurants.map((res, i) => (
+                      {displayedRestaurants.map((res, i) => (
                         <motion.div 
                           key={i}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.1 }}
+                          transition={{ delay: i * 0.05 }}
                           className="bg-zinc-900/50 border border-white/5 rounded-3xl p-5 hover:bg-zinc-800/50 transition-colors group"
                         >
                           <div className="flex justify-between items-start mb-2">
@@ -2340,9 +2429,25 @@ export default function App() {
                               <span className="text-xs font-black">{res.rating}</span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 text-zinc-500 text-xs mb-3">
-                            <MapPin className="w-3 h-3" />
-                            <span className="truncate">{res.address}</span>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-zinc-500 text-xs mb-3">
+                            <div className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              <span className="truncate max-w-[150px]">{res.address}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <TrendingUp className="w-3 h-3" />
+                              <span>{res.distance?.toFixed(1)} km</span>
+                            </div>
+                            <div className="flex items-center gap-0.5 text-amber-400 font-bold">
+                              {Array.from({ length: res.priceLevel }).map((_, i) => (
+                                <span key={i}>€</span>
+                              ))}
+                              <span className="text-zinc-700">
+                                {Array.from({ length: 4 - res.priceLevel }).map((_, i) => (
+                                  <span key={i}>€</span>
+                                ))}
+                              </span>
+                            </div>
                           </div>
                           <p className="text-zinc-400 text-sm mb-4 leading-relaxed italic">"{res.description}"</p>
                           <div className="flex items-center justify-between">
@@ -2361,7 +2466,35 @@ export default function App() {
                       ))}
                     </div>
 
-                    {restaurants.length === 0 && (
+                    {restaurants.length > 0 && (
+                      <div className="flex flex-col items-center gap-6 py-8">
+                        {/* Pagination Controls */}
+                        <div className="flex items-center gap-2">
+                          {Array.from({ length: Math.ceil(Math.min(resultsLimit, restaurants.length) / resultsPerPage) }).map((_, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setRestaurantPage(i + 1)}
+                              className={`w-8 h-8 rounded-xl text-xs font-bold transition-all border ${restaurantPage === i + 1 ? 'bg-lime-400 text-zinc-950 border-lime-400 shadow-lg shadow-lime-400/20' : 'bg-zinc-900 text-zinc-500 border-white/5 hover:border-white/20'}`}
+                            >
+                              {i + 1}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Load More Button */}
+                        {restaurantPage === 3 && restaurants.length > resultsLimit && (
+                          <button
+                            onClick={() => setResultsLimit(prev => prev + 15)}
+                            className="bg-zinc-900 hover:bg-zinc-800 text-white text-[10px] font-bold uppercase tracking-widest px-6 py-3 rounded-2xl border border-white/10 transition-all flex items-center gap-2"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Cargar más resultados
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {!isSearchingRestaurants && restaurants.length === 0 && (
                       <div className="text-center py-12 bg-zinc-900/20 rounded-3xl border border-white/5 border-dashed">
                         <Bot className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
                         <p className="text-zinc-500 text-sm">Indica una ubicación y pulsa buscar para encontrar sitios increíbles.</p>

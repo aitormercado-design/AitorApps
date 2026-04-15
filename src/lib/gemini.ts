@@ -506,20 +506,21 @@ export type Restaurant = {
   address: string;
   description: string;
   specialty: string;
-  coordinates?: { lat: number; lng: number };
+  priceLevel: 1 | 2 | 3 | 4; // 1: $, 2: $$, 3: $$$, 4: $$$$
+  distance?: number; // in km
 };
 
 export async function findRestaurants(location: string, preferences: string): Promise<Restaurant[]> {
   try {
     const prompt = `Busca los mejores restaurantes en ${location} que cumplan con estas preferencias dietéticas: ${preferences}. 
-    Devuelve una lista de 5-7 restaurantes con su nombre, puntuación estimada, dirección, una breve descripción de por qué encaja con el usuario y su especialidad.
-    Devuelve un objeto JSON con la estructura: { restaurants: [{ name: string, rating: number, address: string, description: string, specialty: string }] }.`;
+    Devuelve una lista extensa de al menos 15-20 restaurantes reales con su nombre, puntuación estimada (1-5), dirección, una breve descripción de por qué encaja con el usuario, su especialidad, nivel de precio (1-4) y una estimación de distancia en km desde el centro de la ubicación indicada.
+    Devuelve un objeto JSON con la estructura: { restaurants: [{ name: string, rating: number, address: string, description: string, specialty: string, priceLevel: number, distance: number }] }.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Eres un experto buscador de restaurantes y crítico gastronómico especializado en dietas especiales (vegana, sin gluten, keto, etc.). Tu objetivo es encontrar lugares reales y de alta calidad que se ajusten perfectamente a las necesidades del usuario. Sé muy específico con las direcciones y por qué recomiendas cada lugar.",
+        systemInstruction: "Eres un experto buscador de restaurantes y crítico gastronómico especializado en dietas especiales (vegana, sin gluten, keto, etc.). Tu objetivo es encontrar lugares reales y de alta calidad que se ajusten perfectamente a las necesidades del usuario. Sé muy específico con las direcciones y por qué recomiendas cada lugar. Estima el nivel de precio (1-4) y la distancia aproximada (0.1 a 10.0 km).",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -533,9 +534,11 @@ export async function findRestaurants(location: string, preferences: string): Pr
                   rating: { type: Type.NUMBER },
                   address: { type: Type.STRING },
                   description: { type: Type.STRING },
-                  specialty: { type: Type.STRING }
+                  specialty: { type: Type.STRING },
+                  priceLevel: { type: Type.NUMBER, description: "1: $, 2: $$, 3: $$$, 4: $$$$" },
+                  distance: { type: Type.NUMBER, description: "Distancia estimada en km" }
                 },
-                required: ["name", "rating", "address", "description", "specialty"]
+                required: ["name", "rating", "address", "description", "specialty", "priceLevel", "distance"]
               }
             }
           },
