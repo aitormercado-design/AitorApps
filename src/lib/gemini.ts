@@ -57,7 +57,7 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
         ],
       },
       config: {
-        systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es analizar imágenes de comida y estimar de forma precisa su contenido nutricional y peso. Evalúa la calidad nutricional asignando un NutriScore de A a E. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida. Evalúa tu nivel de confianza en la detección. Desglosa los ingredientes principales con sus gramos estimados. Sé consistente con las estimaciones de peso y calorías.",
+        systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es analizar imágenes de comida y estimar de forma precisa su contenido nutricional y peso. Evalúa la calidad nutricional asignando un NutriScore de A a E. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él de forma personal. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida. Evalúa tu nivel de confianza en la detección. Desglosa los ingredientes principales con sus gramos estimados. Sé consistente con las estimaciones de peso y calorías.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -145,7 +145,7 @@ export async function analyzeFoodText(foodDescription: string, contextStr?: stri
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es estimar de forma precisa el contenido nutricional del alimento descrito. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida, teniendo en cuenta el contexto proporcionado. Devuelve un objeto JSON estructurado.",
+        systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es estimar de forma precisa el contenido nutricional del alimento descrito. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él de forma personal. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida, teniendo en cuenta el contexto proporcionado. Devuelve un objeto JSON estructurado.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -208,7 +208,7 @@ export async function recalculateFoodMacros(foodDescription: string, contextStr?
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
-        systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es estimar de forma precisa el contenido nutricional (calorías y macronutrientes) del alimento descrito. Es CRÍTICO que prestes especial atención al tamaño de las porciones descritas y a los métodos de preparación. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida, teniendo en cuenta el contexto.",
+        systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es estimar de forma precisa el contenido nutricional (calorías y macronutrientes) del alimento descrito. Es CRÍTICO que prestes especial atención al tamaño de las porciones descritas y a los métodos de preparación. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él de forma personal. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida, teniendo en cuenta el contexto.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -258,12 +258,16 @@ export type WeeklyMenu = {
 };
 
 export async function generateWeeklyMenu(profileStr: string, preferencesStr: string): Promise<WeeklyMenu> {
+  if (!apiKey) {
+    throw new Error("La clave de API de Gemini no está configurada. Por favor, añádela en los secretos.");
+  }
+
   try {
-    const response = await ai.models.generateContent({
+    const requestPromise = ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Genera un menú semanal personalizado basado en este perfil: ${profileStr}. Ten en cuenta estas preferencias y restricciones: ${preferencesStr}. Devuelve un objeto JSON estructurado.`,
       config: {
-        systemInstruction: "Eres un experto nutricionista deportivo de élite. Tu tarea es diseñar un menú semanal de calidad premium, extremadamente detallado y profesional. Cada comida (Desayuno, Almuerzo, Cena, Snacks) debe tener una descripción exhaustiva que incluya ingredientes principales y el método de preparación sugerido (ej. 'Pechuga de pollo a la plancha con 150g de arroz integral y brócoli al vapor con un toque de aceite de oliva'). El objetivo es que el usuario sepa exactamente qué comer y cómo prepararlo. Devuelve un objeto JSON con la estructura: { days: [{ day: 'Lunes', meals: [{ type: 'Desayuno', description: '...', calories: 400 }] }], recommendations: '...' }. Asegúrate de incluir de Lunes a Domingo y que las recomendaciones sean consejos nutricionales avanzados basados en el perfil del usuario.",
+        systemInstruction: "Eres un experto nutricionista deportivo de élite. Tu tarea es diseñar un menú semanal de calidad premium, extremadamente detallado y profesional. Cada comida (Desayuno, Almuerzo, Cena, Snacks) debe tener una descripción exhaustiva que incluya ingredientes principales y el método de preparación sugerido. El objetivo es que el usuario sepa exactamente qué comer y cómo prepararlo. Si el perfil indica que hay una 'comida o cena libre' habilitada, debes incluirla en el día y tipo especificado. En esa ingesta libre, permite un exceso calórico (sin especificar calorías exactas, pero que sea una comida de disfrute) y compensa reduciendo ligeramente las calorías de las otras comidas de ese mismo día y del día anterior/posterior para que el balance semanal sea coherente con el objetivo del usuario. Si el nombre del usuario está en el perfil, úsalo en las recomendaciones para que sean personales. Devuelve un objeto JSON con la estructura: { days: [{ day: 'Lunes', meals: [{ type: 'Desayuno', description: '...', calories: 400 }] }], recommendations: '...' }. Asegúrate de incluir de Lunes a Domingo y que las recomendaciones sean consejos nutricionales avanzados basados en el perfil del usuario.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -296,6 +300,12 @@ export async function generateWeeklyMenu(profileStr: string, preferencesStr: str
         }
       }
     });
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("La generación del menú está tardando demasiado. Por favor, inténtalo de nuevo.")), 60000);
+    });
+
+    const response = await Promise.race([requestPromise, timeoutPromise]) as any;
     
     const text = response.text;
     if (!text) throw new Error("No response from model");
@@ -309,9 +319,12 @@ export async function generateWeeklyMenu(profileStr: string, preferencesStr: str
     }
     
     return JSON.parse(cleanText);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating menu:", error);
-    throw new Error("No se pudo generar el menú. Inténtalo de nuevo.");
+    if (error.message?.includes("Quota exceeded")) {
+      throw new Error("Se ha superado el límite de uso diario de la IA. Por favor, inténtalo mañana.");
+    }
+    throw new Error(error.message || "No se pudo generar el menú. Inténtalo de nuevo.");
   }
 }
 
@@ -327,23 +340,28 @@ export type ShoppingList = {
   }[];
 };
 
-export async function generateShoppingList(menu: WeeklyMenu): Promise<ShoppingList> {
+export async function generateShoppingList(menu: WeeklyMenu, supermarket: string = 'Mercadona'): Promise<ShoppingList> {
+  if (!apiKey) {
+    throw new Error("La clave de API de Gemini no está configurada.");
+  }
+
   try {
-    const response = await ai.models.generateContent({
+    const requestPromise = ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Genera la lista de la compra para este menú semanal.
+      contents: `Genera la lista de la compra para este menú semanal. Prioriza productos que se puedan encontrar en ${supermarket} (España).
       
       INSTRUCCIONES PARA CADA INGREDIENTE:
       1. Agrupa la cantidad total semanal necesaria.
-      2. CÁLCULO DE UNIDADES: Compara la cantidad que necesitas con tamaños de envase estándar. Calcula cuántas unidades necesitas comprar para que CUBRA AL MENOS la cantidad necesaria (puede sobrar).
+      2. CÁLCULO DE UNIDADES: Compara la cantidad que necesitas con tamaños de envase estándar (especialmente los de ${supermarket}). Calcula cuántas unidades necesitas comprar para que CUBRA AL MENOS la cantidad necesaria.
       
       Menú:\n\n${JSON.stringify(menu)}`,
       config: {
-        systemInstruction: `Eres un asistente de compras experto. Tu objetivo es crear una lista de la compra organizada por categorías (ej. Frutas y Verduras, Carnes, Lácteos, etc.).
+        systemInstruction: `Eres un asistente de compras experto en supermercados españoles, especialmente ${supermarket}. Tu objetivo es crear una lista de la compra organizada por categorías.
         
         REGLAS CRÍTICAS:
-        1. CANTIDADES: Asegúrate de calcular cuántos envases/unidades se necesitan para cubrir la cantidad de la receta. En 'amount' indica la cantidad total a comprar (ej: "3 uds (600g)").
-        2. Procesa TODOS los ingredientes del menú. No te dejes ninguno.`,
+        1. PRODUCTOS ${supermarket.toUpperCase()}: Intenta sugerir nombres de productos específicos de ${supermarket} o su marca blanca cuando sea posible.
+        2. CANTIDADES: Asegúrate de calcular cuántos envases/unidades se necesitan basándote en los formatos habituales de ${supermarket}. En 'amount' indica la cantidad total a comprar (ej: "2 packs (6 uds)", "1 bote 500g").
+        3. Procesa TODOS los ingredientes del menú.`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -374,6 +392,12 @@ export async function generateShoppingList(menu: WeeklyMenu): Promise<ShoppingLi
         }
       }
     });
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("La generación de la lista de la compra está tardando demasiado.")), 45000);
+    });
+
+    const response = await Promise.race([requestPromise, timeoutPromise]) as any;
     
     const text = response.text;
     if (!text) throw new Error("No response from model");
@@ -387,9 +411,9 @@ export async function generateShoppingList(menu: WeeklyMenu): Promise<ShoppingLi
     }
 
     return JSON.parse(cleanText);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating shopping list:", error);
-    throw new Error("No se pudo generar la lista de la compra.");
+    throw new Error(error.message || "No se pudo generar la lista de la compra.");
   }
 }
 
@@ -440,11 +464,13 @@ export async function chatWithCoach(messages: {role: 'user' | 'model', parts: {t
     const chat = ai.chats.create({
       model: "gemini-3-flash-preview",
       config: {
-        systemInstruction: `Eres un entrenador personal y nutricionista experto, actuando como un coach muy empático, positivo y motivador 24/7 en una app.
-Contexto del usuario:
-${contextStr}
+        systemInstruction: `Eres el Coach de NutritivApp, un experto en nutrición y entrenamiento muy cercano, motivador y empático. 
+Tu objetivo es ayudar al usuario a cumplir sus metas de forma saludable y positiva. 
+Si el nombre del usuario aparece en el contexto, úsalo con frecuencia para dirigirte a él de forma personal.
+Responde siempre de forma breve, humana y alentadora. No seas demasiado técnico a menos que te pregunten.
 
-Responde de forma concisa, muy alentadora y directa a las preguntas o comentarios del usuario, sin ser estricto ni condescendiente.`,
+Contexto del usuario:
+${contextStr}`,
       }
     });
     
@@ -471,5 +497,68 @@ Responde de forma concisa, muy alentadora y directa a las preguntas o comentario
   } catch (error) {
     console.error("Error in coach chat:", error);
     throw new Error("Hubo un error de conexión. Inténtalo de nuevo.");
+  }
+}
+
+export type Restaurant = {
+  name: string;
+  rating: number;
+  address: string;
+  description: string;
+  specialty: string;
+  coordinates?: { lat: number; lng: number };
+};
+
+export async function findRestaurants(location: string, preferences: string): Promise<Restaurant[]> {
+  try {
+    const prompt = `Busca los mejores restaurantes en ${location} que cumplan con estas preferencias dietéticas: ${preferences}. 
+    Devuelve una lista de 5-7 restaurantes con su nombre, puntuación estimada, dirección, una breve descripción de por qué encaja con el usuario y su especialidad.
+    Devuelve un objeto JSON con la estructura: { restaurants: [{ name: string, rating: number, address: string, description: string, specialty: string }] }.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        systemInstruction: "Eres un experto buscador de restaurantes y crítico gastronómico especializado en dietas especiales (vegana, sin gluten, keto, etc.). Tu objetivo es encontrar lugares reales y de alta calidad que se ajusten perfectamente a las necesidades del usuario. Sé muy específico con las direcciones y por qué recomiendas cada lugar.",
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            restaurants: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  rating: { type: Type.NUMBER },
+                  address: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                  specialty: { type: Type.STRING }
+                },
+                required: ["name", "rating", "address", "description", "specialty"]
+              }
+            }
+          },
+          required: ["restaurants"]
+        }
+      }
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No response from model");
+    
+    let cleanText = text;
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      cleanText = jsonMatch[0];
+    } else {
+      cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
+    }
+    
+    const data = JSON.parse(cleanText);
+    return data.restaurants;
+  } catch (error) {
+    console.error("Error finding restaurants:", error);
+    throw new Error("No se pudieron encontrar restaurantes. Inténtalo de nuevo.");
   }
 }

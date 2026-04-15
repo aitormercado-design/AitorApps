@@ -31,7 +31,7 @@ service cloud.firestore {
     }
 
     function isValidUser() {
-      let allowedKeys = ['profile', 'goals', 'habits', 'generatedMenu', 'shoppingList', 'meals', 'weights', 'chatMessages'];
+      let allowedKeys = ['profile', 'goals', 'habits', 'generatedMenu', 'shoppingList', 'meals', 'weights', 'chatMessages', 'checkedItems'];
       let data = request.resource.data;
       
       let hasValidKeys = data.keys().hasOnly(allowedKeys);
@@ -40,8 +40,9 @@ service cloud.firestore {
       let validMeals = !('meals' in data) || (data.meals is list && data.meals.size() <= 2000);
       let validWeights = !('weights' in data) || (data.weights is list && data.weights.size() <= 2000);
       let validChat = !('chatMessages' in data) || (data.chatMessages is list && data.chatMessages.size() <= 1000);
+      let validChecked = !('checkedItems' in data) || (data.checkedItems is map && data.checkedItems.size() <= 500);
       
-      return hasValidKeys && validMeals && validWeights && validChat;
+      return hasValidKeys && validMeals && validWeights && validChat && validChecked;
     }
 
     match /users/{userId} {

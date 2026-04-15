@@ -28,6 +28,9 @@
         },
         "weights": {
           "type": "array"
+        },
+        "checkedItems": {
+          "type": "object"
         }
       }
     }

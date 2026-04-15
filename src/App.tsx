@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, Download, LogOut, Banana, User as UserIcon } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, Download, LogOut, Banana, User as UserIcon, Star, MapPin, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, WeeklyMenu, ShoppingList } from './lib/gemini';
+import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, WeeklyMenu, ShoppingList, findRestaurants, Restaurant } from './lib/gemini';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, getDocFromServer } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -74,6 +74,7 @@ type WeightEntry = {
 };
 
 type UserProfile = {
+  name: string;
   age: number;
   height: number;
   gender: 'male' | 'female';
@@ -83,6 +84,10 @@ type UserProfile = {
   dislikedFoods: string;
   goal: 'lose' | 'maintain' | 'gain';
   macroDistribution: 'balanced' | 'low_carb' | 'high_protein' | 'keto';
+  favoriteSupermarket: string;
+  freeMealEnabled: boolean;
+  freeMealDay: string;
+  freeMealType: 'comida' | 'cena';
 };
 
 type DailyHabits = {
@@ -168,6 +173,7 @@ export default function App() {
   const [weights, setWeights] = useState<WeightEntry[]>([]);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [profile, setProfile] = useState<UserProfile>({
+    name: '',
     age: 0,
     height: 170,
     gender: 'male',
@@ -176,16 +182,21 @@ export default function App() {
     allergies: '',
     dislikedFoods: '',
     goal: 'maintain',
-    macroDistribution: 'balanced'
+    macroDistribution: 'balanced',
+    favoriteSupermarket: 'Mercadona',
+    freeMealEnabled: false,
+    freeMealDay: 'Sábado',
+    freeMealType: 'cena'
   });
   const [habits, setHabits] = useState<DailyHabits>({});
 
-  const [activeTab, setActiveTab] = useState<'today' | 'week' | 'plan'>('today');
+  const [activeTab, setActiveTab] = useState<'today' | 'week' | 'plan' | 'restaurants'>('today');
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [newWeight, setNewWeight] = useState('');
   
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [editProfile, setEditProfile] = useState<UserProfile>({
+    name: '',
     age: 0,
     height: 170,
     gender: 'male',
@@ -194,7 +205,11 @@ export default function App() {
     allergies: '',
     dislikedFoods: '',
     goal: 'maintain',
-    macroDistribution: 'balanced'
+    macroDistribution: 'balanced',
+    favoriteSupermarket: 'Mercadona',
+    freeMealEnabled: false,
+    freeMealDay: 'Sábado',
+    freeMealType: 'cena'
   });
   const [editWeight, setEditWeight] = useState('');
 
@@ -220,6 +235,16 @@ export default function App() {
   const [isChatLoading, setIsChatLoading] = useState(false);
 
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
+
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [isSearchingRestaurants, setIsSearchingRestaurants] = useState(false);
+  const [restaurantLocation, setRestaurantLocation] = useState('');
+  const [restaurantFilters, setRestaurantFilters] = useState({
+    allergies: true,
+    dietType: true,
+    other: ''
+  });
 
   useEffect(() => {
     const testConnection = async () => {
@@ -245,8 +270,13 @@ export default function App() {
             if (data.profile) {
               const loadedProfile = {
                 ...data.profile,
+                name: data.profile.name || '',
                 allergies: data.profile.allergies || '',
-                dislikedFoods: data.profile.dislikedFoods || ''
+                dislikedFoods: data.profile.dislikedFoods || '',
+                favoriteSupermarket: data.profile.favoriteSupermarket || 'Mercadona',
+                freeMealEnabled: data.profile.freeMealEnabled || false,
+                freeMealDay: data.profile.freeMealDay || 'Sábado',
+                freeMealType: data.profile.freeMealType || 'cena'
               };
               setProfile(loadedProfile);
             }
@@ -257,6 +287,7 @@ export default function App() {
             if (data.meals) setMeals(data.meals);
             if (data.weights) setWeights(data.weights);
             if (data.chatMessages) setChatMessages(data.chatMessages);
+            if (data.checkedItems) setCheckedItems(data.checkedItems);
           }
         } catch (error) {
           handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
@@ -272,13 +303,19 @@ export default function App() {
           const savedMeals = localStorage.getItem('nutritivapp_meals');
           const savedWeights = localStorage.getItem('nutritivapp_weights');
           const savedChat = localStorage.getItem('nutritivapp_chat');
+          const savedChecked = localStorage.getItem('nutritivapp_checked_items');
 
           if (savedProfile) {
             const parsed = JSON.parse(savedProfile);
             setProfile({
               ...parsed,
+              name: parsed.name || '',
               allergies: parsed.allergies || '',
-              dislikedFoods: parsed.dislikedFoods || ''
+              dislikedFoods: parsed.dislikedFoods || '',
+              favoriteSupermarket: parsed.favoriteSupermarket || 'Mercadona',
+              freeMealEnabled: parsed.freeMealEnabled || false,
+              freeMealDay: parsed.freeMealDay || 'Sábado',
+              freeMealType: parsed.freeMealType || 'cena'
             });
           }
           if (savedGoals) setGoals(JSON.parse(savedGoals));
@@ -288,6 +325,7 @@ export default function App() {
           if (savedMeals) setMeals(JSON.parse(savedMeals));
           if (savedWeights) setWeights(JSON.parse(savedWeights));
           if (savedChat) setChatMessages(JSON.parse(savedChat));
+          if (savedChecked) setCheckedItems(JSON.parse(savedChecked));
         } catch (e) {
           console.error("Error loading from localStorage:", e);
         }
@@ -369,6 +407,15 @@ export default function App() {
       }
     }
   }, [chatMessages, user, isDataLoaded]);
+
+  useEffect(() => {
+    if (isDataLoaded) {
+      localStorage.setItem('nutritivapp_checked_items', JSON.stringify(checkedItems));
+      if (user) {
+        setDoc(doc(db, 'users', user.uid), { checkedItems }, { merge: true }).catch(error => handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`));
+      }
+    }
+  }, [checkedItems, user, isDataLoaded]);
 
   // Calculate today's totals
   const todaysMeals = useMemo(() => {
@@ -540,7 +587,7 @@ export default function App() {
       const remainingProtein = goals.protein - totals.protein;
       const remainingCarbs = goals.carbs - totals.carbs;
       const remainingFat = goals.fat - totals.fat;
-      const contextStr = `Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas para cumplir el objetivo del día. Dieta: ${profile.dietType}.`;
+      const contextStr = `Usuario: ${profile.name || 'Usuario'}. Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas para cumplir el objetivo del día. Dieta: ${profile.dietType}.`;
 
       const info = await analyzeFoodText(text, contextStr);
       
@@ -597,7 +644,7 @@ export default function App() {
       const remainingProtein = goals.protein - totals.protein;
       const remainingCarbs = goals.carbs - totals.carbs;
       const remainingFat = goals.fat - totals.fat;
-      const contextStr = `Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas para cumplir el objetivo del día. Dieta: ${profile.dietType}.`;
+      const contextStr = `Usuario: ${profile.name || 'Usuario'}. Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas para cumplir el objetivo del día. Dieta: ${profile.dietType}.`;
 
       console.log("Calling analyzeFoodImage...");
       const info = await analyzeFoodImage(base64Data, mimeType, contextStr);
@@ -817,6 +864,68 @@ export default function App() {
     doc.save(`NutritivApp_Plan_Premium_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
+  const downloadShoppingListHTML = () => {
+    if (!shoppingList) return;
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de la Compra - NutritivApp</title>
+    <style>
+        :root { --lime: #a3e635; --zinc-950: #09090b; --zinc-900: #18181b; --zinc-800: #27272a; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--zinc-950); color: white; margin: 0; padding: 20px; }
+        .container { max-width: 500px; margin: 0 auto; }
+        h1 { font-size: 24px; font-weight: 900; letter-spacing: -1px; margin-bottom: 5px; }
+        .subtitle { color: #71717a; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        .supermarket { color: var(--lime); font-size: 14px; font-weight: 800; text-transform: uppercase; margin-bottom: 30px; border-bottom: 1px solid rgba(163, 230, 53, 0.2); padding-bottom: 10px; }
+        .category { margin-bottom: 25px; }
+        .category-title { color: #71717a; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .category-title::before { content: ''; width: 4px; height: 4px; background: var(--lime); border-radius: 50%; }
+        .item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: all 0.2s; }
+        .checkbox { width: 20px; height: 20px; border: 1px solid #3f3f46; border-radius: 6px; background: #18181b; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .item.checked { opacity: 0.5; border-color: rgba(163, 230, 53, 0.2); background: rgba(163, 230, 53, 0.02); }
+        .item.checked .checkbox { background: var(--lime); border-color: var(--lime); }
+        .item.checked .checkbox::after { content: '✓'; color: #09090b; font-size: 12px; font-weight: bold; }
+        .item.checked .name { text-decoration: line-through; color: #71717a; }
+        .name { font-size: 14px; font-weight: 500; flex: 1; }
+        .amount { color: var(--lime); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Nutritiv<span style="color: var(--lime)">App</span></h1>
+        <div class="subtitle">Lista de la Compra Interactiva</div>
+        <div class="supermarket">Supermercado: ${profile.favoriteSupermarket}</div>
+        ${shoppingList.categories.map(cat => `
+            <div class="category">
+                <div class="category-title">${cat.name}</div>
+                ${cat.items.map(item => `
+                    <div class="item" onclick="this.classList.toggle('checked')">
+                        <div class="checkbox"></div>
+                        <div class="name">${item.name}</div>
+                        <div class="amount">${item.amount}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `).join('')}
+    </div>
+</body>
+</html>`;
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lista-compra-nutritivapp.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const downloadShoppingListPDF = () => {
     if (!shoppingList) return;
 
@@ -860,7 +969,7 @@ export default function App() {
     };
 
     let pageNum = 1;
-    drawHeader('NutritivApp', `Lista de la Compra`, accentColor);
+    drawHeader('NutritivApp', `Lista de la Compra - ${profile.favoriteSupermarket}`, accentColor);
     drawFooter(pageNum++);
     let y = 65;
 
@@ -933,7 +1042,7 @@ export default function App() {
         foodDescription = `${editingMeal.foodName} (Ingredientes: ${ingredientsList})`;
       }
 
-      const contextStr = `Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas. Dieta: ${profile.dietType}.`;
+      const contextStr = `Usuario: ${profile.name || 'Usuario'}. Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas. Dieta: ${profile.dietType}.`;
 
       const newMacros = await recalculateFoodMacros(foodDescription, contextStr);
       setEditingMeal({
@@ -966,14 +1075,20 @@ export default function App() {
     }
   };
 
-  const handleGenerateMenu = async () => {
-    if (profile.age === 0) return;
+  const handleGenerateMenu = async (customProfile?: UserProfile, customGoals?: typeof goals) => {
+    const activeProfile = customProfile || profile;
+    const activeGoals = customGoals || goals;
+    if (activeProfile.age === 0) return;
     setIsGeneratingMenu(true);
     setShoppingList(null);
     setAppError(null);
     try {
-      const profileStr = `Edad: ${profile.age}, Peso: ${weights.length > 0 ? weights[weights.length - 1].weight : 'No especificado'}kg, Altura: ${profile.height}cm, Género: ${profile.gender}, Nivel de actividad: ${profile.activityLevel}, Objetivo: ${profile.goal}, Distribución de macros: ${profile.macroDistribution}, Calorías objetivo: ${goals.calories}kcal (${goals.protein}g Proteína, ${goals.carbs}g Carbohidratos, ${goals.fat}g Grasas).`;
-      const preferencesStr = `Tipo de dieta: ${profile.dietType || 'Normal'}. Alergias: ${profile.allergies || 'Ninguna'}. Alimentos no deseados: ${profile.dislikedFoods || 'Ninguno'}.`;
+      const freeMealStr = activeProfile.freeMealEnabled 
+        ? `Comida/Cena libre: Habilitada para el ${activeProfile.freeMealDay} (${activeProfile.freeMealType}).` 
+        : 'Comida/Cena libre: Deshabilitada.';
+      
+      const profileStr = `Nombre/Alias: ${activeProfile.name || 'Usuario'}, Edad: ${activeProfile.age}, Peso: ${weights.length > 0 ? weights[weights.length - 1].weight : 'No especificado'}kg, Altura: ${activeProfile.height}cm, Género: ${activeProfile.gender}, Nivel de actividad: ${activeProfile.activityLevel}, Objetivo: ${activeProfile.goal}, Distribución de macros: ${activeProfile.macroDistribution}, Calorías objetivo: ${activeGoals.calories}kcal (${activeGoals.protein}g Proteína, ${activeGoals.carbs}g Carbohidratos, ${activeGoals.fat}g Grasas), Supermercado favorito: ${activeProfile.favoriteSupermarket}. ${freeMealStr}`;
+      const preferencesStr = `Tipo de dieta: ${activeProfile.dietType || 'Normal'}. Alergias: ${activeProfile.allergies || 'Ninguna'}. Alimentos no deseados: ${activeProfile.dislikedFoods || 'Ninguno'}.`;
       
       const menu = await generateWeeklyMenu(profileStr, preferencesStr);
       setGeneratedMenu(menu);
@@ -981,7 +1096,7 @@ export default function App() {
       // Automatically generate shopping list as well
       setIsGeneratingShoppingList(true);
       try {
-        const list = await generateShoppingList(menu);
+        const list = await generateShoppingList(menu, activeProfile.favoriteSupermarket);
         setShoppingList(list);
       } catch (err) {
         console.error("Error generating initial shopping list:", err);
@@ -989,12 +1104,19 @@ export default function App() {
         setIsGeneratingShoppingList(false);
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating menu:", error);
-      setAppError("Error al generar el plan. Inténtalo de nuevo.");
+      setAppError(error.message || "Error al generar el plan. Inténtalo de nuevo.");
     } finally {
       setIsGeneratingMenu(false);
     }
+  };
+
+  const toggleCheckedItem = (itemName: string) => {
+    setCheckedItems(prev => ({
+      ...prev,
+      [itemName]: !prev[itemName]
+    }));
   };
 
   const handleGenerateShoppingList = async () => {
@@ -1003,7 +1125,7 @@ export default function App() {
     setShoppingList(null);
     setAppError(null);
     try {
-      const list = await generateShoppingList(generatedMenu);
+      const list = await generateShoppingList(generatedMenu, profile.favoriteSupermarket);
       setShoppingList(list);
     } catch (error) {
       console.error("Error generating shopping list:", error);
@@ -1024,7 +1146,8 @@ export default function App() {
     setIsChatLoading(true);
 
     try {
-      const contextStr = `- Edad: ${profile.age}, Peso: ${weights.length > 0 ? weights[weights.length - 1].weight : 'N/A'}kg, Altura: ${profile.height}cm, Género: ${profile.gender}
+      const contextStr = `Usuario: ${profile.name || 'Usuario'}.
+- Edad: ${profile.age}, Peso: ${weights.length > 0 ? weights[weights.length - 1].weight : 'N/A'}kg, Altura: ${profile.height}cm, Género: ${profile.gender}
 - Dieta: ${profile.dietType}, Alergias: ${profile.allergies || 'Ninguna'}, No le gusta: ${profile.dislikedFoods || 'Nada'}
 - Calorías objetivo: ${goals.calories} kcal (P: ${goals.protein}g, C: ${goals.carbs}g, G: ${goals.fat}g)
 - Consumido hoy: ${Math.round(totals.calories)} kcal (P: ${Math.round(totals.protein)}g, C: ${Math.round(totals.carbs)}g, G: ${Math.round(totals.fat)}g)
@@ -1105,14 +1228,19 @@ export default function App() {
         break;
     }
 
-    setGoals({
+    const newGoals = {
       calories: targetCalories,
       protein: Math.round((targetCalories * proteinRatio) / 4),
       carbs: Math.round((targetCalories * carbsRatio) / 4),
       fat: Math.round((targetCalories * fatRatio) / 9),
-    });
+    };
+
+    setGoals(newGoals);
     
     setIsGoalModalOpen(false);
+
+    // Auto-regenerate menu and shopping list on profile update
+    handleGenerateMenu(editProfile, newGoals);
   };
 
   const updateHabit = (type: 'water' | 'sleep', value: number) => {
@@ -1209,6 +1337,27 @@ export default function App() {
     }
   };
 
+  const handleSearchRestaurants = async (e?: React.FormEvent, overrideLocation?: string) => {
+    if (e) e.preventDefault();
+    setIsSearchingRestaurants(true);
+    setAppError(null);
+    try {
+      const location = overrideLocation || restaurantLocation || 'mi ciudad';
+      const prefs = [
+        restaurantFilters.dietType ? `Dieta: ${profile.dietType}` : '',
+        restaurantFilters.allergies ? `Alergias: ${profile.allergies}` : '',
+        restaurantFilters.other ? `Otros filtros: ${restaurantFilters.other}` : ''
+      ].filter(Boolean).join(', ');
+      
+      const results = await findRestaurants(location, prefs);
+      setRestaurants(results);
+    } catch (error: any) {
+      setAppError(error.message);
+    } finally {
+      setIsSearchingRestaurants(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -1227,6 +1376,7 @@ export default function App() {
       setWeights([]);
       setGoals(DEFAULT_GOALS);
       setProfile({
+        name: '',
         age: 0,
         height: 170,
         gender: 'male',
@@ -1235,7 +1385,11 @@ export default function App() {
         allergies: '',
         dislikedFoods: '',
         goal: 'maintain',
-        macroDistribution: 'balanced'
+        macroDistribution: 'balanced',
+        favoriteSupermarket: 'Mercadona',
+        freeMealEnabled: false,
+        freeMealDay: 'Sábado',
+        freeMealType: 'cena'
       });
       setHabits({});
       setGeneratedMenu(null);
@@ -1475,6 +1629,12 @@ export default function App() {
           >
             Plan
           </button>
+          <button 
+            onClick={() => setActiveTab('restaurants')}
+            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'restaurants' ? 'bg-lime-400 text-zinc-950 shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+          >
+            Capricho
+          </button>
         </div>
 
         <AnimatePresence mode="wait">
@@ -1524,7 +1684,7 @@ export default function App() {
                   <h2 className="text-6xl font-display font-black text-white mb-2 tracking-tighter">
                     {Math.round(assistant.remainingCalories)}
                   </h2>
-                  <p className="text-zinc-400 font-medium uppercase tracking-widest text-xs mb-6">Kcal Restantes</p>
+                  <p className="text-zinc-400 font-medium uppercase tracking-widest text-xs mb-6">{profile.name || 'Usuario'}, Kcal Restantes</p>
                   
                   <div className={`inline-block backdrop-blur-md border rounded-2xl px-6 py-4 ${
                     assistant.stateType === 'good' || assistant.stateType === 'start' ? 'bg-lime-500/10 border-lime-500/20' :
@@ -1553,7 +1713,7 @@ export default function App() {
                     </div>
                     <div>
                       <h4 className="font-bold text-blue-400 text-sm mb-1">Sugerencia del Coach</h4>
-                      <p className="text-xs text-zinc-300 leading-relaxed">{meals[0].actionableRecommendation || meals[0].recommendations}</p>
+                      <p className="text-xs text-zinc-300 leading-relaxed">{meals[0].actionableRecommendation?.replace(new RegExp(`${profile.name}`, 'gi'), '').replace(/^[,.\s]+|[,.\s]+$/g, '') || meals[0].recommendations?.replace(new RegExp(`${profile.name}`, 'gi'), '').replace(/^[,.\s]+|[,.\s]+$/g, '')}</p>
                     </div>
                   </div>
                 </div>
@@ -1893,30 +2053,55 @@ export default function App() {
                     </div>
                     {generatedMenu ? (
                       <div className="space-y-6">
-                        <div className="bg-zinc-950/30 rounded-2xl border border-white/5 p-6 text-center">
-                          <CheckCircle2 className="w-12 h-12 text-lime-400 mx-auto mb-3 opacity-50" />
-                          <p className="text-zinc-300 font-bold mb-2">¡Plan y lista de compra listos!</p>
-                          <p className="text-zinc-500 text-xs mb-6 px-4">Tu plan nutricional personalizado y la lista de la compra optimizada ya están disponibles.</p>
-                          
-                          <div className="grid grid-cols-2 gap-3">
-                            <button 
-                              type="button"
-                              onClick={downloadMenuPDF}
-                              className="flex flex-col items-center gap-2 bg-lime-400/10 hover:bg-lime-400/20 text-lime-400 p-4 rounded-2xl border border-lime-400/20 transition-all group"
-                            >
-                              <Download className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                              <span className="text-[10px] font-bold uppercase tracking-widest">Descargar Plan</span>
-                            </button>
-                            <button 
-                              onClick={handleGenerateMenu}
-                              disabled={isGeneratingMenu}
-                              className="flex flex-col items-center gap-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 p-4 rounded-2xl border border-white/5 transition-all group disabled:opacity-50"
-                            >
-                              {isGeneratingMenu ? <Loader2 className="w-6 h-6 animate-spin" /> : <RefreshCw className="w-6 h-6 group-hover:rotate-180 transition-transform duration-500" />}
-                              <span className="text-[10px] font-bold uppercase tracking-widest">Regenerar Plan</span>
-                            </button>
+                        {isGeneratingMenu ? (
+                          <div className="bg-zinc-950/30 rounded-2xl border border-white/5 p-12 text-center">
+                            <div className="relative w-20 h-20 mx-auto mb-6">
+                              <motion.div
+                                className="absolute inset-0 rounded-2xl bg-lime-400/20"
+                                animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.2, 0.5] }}
+                                transition={{ repeat: Infinity, duration: 2 }}
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <Utensils className="w-8 h-8 text-lime-400" />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <p className="text-white font-bold">Diseñando el plan de {profile.name || 'Usuario'}...</p>
+                              <motion.div 
+                                className="text-zinc-500 text-xs font-mono h-4"
+                                animate={{ opacity: [0, 1, 0] }}
+                                transition={{ repeat: Infinity, duration: 1.5 }}
+                              >
+                                {'> Calculando macros óptimos...'}
+                              </motion.div>
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="bg-zinc-950/30 rounded-2xl border border-white/5 p-6 text-center">
+                            <CheckCircle2 className="w-12 h-12 text-lime-400 mx-auto mb-3 opacity-50" />
+                            <p className="text-zinc-300 font-bold mb-2">¡Plan de {profile.name || 'Usuario'} listo!</p>
+                            <p className="text-zinc-500 text-xs mb-6 px-4">Tu plan nutricional personalizado y la lista de la compra optimizada ya están disponibles.</p>
+                            
+                            <div className="grid grid-cols-2 gap-3">
+                              <button 
+                                type="button"
+                                onClick={downloadMenuPDF}
+                                className="flex flex-col items-center gap-2 bg-lime-400/10 hover:bg-lime-400/20 text-lime-400 p-4 rounded-2xl border border-lime-400/20 transition-all group"
+                              >
+                                <Download className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Descargar Plan</span>
+                              </button>
+                              <button 
+                                onClick={() => handleGenerateMenu()}
+                                disabled={isGeneratingMenu}
+                                className="flex flex-col items-center gap-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 p-4 rounded-2xl border border-white/5 transition-all group disabled:opacity-50"
+                              >
+                                {isGeneratingMenu ? <Loader2 className="w-6 h-6 animate-spin" /> : <RefreshCw className="w-6 h-6 group-hover:rotate-180 transition-transform duration-500" />}
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Regenerar Plan</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Unified Shopping List Section */}
                         <div className="bg-zinc-900/50 rounded-3xl p-6 border border-white/5 space-y-6">
@@ -1943,11 +2128,29 @@ export default function App() {
                           </div>
 
                           {!shoppingList || isGeneratingShoppingList ? (
-                            <div className="text-center py-4">
-                              <Loader2 className="w-8 h-8 text-lime-400 animate-spin mx-auto mb-2" />
-                              <p className="text-zinc-500 text-xs">
-                                {isGeneratingShoppingList ? 'Generando lista...' : 'Cargando lista de la compra...'}
-                              </p>
+                            <div className="text-center py-12">
+                              <div className="relative w-20 h-20 mx-auto mb-6">
+                                <motion.div
+                                  className="absolute inset-0 rounded-2xl bg-lime-400/20"
+                                  animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.2, 0.5] }}
+                                  transition={{ repeat: Infinity, duration: 2 }}
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <ShoppingCart className="w-8 h-8 text-lime-400" />
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <p className="text-white font-bold">
+                                  {isGeneratingShoppingList ? 'Analizando tu menú...' : 'Cargando lista...'}
+                                </p>
+                                <motion.div 
+                                  className="text-zinc-500 text-xs font-mono h-4"
+                                  animate={{ opacity: [0, 1, 0] }}
+                                  transition={{ repeat: Infinity, duration: 1.5 }}
+                                >
+                                  {isGeneratingShoppingList ? `> Buscando productos en ${profile.favoriteSupermarket}...` : '> Preparando pasillos...'}
+                                </motion.div>
+                              </div>
                             </div>
                           ) : shoppingList.categories.length === 0 ? (
                             <div className="text-center py-8 bg-zinc-950/50 rounded-2xl border border-white/5">
@@ -1956,21 +2159,35 @@ export default function App() {
                               <p className="text-zinc-600 text-[10px] mt-1">Intenta generar el menú de nuevo.</p>
                             </div>
                           ) : (
-                            <div className="space-y-4">
+                            <div className="space-y-6">
                               <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-center">
                                 <p className="text-emerald-400 text-sm font-medium mb-1">¡Lista generada con éxito!</p>
-                                <p className="text-zinc-400 text-xs mb-4">Descarga el PDF para ver todos los ingredientes y cantidades necesarias para tu menú semanal.</p>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    downloadShoppingListPDF();
-                                  }}
-                                  className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-emerald-500 text-zinc-950 hover:bg-emerald-400 transition-colors font-bold text-xs uppercase tracking-widest"
-                                >
-                                  <Download className="w-4 h-4" />
-                                  Descargar PDF
-                                </button>
+                                <p className="text-zinc-400 text-xs mb-4">La lista se ha generado orientada a tu supermercado favorito: <span className="text-lime-400 font-bold">{profile.favoriteSupermarket}</span>.</p>
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      downloadShoppingListHTML();
+                                    }}
+                                    className="flex items-center justify-center gap-2 p-3 rounded-xl bg-lime-400 text-zinc-950 hover:bg-lime-300 transition-colors font-bold text-[10px] uppercase tracking-widest"
+                                  >
+                                    <CheckSquare className="w-4 h-4" />
+                                    Lista Web
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      downloadShoppingListPDF();
+                                    }}
+                                    className="flex items-center justify-center gap-2 p-3 rounded-xl bg-zinc-800 text-white hover:bg-zinc-700 transition-colors font-bold text-[10px] uppercase tracking-widest"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                    PDF
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           )}
@@ -1980,7 +2197,7 @@ export default function App() {
                       <div className="text-center py-8">
                         <p className="text-zinc-500 text-sm mb-4">Genera tu menú semanal y lista de la compra adaptados a tus preferencias.</p>
                         <button 
-                          onClick={handleGenerateMenu}
+                          onClick={() => handleGenerateMenu()}
                           disabled={isGeneratingMenu}
                           className="bg-lime-400 text-zinc-950 px-6 py-2 rounded-xl font-bold uppercase tracking-wider text-xs"
                         >
@@ -1991,6 +2208,168 @@ export default function App() {
                   </div>
                 </>
               )}
+            </motion.div>
+          )}
+
+          {activeTab === 'restaurants' && (
+            <motion.div
+              key="restaurants"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8 pb-32"
+            >
+              {/* Encouragement Card */}
+              <div className="bg-gradient-to-br from-lime-400/20 to-lime-400/5 border border-lime-400/20 rounded-3xl p-6 relative overflow-hidden">
+                <div className="absolute -top-12 -right-12 w-32 h-32 bg-lime-400/20 rounded-full blur-3xl animate-pulse"></div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-lime-400/20 rounded-xl border border-lime-400/30">
+                      <Star className="w-6 h-6 text-lime-400" />
+                    </div>
+                    <h2 className="text-xl font-display font-black text-white uppercase tracking-tight">¡Date un capricho, {profile.name || 'campeón'}!</h2>
+                  </div>
+                  <p className="text-zinc-300 text-sm leading-relaxed">
+                    Te lo has ganado. Comer fuera no significa romper tus objetivos. He buscado los mejores sitios que se adaptan a tu estilo de vida y restricciones.
+                  </p>
+                </div>
+              </div>
+
+              {/* Search Section */}
+              <div className="bg-zinc-900/50 border border-white/5 rounded-3xl p-6 space-y-6">
+                <form onSubmit={handleSearchRestaurants} className="space-y-4 max-w-xl mx-auto">
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                    <input 
+                      type="text"
+                      value={restaurantLocation}
+                      onChange={(e) => setRestaurantLocation(e.target.value)}
+                      placeholder="Indica tu ubicación (ej: Madrid, Chueca...)"
+                      className="w-full bg-zinc-950 border border-white/10 rounded-2xl pl-12 pr-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-lime-400 transition-all"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="flex items-center justify-between p-3 bg-zinc-950 rounded-xl border border-white/5">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Dieta ({profile.dietType})</span>
+                      <button 
+                        type="button"
+                        onClick={() => setRestaurantFilters({...restaurantFilters, dietType: !restaurantFilters.dietType})}
+                        className={`w-10 h-2.5 rounded-full transition-colors relative ${restaurantFilters.dietType ? 'bg-lime-400' : 'bg-zinc-700'}`}
+                      >
+                        <div className={`absolute -top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${restaurantFilters.dietType ? 'left-6' : 'left-0'}`} />
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-zinc-950 rounded-xl border border-white/5">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Alergias ({profile.allergies || 'No'})</span>
+                      <button 
+                        type="button"
+                        onClick={() => setRestaurantFilters({...restaurantFilters, allergies: !restaurantFilters.allergies})}
+                        className={`w-10 h-2.5 rounded-full transition-colors relative ${restaurantFilters.allergies ? 'bg-lime-400' : 'bg-zinc-700'}`}
+                      >
+                        <div className={`absolute -top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${restaurantFilters.allergies ? 'left-6' : 'left-0'}`} />
+                      </button>
+                    </div>
+                  </div>
+                  <input 
+                    type="text"
+                    value={restaurantFilters.other}
+                    onChange={(e) => setRestaurantFilters({...restaurantFilters, other: e.target.value})}
+                    placeholder="Otros filtros (ej: terraza, barato, romántico...)"
+                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-lime-400 transition-all"
+                  />
+
+                  <button 
+                    type="submit"
+                    disabled={isSearchingRestaurants}
+                    className="w-full bg-lime-400 hover:bg-lime-300 disabled:opacity-50 text-zinc-950 font-black uppercase tracking-widest py-3 rounded-2xl transition-all shadow-lg shadow-lime-400/20 flex items-center justify-center gap-2 text-xs"
+                  >
+                    {isSearchingRestaurants ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+                    {isSearchingRestaurants ? 'Buscando...' : 'Buscar Restaurantes'}
+                  </button>
+                </form>
+              </div>
+
+              {/* Results */}
+              <div className="space-y-4">
+                {isSearchingRestaurants ? (
+                  <div className="bg-zinc-950/30 rounded-[2.5rem] border border-white/5 p-12 text-center">
+                    <div className="relative w-20 h-20 mx-auto mb-6">
+                      <motion.div
+                        className="absolute inset-0 rounded-2xl bg-lime-400/20"
+                        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.2, 0.5] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <MapPin className="w-8 h-8 text-lime-400" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-white font-bold">Buscando los mejores sitios...</p>
+                      <motion.div 
+                        className="text-zinc-500 text-xs font-mono h-4"
+                        animate={{ opacity: [0, 1, 0] }}
+                        transition={{ repeat: Infinity, duration: 1.5 }}
+                      >
+                        {`> Consultando guía gastronómica...`}
+                      </motion.div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {restaurants.length > 0 && (
+                      <div className="flex items-center justify-between px-2">
+                        <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Resultados encontrados</h3>
+                        <span className="text-[10px] font-bold bg-lime-400/10 text-lime-400 px-2 py-1 rounded-full border border-lime-400/20">{restaurants.length} locales</span>
+                      </div>
+                    )}
+
+                    <div className="space-y-4">
+                      {restaurants.map((res, i) => (
+                        <motion.div 
+                          key={i}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.1 }}
+                          className="bg-zinc-900/50 border border-white/5 rounded-3xl p-5 hover:bg-zinc-800/50 transition-colors group"
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="text-lg font-bold text-white group-hover:text-lime-400 transition-colors">{res.name}</h4>
+                            <div className="flex items-center gap-1 bg-amber-400/10 text-amber-400 px-2 py-1 rounded-lg border border-amber-400/20">
+                              <Star className="w-3 h-3 fill-current" />
+                              <span className="text-xs font-black">{res.rating}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-zinc-500 text-xs mb-3">
+                            <MapPin className="w-3 h-3" />
+                            <span className="truncate">{res.address}</span>
+                          </div>
+                          <p className="text-zinc-400 text-sm mb-4 leading-relaxed italic">"{res.description}"</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold bg-zinc-800 text-zinc-400 px-3 py-1.5 rounded-full uppercase tracking-widest border border-white/5">
+                              {res.specialty}
+                            </span>
+                            <button 
+                              onClick={() => window.open(`https://www.google.com/maps/search/${encodeURIComponent(res.name + ' ' + res.address)}`, '_blank')}
+                              className="text-lime-400 hover:text-lime-300 text-xs font-bold flex items-center gap-1 transition-colors"
+                            >
+                              Ver en Maps
+                              <TrendingUp className="w-3 h-3 rotate-45" />
+                            </button>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    {restaurants.length === 0 && (
+                      <div className="text-center py-12 bg-zinc-900/20 rounded-3xl border border-white/5 border-dashed">
+                        <Bot className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
+                        <p className="text-zinc-500 text-sm">Indica una ubicación y pulsa buscar para encontrar sitios increíbles.</p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -2122,6 +2501,17 @@ export default function App() {
               </div>
               
               <form onSubmit={handleSaveGoal} className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-24">
+                <div className="bg-zinc-950 p-4 rounded-2xl border border-white/5 space-y-3">
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Nombre / Alias</label>
+                  <input 
+                    type="text" 
+                    value={editProfile.name}
+                    onChange={(e) => setEditProfile({...editProfile, name: e.target.value})}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors"
+                    placeholder="¿Cómo quieres que te llame?"
+                  />
+                </div>
+
                 <div className="bg-lime-400/5 border border-lime-400/20 rounded-xl p-3">
                   <div className="flex gap-2">
                     <Info className="w-4 h-4 text-lime-400 shrink-0" />
@@ -2231,7 +2621,63 @@ export default function App() {
                         <option value="Paleo">Paleo</option>
                       </select>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="mt-3">
+                      <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Supermercado Favorito</label>
+                      <select 
+                        value={editProfile.favoriteSupermarket}
+                        onChange={(e) => setEditProfile({...editProfile, favoriteSupermarket: e.target.value})}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
+                      >
+                        <option value="Mercadona">Mercadona</option>
+                        <option value="Carrefour">Carrefour</option>
+                        <option value="Aldi">Aldi</option>
+                        <option value="Lidl">Lidl</option>
+                        <option value="Alcampo">Alcampo</option>
+                        <option value="Eroski">Eroski</option>
+                      </select>
+                    </div>
+
+                    <div className="mt-3 p-3 bg-zinc-900 rounded-xl border border-white/5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-white uppercase tracking-widest">Comida/Cena Libre Semanal</label>
+                        <button 
+                          type="button"
+                          onClick={() => setEditProfile({...editProfile, freeMealEnabled: !editProfile.freeMealEnabled})}
+                          className={`w-10 h-2.5 rounded-full transition-colors relative ${editProfile.freeMealEnabled ? 'bg-lime-400' : 'bg-zinc-700'}`}
+                        >
+                          <div className={`absolute -top-1 w-4.5 h-4.5 rounded-full bg-white shadow-sm transition-all ${editProfile.freeMealEnabled ? 'left-5.5' : 'left-0'}`} />
+                        </button>
+                      </div>
+                      
+                      {editProfile.freeMealEnabled && (
+                        <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2">
+                          <div>
+                            <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Día</label>
+                            <select 
+                              value={editProfile.freeMealDay}
+                              onChange={(e) => setEditProfile({...editProfile, freeMealDay: e.target.value})}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none"
+                            >
+                              {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(day => (
+                                <option key={day} value={day}>{day}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Tipo</label>
+                            <select 
+                              value={editProfile.freeMealType}
+                              onChange={(e) => setEditProfile({...editProfile, freeMealType: e.target.value as any})}
+                              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none"
+                            >
+                              <option value="comida">Comida</option>
+                              <option value="cena">Cena</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mt-3">
                       <div>
                         <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Alergias</label>
                         <input 
