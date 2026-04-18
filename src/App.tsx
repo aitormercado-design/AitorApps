@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, Download, LogOut, Banana, User as UserIcon, Star, MapPin, Search } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, Download, LogOut, Banana, User as UserIcon, Star, MapPin, Search, Pizza, Save, Edit2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, WeeklyMenu, ShoppingList, findRestaurants, Restaurant } from './lib/gemini';
@@ -78,9 +79,10 @@ type UserProfile = {
   age: number;
   height: number;
   gender: 'male' | 'female';
-  activityLevel: number;
   dietType: string;
-  allergies: string;
+  allergies: string[];
+  otherAllergies: string;
+  diabetesType: 'none' | 'type1' | 'type2' | 'prediabetes';
   dislikedFoods: string;
   goal: 'lose' | 'maintain' | 'gain';
   macroDistribution: 'balanced' | 'low_carb' | 'high_protein' | 'keto';
@@ -88,10 +90,19 @@ type UserProfile = {
   freeMealEnabled: boolean;
   freeMealDay: string;
   freeMealType: 'comida' | 'cena';
+  gymEnabled: boolean;
+  gymGoal: 'muscle' | 'strength' | 'cardio' | 'fat_loss' | 'flexibility' | 'maintenance';
+  trainingDaysPerWeek: number;
+  theme: 'light' | 'dark';
 };
 
 type DailyHabits = {
-  [date: string]: { water: number; sleep: number };
+  [date: string]: { 
+    water: number; 
+    sleep: number; 
+    workoutDone?: boolean; 
+    completedExercises?: string[]; // IDs or names of exercise blocks completed
+  };
 };
 
 const DEFAULT_GOALS = {
@@ -117,8 +128,115 @@ const NutriScoreBadge = ({ score }: { score?: "A" | "B" | "C" | "D" | "E" }) => 
   );
 };
 
+const RulerPicker = ({ value, onChange, min, max, step, unit, label }: any) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const isInternalUpdate = useRef(false);
+
+  const range = max - min;
+  const steps = range / step;
+
+  // Sync scroll position when value changes from OUTSIDE
+  useEffect(() => {
+    if (scrollRef.current && !isInternalUpdate.current) {
+      const percentage = (value - min) / range;
+      const targetScroll = percentage * (scrollRef.current.scrollWidth - scrollRef.current.clientWidth);
+      scrollRef.current.scrollLeft = targetScroll;
+    }
+    isInternalUpdate.current = false;
+  }, [value, min, max, range]);
+
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      const scrollPos = scrollRef.current.scrollLeft;
+      const maxScroll = scrollRef.current.scrollWidth - scrollRef.current.clientWidth;
+      
+      // Prevent division by zero
+      if (maxScroll <= 0) return;
+
+      const percentage = Math.max(0, Math.min(1, scrollPos / maxScroll));
+      const newValue = min + percentage * range;
+      const steppedValue = Math.round(newValue / step) * step;
+      const formattedValue = steppedValue.toFixed(step < 1 ? 1 : 0);
+      
+      if (formattedValue !== String(value)) {
+        isInternalUpdate.current = true;
+        onChange(formattedValue);
+      }
+    }
+  };
+
+  const onMouseDown = () => setIsDragging(true);
+  const stopDragging = () => setIsDragging(false);
+
+  return (
+    <div className="space-y-2 bg-zinc-950/50 p-4 rounded-3xl border border-white/5 shadow-inner">
+      <div className="flex justify-between items-end px-1">
+        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{label}</label>
+        <div className="flex items-baseline gap-1">
+          <input
+            type="number"
+            value={value}
+            step={step}
+            min={min}
+            max={max}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '') {
+                onChange('0');
+                return;
+              }
+              const numVal = parseFloat(val);
+              if (!isNaN(numVal)) {
+                onChange(val);
+              }
+            }}
+            className="text-2xl font-display font-black text-lime-400 bg-transparent border-none focus:outline-none w-20 text-right appearance-none"
+            style={{ MozAppearance: 'textfield' }}
+          />
+          <span className="text-zinc-600 text-[10px] font-bold uppercase">{unit}</span>
+        </div>
+      </div>
+      
+      <div className="relative h-14 flex items-center bg-zinc-900/50 rounded-2xl overflow-hidden border border-white/5">
+        <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-lime-400 z-10 shadow-[0_0_10px_rgba(163,230,53,0.5)]" />
+        
+        <div 
+          ref={scrollRef}
+          onScroll={handleScroll}
+          onMouseDown={onMouseDown}
+          onMouseUp={stopDragging}
+          onMouseLeave={stopDragging}
+          className="w-full h-full overflow-x-auto no-scrollbar cursor-grab active:cursor-grabbing flex items-end pb-2 px-[50%]"
+          style={{ scrollSnapType: 'x proximity' }}
+        >
+          <div className="flex items-end gap-2 h-8 min-w-max">
+            {Array.from({ length: steps + 1 }).map((_, i) => {
+              const val = min + i * step;
+              const isMajor = i % 10 === 0;
+              const isMid = i % 5 === 0;
+              return (
+                <div key={i} className="flex flex-col items-center gap-1">
+                  <div 
+                    className={`rounded-full transition-colors ${
+                      isMajor ? 'h-6 w-0.5 bg-zinc-500' : 
+                      isMid ? 'h-4 w-0.5 bg-zinc-700' : 'h-2 w-0.5 bg-zinc-800'
+                    }`}
+                  />
+                  {isMajor && (
+                    <span className="text-[8px] font-bold text-zinc-600 tabular-nums">{val}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const NumberInput = ({ value, onChange, label, step = 1, min = 0, max = 300, placeholder }: any) => {
-  // Extract unit from label if present (e.g., "Peso (kg)" -> "kg")
   const unitMatch = label.match(/\(([^)]+)\)/);
   const unit = unitMatch ? unitMatch[1] : '';
   const cleanLabel = label.replace(/\s*\([^)]+\)/, '');
@@ -133,28 +251,28 @@ const NumberInput = ({ value, onChange, label, step = 1, min = 0, max = 300, pla
             step={step}
             min={min}
             max={max}
-            value={value}
+            value={value === 0 ? '' : value}
             onChange={(e) => onChange(e.target.value)}
             className="bg-transparent text-right text-lg font-display font-bold text-lime-400 focus:outline-none w-16"
             placeholder={placeholder}
-            style={{ MozAppearance: 'textfield' }}
           />
           {unit && <span className="text-zinc-600 text-[10px] font-medium">{unit}</span>}
         </div>
       </div>
-      <div className="relative pt-1">
-        <input 
-          type="range" 
-          min={min} 
-          max={max} 
-          step={step} 
-          value={parseFloat(value) || min} 
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-lime-400 focus:outline-none"
-        />
-      </div>
     </div>
   );
+};
+
+const translateGymGoal = (goal: string) => {
+  const map: Record<string, string> = {
+    muscle: 'Ganar Músculo',
+    strength: 'Fuerza',
+    cardio: 'Resistencia',
+    fat_loss: 'Perder Grasa',
+    flexibility: 'Flexibilidad',
+    maintenance: 'Mantenimiento'
+  };
+  return map[goal] || goal;
 };
 
 export default function App() {
@@ -175,41 +293,80 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile>({
     name: '',
     age: 0,
-    height: 170,
+    height: 0,
     gender: 'male',
-    activityLevel: 1.55,
-    dietType: 'Normal',
-    allergies: '',
+    dietType: '',
+    allergies: [],
+    otherAllergies: '',
+    diabetesType: 'none',
     dislikedFoods: '',
     goal: 'maintain',
     macroDistribution: 'balanced',
-    favoriteSupermarket: 'Mercadona',
+    favoriteSupermarket: '',
     freeMealEnabled: false,
     freeMealDay: 'Sábado',
-    freeMealType: 'cena'
+    freeMealType: 'cena',
+    gymEnabled: false,
+    gymGoal: 'muscle',
+    trainingDaysPerWeek: 3,
+    theme: 'dark'
   });
   const [habits, setHabits] = useState<DailyHabits>({});
+  const [workoutPlan, setWorkoutPlan] = useState<string | null>(null);
+  const [isGeneratingWorkout, setIsGeneratingWorkout] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'today' | 'week' | 'plan' | 'restaurants'>('today');
+  const [activeTab, setActiveTab] = useState<'today' | 'plan' | 'restaurants' | 'gym'>('today');
+  const [todaySubTab, setTodaySubTab] = useState<'calories' | 'meals'>('calories');
+  const [evolutionPeriod, setEvolutionPeriod] = useState<'today' | 'weekly' | 'monthly' | 'quarterly' | 'semiannually' | 'annually'>('today');
+  const [gymSubTab, setGymSubTab] = useState<'intro' | 'exercises' | 'safety'>('exercises');
+  const [gymDay, setGymDay] = useState<string>('Día 1');
+  const [todayStr, setTodayStr] = useState(() => new Date().toISOString().split('T')[0]);
+
+  useEffect(() => {
+    if (profile.theme === 'light') {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+      document.documentElement.classList.add('dark');
+    }
+  }, [profile.theme]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const current = new Date().toISOString().split('T')[0];
+      if (current !== todayStr) {
+        setTodayStr(current);
+      }
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [todayStr]);
+
   const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [newWeight, setNewWeight] = useState('');
   
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const [profileTab, setProfileTab] = useState<'user' | 'diet' | 'exercise'>('user');
   const [editProfile, setEditProfile] = useState<UserProfile>({
     name: '',
     age: 0,
-    height: 170,
+    height: 0,
     gender: 'male',
-    activityLevel: 1.55,
-    dietType: 'Normal',
-    allergies: '',
+    dietType: '',
+    allergies: [],
+    otherAllergies: '',
+    diabetesType: 'none',
     dislikedFoods: '',
     goal: 'maintain',
     macroDistribution: 'balanced',
-    favoriteSupermarket: 'Mercadona',
+    favoriteSupermarket: '',
     freeMealEnabled: false,
     freeMealDay: 'Sábado',
-    freeMealType: 'cena'
+    freeMealType: 'cena',
+    gymEnabled: false,
+    gymGoal: 'muscle',
+    trainingDaysPerWeek: 3,
+    theme: 'dark'
   });
   const [editWeight, setEditWeight] = useState('');
 
@@ -307,12 +464,17 @@ export default function App() {
               const loadedProfile = {
                 ...data.profile,
                 name: data.profile.name || '',
-                allergies: data.profile.allergies || '',
+                allergies: Array.isArray(data.profile.allergies) ? data.profile.allergies : [],
+                otherAllergies: data.profile.otherAllergies || '',
+                diabetesType: data.profile.diabetesType || 'none',
                 dislikedFoods: data.profile.dislikedFoods || '',
-                favoriteSupermarket: data.profile.favoriteSupermarket || 'Mercadona',
+                favoriteSupermarket: data.profile.favoriteSupermarket || '',
                 freeMealEnabled: data.profile.freeMealEnabled || false,
                 freeMealDay: data.profile.freeMealDay || 'Sábado',
-                freeMealType: data.profile.freeMealType || 'cena'
+                freeMealType: data.profile.freeMealType || 'cena',
+                gymEnabled: data.profile.gymEnabled || false,
+                gymGoal: data.profile.gymGoal || 'muscle',
+                trainingDaysPerWeek: data.profile.trainingDaysPerWeek || 3
               };
               setProfile(loadedProfile);
             }
@@ -320,6 +482,7 @@ export default function App() {
             if (data.habits) setHabits(data.habits);
             if (data.generatedMenu) setGeneratedMenu(data.generatedMenu);
             if (data.shoppingList) setShoppingList(data.shoppingList);
+            if (data.workoutPlan) setWorkoutPlan(data.workoutPlan);
             if (data.meals) setMeals(data.meals);
             if (data.weights) setWeights(data.weights);
             if (data.chatMessages) setChatMessages(data.chatMessages);
@@ -346,18 +509,25 @@ export default function App() {
             setProfile({
               ...parsed,
               name: parsed.name || '',
-              allergies: parsed.allergies || '',
+              allergies: Array.isArray(parsed.allergies) ? parsed.allergies : [],
+              otherAllergies: parsed.otherAllergies || '',
+              diabetesType: parsed.diabetesType || 'none',
               dislikedFoods: parsed.dislikedFoods || '',
-              favoriteSupermarket: parsed.favoriteSupermarket || 'Mercadona',
+              favoriteSupermarket: parsed.favoriteSupermarket || '',
               freeMealEnabled: parsed.freeMealEnabled || false,
               freeMealDay: parsed.freeMealDay || 'Sábado',
-              freeMealType: parsed.freeMealType || 'cena'
+              freeMealType: parsed.freeMealType || 'cena',
+              gymEnabled: parsed.gymEnabled || parsed.fitnessEnabled || false,
+              gymGoal: parsed.gymGoal || parsed.fitnessGoal || 'maintenance',
+              trainingDaysPerWeek: parsed.trainingDaysPerWeek || 3,
+              theme: parsed.theme || 'dark'
             });
           }
           if (savedGoals) setGoals(JSON.parse(savedGoals));
           if (savedHabits) setHabits(JSON.parse(savedHabits));
           if (savedMenu) setGeneratedMenu(JSON.parse(savedMenu));
           if (savedShoppingList) setShoppingList(JSON.parse(savedShoppingList));
+          if (localStorage.getItem('nutritivapp_workout_plan')) setWorkoutPlan(localStorage.getItem('nutritivapp_workout_plan'));
           if (savedMeals) setMeals(JSON.parse(savedMeals));
           if (savedWeights) setWeights(JSON.parse(savedWeights));
           if (savedChat) setChatMessages(JSON.parse(savedChat));
@@ -453,12 +623,21 @@ export default function App() {
     }
   }, [checkedItems, user, isDataLoaded]);
 
+  useEffect(() => {
+    if (isDataLoaded && workoutPlan) {
+      localStorage.setItem('nutritivapp_workout_plan', workoutPlan);
+      if (user) {
+        setDoc(doc(db, 'users', user.uid), { workoutPlan }, { merge: true }).catch(error => handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`));
+      }
+    }
+  }, [workoutPlan, user, isDataLoaded]);
+
   // Calculate today's totals
   const todaysMeals = useMemo(() => {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     return meals.filter(m => m.timestamp >= todayStart.getTime());
-  }, [meals]);
+  }, [meals, todayStr]);
 
   const totals = todaysMeals.reduce(
     (acc, meal) => ({
@@ -471,7 +650,44 @@ export default function App() {
   );
 
   const getAssistantState = () => {
-    const remainingCalories = goals.calories - totals.calories;
+    const todayHabits = habits[todayStr] || { water: 0, sleep: 0 };
+    
+    // Estimate burned calories from workout per section
+    let burnedCalories = 0;
+    const completed = (todayHabits.completedExercises || []).filter(e => e && e.trim() !== "");
+    
+    if (workoutPlan && completed.length > 0) {
+      // Helper to determine section of a tableId
+      const getSectionOfTable = (tableId: string) => {
+        if (!tableId.includes('-')) return null; // No hyphen, not a valid exercise block id
+        const parts = tableId.split('-');
+        const offset = parseInt(parts[1]) || 0;
+        const textBefore = workoutPlan.substring(0, offset).toLowerCase();
+        
+        // Find positions of section markers before this table
+        const warmPos = textBefore.lastIndexOf('calentamiento');
+        const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
+        const coolPos = textBefore.lastIndexOf('vuelta a la calma');
+        
+        if (coolPos > mainPos && coolPos > warmPos) return 'cool';
+        if (mainPos > warmPos) return 'main';
+        if (warmPos !== -1) return 'warm';
+        return null;
+      };
+
+      const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean));
+      
+      // Calculate independent calories
+      if (sectionsDone.has('main')) {
+        burnedCalories += 300;
+      }
+      if (sectionsDone.has('warm')) burnedCalories += 50;
+      if (sectionsDone.has('cool')) burnedCalories += 50;
+    }
+
+    const totalTarget = goals.calories + (profile.gymEnabled ? burnedCalories : 0);
+    const consumedCalories = totals.calories;
+    const remainingCalories = totalTarget - consumedCalories;
     const remainingProtein = goals.protein - totals.protein;
     
     let message = "";
@@ -484,44 +700,72 @@ export default function App() {
       subMessage = "Vamos a por tus objetivos de hoy con energía.";
     } else if (remainingCalories < -100) {
       stateType = 'over';
-      message = "¡No pasa nada! Seguimos adelante";
-      subMessage = "Un pequeño desvío es normal. Ajustamos en la próxima comida y listo.";
+      message = "Límite superado";
+      subMessage = "Un pequeño desvío es normal. Ajustamos en la próxima comida.";
+    } else if (consumedCalories > goals.calories) {
+      stateType = 'under'; // Reusing 'under' for 'within extra buffer'
+      message = "¡Buen ritmo!";
+      subMessage = "Estás usando el margen extra del ejercicio.";
     } else if (remainingCalories > 500) {
       stateType = 'under';
-      message = "¡Buen ritmo! Recuerda nutrirte bien";
-      subMessage = "Aún tienes margen, aprovecha para darle a tu cuerpo la energía que necesita.";
+      message = "¡Buen ritmo!";
+      subMessage = "Aún tienes margen para una comida completa.";
     } else {
       stateType = 'good';
-      message = "¡Excelente trabajo!";
-      subMessage = "Vas por muy buen camino, mantén este ritmo.";
+      message = "¡Excelente ritmo!";
+      subMessage = "Estás respetando tus macros perfectamente.";
     }
 
-    // Generate 3 recommendations based on state
-    const recommendations = [
-      {
-        type: 'protein',
-        title: 'Opción alta en proteína',
-        description: remainingProtein > 30 ? 'Pollo a la plancha con ensalada o salmón al horno.' : 'Yogur griego o un batido de proteínas.',
-        icon: '🥩'
-      },
-      {
-        type: 'balanced',
-        title: 'Opción equilibrada',
-        description: 'Plato combinado: 50% verduras, 25% proteína, 25% carbohidratos complejos.',
-        icon: '🥗'
-      },
-      {
-        type: 'flexible',
-        title: 'Opción flexible',
-        description: remainingCalories > 300 ? 'Tienes margen para un capricho moderado (ej. un trozo de chocolate negro o un helado pequeño).' : 'Mejor opta por fruta fresca si te apetece algo dulce.',
-        icon: '🍫'
-      }
-    ];
+    // Add recommendation if today's meals have one
+    const latestTodayMeal = todaysMeals[todaysMeals.length - 1]; // Use last meal for most recent advice
+    const recommendation = latestTodayMeal ? (latestTodayMeal.actionableRecommendation || latestTodayMeal.recommendations) : null;
+    
+    if (recommendation) {
+      const cleanRec = recommendation
+        .replace(new RegExp(`${profile.name}`, 'gi'), '')
+        .replace(/^(sugerencia|consejo|recomendación|tip|coach|sugerencia del coach)[:\s-]*/i, '')
+        .replace(/^[,.\s]+|[,.\s]+$/g, '');
+      subMessage = cleanRec; // Prioritize coach suggestion as per user request
+    } else if (totals.calories > 0) {
+      // Fallback encouraging message
+      subMessage = "¡Sigue así, vas por muy buen camino!";
+    }
 
-    return { message, subMessage, stateType, recommendations, remainingCalories };
+    return { 
+      message, 
+      subMessage, 
+      stateType, 
+      remainingCalories, 
+      burnedCalories: profile.gymEnabled ? burnedCalories : 0,
+      totalTarget,
+      baseTarget: goals.calories,
+      consumedCalories
+    };
   };
 
   const assistant = getAssistantState();
+
+  const themeStyles = useMemo(() => {
+    const isLight = profile.theme === 'light';
+    return {
+      mainBg: isLight ? 'bg-white' : 'bg-black',
+      headerBg: isLight ? 'bg-white/95' : 'bg-black/80 font-black',
+      card: isLight ? 'bg-white border-slate-200 shadow-xl shadow-slate-100/50 opacity-100' : 'bg-zinc-950/50 border-white/5 shadow-2xl',
+      glass: isLight ? 'bg-white backdrop-blur-2xl border-white/20 shadow-2xl shadow-slate-100/50' : 'bg-zinc-950/40 backdrop-blur-xl border-white/5 shadow-2xl',
+      bento: isLight ? 'bg-white border-slate-200 shadow-xl shadow-slate-100/50 p-6 rounded-[2.5rem]' : 'bg-zinc-950 border-white/5 shadow-[0_0_50px_rgba(0,0,0,0.5)] p-6 rounded-[2.5rem]',
+      input: isLight ? 'bg-slate-50 border-slate-300 text-zinc-950 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-emerald-500/20' : 'bg-zinc-950 border-white/10 text-white placeholder:text-zinc-500 focus:border-lime-400 focus:ring-lime-400/20 shadow-inner',
+      textMain: isLight ? 'text-zinc-950' : 'text-white',
+      textMuted: isLight ? 'text-slate-500' : 'text-zinc-400',
+      accent: isLight ? 'text-emerald-600' : 'text-lime-400',
+      accentBg: isLight ? 'bg-emerald-500' : 'bg-lime-400',
+      accentBorder: isLight ? 'border-emerald-200' : 'border-lime-400/20',
+      accentMuted: isLight ? 'bg-emerald-50' : 'bg-lime-400/10',
+      iconBg: isLight ? 'bg-slate-100' : 'bg-zinc-900',
+      border: isLight ? 'border-slate-200' : 'border-white/5',
+      buttonPrimary: isLight ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' : 'bg-lime-400 hover:bg-lime-500 text-zinc-950 shadow-[0_0_20px_rgba(163,230,53,0.3)]',
+      buttonSecondary: isLight ? 'bg-slate-100 border-slate-200 text-zinc-900 hover:bg-slate-200' : 'bg-zinc-900 border-white/5 text-zinc-300 hover:bg-zinc-800',
+    };
+  }, [profile.theme]);
 
   // Calculate weekly totals
   const weeklyStats = useMemo(() => {
@@ -532,7 +776,8 @@ export default function App() {
     
     const weekMeals = meals.filter(m => m.timestamp >= start && m.timestamp < end);
     
-    return weekMeals.reduce(
+    // Sum meals
+    const totals = weekMeals.reduce(
       (acc, meal) => ({
         calories: acc.calories + meal.calories,
         protein: acc.protein + meal.protein,
@@ -541,7 +786,39 @@ export default function App() {
       }),
       { calories: 0, protein: 0, carbs: 0, fat: 0 }
     );
-  }, [meals]);
+
+    // Sum burned calories from gym
+    let burnedCalories = 0;
+    if (profile.gymEnabled && workoutPlan) {
+      for (let i = 0; i < 7; i++) {
+        const day = new Date(start + i * 86400000);
+        const dayStr = day.toISOString().split('T')[0];
+        const dayHabits = habits[dayStr];
+        const completed = (dayHabits?.completedExercises || []).filter(Boolean);
+        if (completed.length > 0) {
+          const getSectionOfTable = (tableId: string) => {
+            if (!tableId.includes('-')) return null;
+            const parts = tableId.split('-');
+            const offset = parts.length >= 2 ? (parseInt(parts[1]) || 0) : 0;
+            const textBefore = workoutPlan.substring(0, offset).toLowerCase();
+            const warmPos = textBefore.lastIndexOf('calentamiento');
+            const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
+            const coolPos = textBefore.lastIndexOf('vuelta a la calma');
+            if (coolPos > mainPos && coolPos > warmPos) return 'cool';
+            if (mainPos > warmPos) return 'main';
+            if (warmPos !== -1) return 'warm';
+            return null;
+          };
+          const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean));
+          if (sectionsDone.has('main')) burnedCalories += 300;
+          if (sectionsDone.has('warm')) burnedCalories += 50;
+          if (sectionsDone.has('cool')) burnedCalories += 50;
+        }
+      }
+    }
+
+    return { ...totals, burnedCalories };
+  }, [meals, habits, workoutPlan, profile.gymEnabled]);
 
   const weeklyGoals = useMemo(() => ({
     calories: goals.calories * 7,
@@ -550,12 +827,23 @@ export default function App() {
     fat: goals.fat * 7,
   }), [goals]);
 
-  // Calculate last 7 days trends
+  // Calculate trends based on period
   const trendsData = useMemo(() => {
-    return Array.from({ length: 7 }).map((_, i) => {
+    const periodDays = {
+      'today': 1,
+      'weekly': 7,
+      'monthly': 30,
+      'quarterly': 90,
+      'semiannually': 180,
+      'annually': 365
+    };
+    const length = periodDays[evolutionPeriod];
+
+    return Array.from({ length }).map((_, i) => {
       const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
+      d.setDate(d.getDate() - (length - 1 - i));
       d.setHours(0, 0, 0, 0);
+      const dayStr = d.toISOString().split('T')[0];
       const start = d.getTime();
       const end = start + 86400000;
       
@@ -564,15 +852,57 @@ export default function App() {
       
       const pastWeights = weights.filter(w => w.timestamp < end);
       const dayWeight = pastWeights.length > 0 ? pastWeights[pastWeights.length - 1].weight : null;
+
+      // Calculate burned for this specific day with independent sections
+      let dayBurned = 0;
+      if (profile.gymEnabled) {
+        const dayHabits = habits[dayStr];
+        const completed = (dayHabits?.completedExercises || []).filter(Boolean);
+        if (completed.length > 0 && workoutPlan) {
+          const getSectionOfTable = (tableId: string) => {
+            if (!tableId.includes('-')) return null;
+            const parts = tableId.split('-');
+            const offset = parseInt(parts[1]) || 0;
+            const textBefore = workoutPlan.substring(0, offset).toLowerCase();
+            const warmPos = textBefore.lastIndexOf('calentamiento');
+            const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
+            const coolPos = textBefore.lastIndexOf('vuelta a la calma');
+            
+            if (coolPos > mainPos && coolPos > warmPos) return 'cool';
+            if (mainPos > warmPos) return 'main';
+            if (warmPos !== -1) return 'warm';
+            return null;
+          };
+          const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean) as string[]);
+          if (sectionsDone.has('main')) dayBurned += 300;
+          if (sectionsDone.has('warm')) dayBurned += 50;
+          if (sectionsDone.has('cool')) dayBurned += 50;
+        }
+      }
       
+      const formatLabel = () => {
+        if (evolutionPeriod === 'weekly') return d.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '');
+        if (evolutionPeriod === 'monthly') return d.getDate().toString();
+        if (evolutionPeriod === 'quarterly' || evolutionPeriod === 'semiannually') {
+          if (d.getDate() % 5 === 0) return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'narrow' });
+          return '';
+        }
+        if (evolutionPeriod === 'annually') {
+          if (d.getDate() === 1) return d.toLocaleDateString('es-ES', { month: 'short' });
+          return '';
+        }
+        return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'numeric' });
+      }
+
       return {
-        name: d.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', ''),
+        name: formatLabel(),
         calories: dayCals,
+        burned: dayBurned,
         weight: dayWeight,
-        goal: goals.calories
+        goal: goals.calories + dayBurned
       };
     });
-  }, [meals, weights, goals]);
+  }, [meals, weights, goals, habits, profile.gymGoal, profile.gymEnabled, evolutionPeriod]);
 
   const compressImage = (file: File, maxWidth = 800): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -797,8 +1127,8 @@ export default function App() {
       ['Edad', `${profile.age} años`],
       ['Altura', `${profile.height} cm`],
       ['Peso Actual', `${weights.length > 0 ? weights[weights.length - 1].weight : '---'} kg`],
-      ['Actividad', `${profile.activityLevel}x`],
-      ['Alergias', profile.allergies || 'Ninguna'],
+      ['Entrenamiento', `${profile.trainingDaysPerWeek} días/sem`],
+      ['Alergias', Array.isArray(profile.allergies) && profile.allergies.length > 0 ? profile.allergies.join(', ') : 'Ninguna'],
       ['No deseados', profile.dislikedFoods || 'Ninguno']
     ];
 
@@ -1123,8 +1453,8 @@ export default function App() {
         ? `Comida/Cena libre: Habilitada para el ${activeProfile.freeMealDay} (${activeProfile.freeMealType}).` 
         : 'Comida/Cena libre: Deshabilitada.';
       
-      const profileStr = `Nombre/Alias: ${activeProfile.name || 'Usuario'}, Edad: ${activeProfile.age}, Peso: ${weights.length > 0 ? weights[weights.length - 1].weight : 'No especificado'}kg, Altura: ${activeProfile.height}cm, Género: ${activeProfile.gender}, Nivel de actividad: ${activeProfile.activityLevel}, Objetivo: ${activeProfile.goal}, Distribución de macros: ${activeProfile.macroDistribution}, Calorías objetivo: ${activeGoals.calories}kcal (${activeGoals.protein}g Proteína, ${activeGoals.carbs}g Carbohidratos, ${activeGoals.fat}g Grasas), Supermercado favorito: ${activeProfile.favoriteSupermarket}. ${freeMealStr}`;
-      const preferencesStr = `Tipo de dieta: ${activeProfile.dietType || 'Normal'}. Alergias: ${activeProfile.allergies || 'Ninguna'}. Alimentos no deseados: ${activeProfile.dislikedFoods || 'Ninguno'}.`;
+      const profileStr = `Nombre/Alias: ${activeProfile.name || 'Usuario'}, Edad: ${activeProfile.age}, Peso: ${weights.length > 0 ? weights[weights.length - 1].weight : 'No especificado'}kg, Altura: ${activeProfile.height}cm, Género: ${activeProfile.gender}, Diabetes: ${activeProfile.diabetesType}, Días de entreno/sem: ${activeProfile.trainingDaysPerWeek}, Objetivo: ${activeProfile.goal}, Distribución de macros: ${activeProfile.macroDistribution}, Calorías objetivo: ${activeGoals.calories}kcal (${activeGoals.protein}g Proteína, ${activeGoals.carbs}g Carbohidratos, ${activeGoals.fat}g Grasas), Supermercado favorito: ${activeProfile.favoriteSupermarket}. ${freeMealStr}`;
+      const preferencesStr = `Tipo de dieta: ${activeProfile.dietType || 'Normal'}. Alergias: ${Array.isArray(activeProfile.allergies) ? activeProfile.allergies.join(', ') : 'Ninguna'}${activeProfile.otherAllergies ? ` (Otras: ${activeProfile.otherAllergies})` : ''}. Alimentos no deseados: ${activeProfile.dislikedFoods || 'Ninguno'}. Diabetes: ${activeProfile.diabetesType}.`;
       
       const menu = await generateWeeklyMenu(profileStr, preferencesStr);
       setGeneratedMenu(menu);
@@ -1218,50 +1548,58 @@ export default function App() {
       setWeights(prev => [...prev, newEntry].sort((a, b) => a.timestamp - b.timestamp));
     }
 
+    // Compare key fields to decide on regeneration
+    const dietChanged = 
+      editProfile.dietType !== profile.dietType || 
+      editProfile.goal !== profile.goal || 
+      editProfile.diabetesType !== profile.diabetesType ||
+      editProfile.dislikedFoods !== profile.dislikedFoods ||
+      JSON.stringify(editProfile.allergies) !== JSON.stringify(profile.allergies) ||
+      editProfile.macroDistribution !== profile.macroDistribution;
+
+    const gymChanged = 
+      editProfile.gymGoal !== profile.gymGoal || 
+      editProfile.diabetesType !== profile.diabetesType ||
+      editProfile.trainingDaysPerWeek !== profile.trainingDaysPerWeek ||
+      editProfile.age !== profile.age ||
+      editProfile.height !== profile.height ||
+      weightVal !== latestWeight;
+
     setProfile(editProfile);
+    
+    // Reset restaurant search on profile update
+    setRestaurants([]);
+    setRestaurantLocation('');
+    setRestaurantPage(1);
+
+    // If free meal is disabled, redirect from restaurants tab
+    if (!editProfile.freeMealEnabled && activeTab === 'restaurants') {
+      setActiveTab('today');
+    }
 
     // Calculate BMR (Mifflin-St Jeor)
     let bmr = 10 * weightVal + 6.25 * editProfile.height - 5 * editProfile.age;
     bmr += editProfile.gender === 'male' ? 5 : -161;
 
-    // Calculate TDEE
-    const tdee = bmr * editProfile.activityLevel;
+    // Calculate TDEE using derived activity level from training days
+    let derivedActivityLevel = 1.2;
+    if (editProfile.trainingDaysPerWeek >= 1 && editProfile.trainingDaysPerWeek <= 2) derivedActivityLevel = 1.375;
+    else if (editProfile.trainingDaysPerWeek >= 3 && editProfile.trainingDaysPerWeek <= 4) derivedActivityLevel = 1.55;
+    else if (editProfile.trainingDaysPerWeek >= 5) derivedActivityLevel = 1.725;
+
+    const tdee = bmr * derivedActivityLevel;
 
     // Adjust calories based on goal
     let targetCalories = Math.round(tdee);
-    if (editProfile.goal === 'lose') {
-      targetCalories -= 500; // 500 kcal deficit
-    } else if (editProfile.goal === 'gain') {
-      targetCalories += 300; // 300 kcal surplus
-    }
+    if (editProfile.goal === 'lose') targetCalories -= 500;
+    else if (editProfile.goal === 'gain') targetCalories += 300;
 
     // Adjust macros based on distribution
-    let proteinRatio = 0.3;
-    let carbsRatio = 0.4;
-    let fatRatio = 0.3;
-
+    let proteinRatio = 0.3, carbsRatio = 0.4, fatRatio = 0.3;
     switch (editProfile.macroDistribution) {
-      case 'low_carb':
-        proteinRatio = 0.4;
-        carbsRatio = 0.2;
-        fatRatio = 0.4;
-        break;
-      case 'high_protein':
-        proteinRatio = 0.4;
-        carbsRatio = 0.3;
-        fatRatio = 0.3;
-        break;
-      case 'keto':
-        proteinRatio = 0.25;
-        carbsRatio = 0.05;
-        fatRatio = 0.7;
-        break;
-      case 'balanced':
-      default:
-        proteinRatio = 0.3;
-        carbsRatio = 0.4;
-        fatRatio = 0.3;
-        break;
+      case 'low_carb': proteinRatio = 0.4; carbsRatio = 0.2; fatRatio = 0.4; break;
+      case 'high_protein': proteinRatio = 0.4; carbsRatio = 0.3; fatRatio = 0.3; break;
+      case 'keto': proteinRatio = 0.25; carbsRatio = 0.05; fatRatio = 0.7; break;
     }
 
     const newGoals = {
@@ -1272,11 +1610,104 @@ export default function App() {
     };
 
     setGoals(newGoals);
-    
-    setIsGoalModalOpen(false);
 
-    // Auto-regenerate menu and shopping list on profile update
-    handleGenerateMenu(editProfile, newGoals);
+    // Auto-regenerate menu if diet relevant fields changed
+    if (dietChanged) {
+      handleGenerateMenu(editProfile, newGoals);
+    }
+
+    // Auto-regenerate workout plan if gym relevant fields changed
+    if (editProfile.gymEnabled && (gymChanged || !workoutPlan)) {
+      handleGenerateWorkout(editProfile);
+    }
+
+    setGoals(newGoals);
+    setIsGoalModalOpen(false);
+  };
+
+  const handleToggleExercise = async (id: string, routineDay?: string) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayWeekday = new Date().toLocaleDateString('es-ES', { weekday: 'long' });
+    
+    // Determine which date to impact
+    let impactDate = todayStr;
+    const isTodayRoutine = routineDay && routineDay.toLowerCase() === todayWeekday.toLowerCase();
+    
+    if (routineDay && !isTodayRoutine) {
+      const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+      const targetIdx = days.indexOf(routineDay.toLowerCase());
+      if (targetIdx !== -1) {
+        const now = new Date();
+        const currentIdx = now.getDay();
+        const diff = targetIdx - currentIdx;
+        const targetDate = new Date(now);
+        targetDate.setDate(now.getDate() + diff);
+        impactDate = targetDate.toISOString().split('T')[0];
+      }
+    }
+
+    const currentCompleted = habits[impactDate]?.completedExercises || [];
+    const isDone = currentCompleted.includes(id);
+    
+    const newCompleted = isDone 
+      ? currentCompleted.filter(cid => cid !== id)
+      : [...currentCompleted, id];
+
+    const newHabits = {
+      ...habits,
+      [impactDate]: {
+        ...(habits[impactDate] || { water: 0, sleep: 0 }),
+        completedExercises: newCompleted,
+        workoutDone: habits[impactDate]?.workoutDone || newCompleted.length > 0
+      }
+    };
+    
+    setHabits(newHabits);
+    if (user) {
+      try {
+        await setDoc(doc(db, 'users', user.uid), { habits: newHabits }, { merge: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
+      }
+    }
+  };
+
+  const handleToggleWorkout = async () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const newHabits = {
+      ...habits,
+      [todayStr]: {
+        ...(habits[todayStr] || { water: 0, sleep: 0 }),
+        workoutDone: !habits[todayStr]?.workoutDone
+      }
+    };
+    setHabits(newHabits);
+    if (user) {
+      try {
+        await setDoc(doc(db, 'users', user.uid), { habits: newHabits }, { merge: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
+      }
+    }
+  };
+
+  const handleGenerateWorkout = async (customProfile?: UserProfile) => {
+    setIsGeneratingWorkout(true);
+    try {
+      const targetProfile = customProfile || profile;
+      const profileStr = JSON.stringify({
+        ...targetProfile,
+        diabetes: targetProfile.diabetesType,
+        currentWeight: weights.length > 0 ? weights[weights.length - 1].weight : 'Desconocido'
+      });
+      const plan = await generateWorkoutPlan(profileStr);
+      setWorkoutPlan(plan);
+    } catch (error) {
+      console.error("Error generating workout:", error);
+      setAppError("Error al generar tu rutina de entrenamiento.");
+    } finally {
+      setIsGeneratingWorkout(false);
+    }
   };
 
   const updateHabit = (type: 'water' | 'sleep', value: number) => {
@@ -1303,8 +1734,98 @@ export default function App() {
     return false;
   }, [weights]);
 
-  const todayStr = new Date().toISOString().split('T')[0];
   const todayHabits = habits[todayStr] || { water: 0, sleep: 0 };
+
+  const handleRegenerateWorkoutTable = async (tableContent: string) => {
+    if (!workoutPlan) return;
+    setIsGeneratingWorkout(true);
+    try {
+      const prompt = `Eres un experto entrenador personal. 
+Tengo este plan de entrenamiento actual:
+---
+${workoutPlan}
+---
+
+Quiero que me des una ALTERNATIVA para esta tabla de ejercicios específica, optimizada para mi objetivo de ${translateGymGoal(profile.gymGoal)} para una persona de ${profile.age} años:
+
+---
+${tableContent}
+---
+
+Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero con ejercicios diferentes o variaciones que mantengan el estímulo. NO incluyas ninguna explicación, solo la tabla Markdown.`;
+
+      const result = await chatWithCoach([{ role: 'user', parts: [{ text: prompt }] }], "");
+      if (result) {
+        setWorkoutPlan(prev => prev ? prev.replace(tableContent, result) : result);
+      }
+    } catch (error) {
+      console.error("Error regenerating table:", error);
+      setAppError("Error al regenerar los ejercicios.");
+    } finally {
+      setIsGeneratingWorkout(false);
+    }
+  };
+
+  const getWorkoutSection = (text: string | null, subTab: 'intro' | 'exercises' | 'safety', day?: string) => {
+    if (!text) return '';
+    
+    // Normalize text
+    const normalizedText = text.replace(/\r\n/g, '\n');
+
+    if (subTab === 'exercises') {
+        const h2ExercisesTags = ['EJERCICIOS', 'RUTINA', 'DETALLE', 'TABLAS', 'CONTENIDO', 'RUTINAS', 'PROGRAMA', 'WORKOUT'];
+        
+        let exercisesContent = '';
+
+        // Extract Exercises only (Vision de la semana removed as per user request)
+        for (const tag of h2ExercisesTags) {
+            const regex = new RegExp(`##\\s*[^\\n]*${tag}[^\\n]*\\n`, 'i');
+            const match = normalizedText.match(regex);
+            if (match && match.index !== undefined) {
+                const exercisesStart = match.index + match[0].length;
+                const nextH2 = normalizedText.indexOf('\n## ', exercisesStart);
+                exercisesContent = nextH2 !== -1 
+                    ? normalizedText.substring(exercisesStart, nextH2).trim() 
+                    : normalizedText.substring(exercisesStart).trim();
+                break;
+            }
+        }
+
+        if (exercisesContent) {
+            return exercisesContent;
+        } else {
+            // Fallback: extract everything that looks like days/tables
+            return normalizedText
+                .replace(/##\s*(PRESENTACIÓN|PRESENTACION|INTRO|PLANIFICACIÓN|PLANIFICACION|SEGURIDAD|CONSEJOS)[\s\S]*?(?=\n##|$)/gi, '')
+                .trim();
+        }
+    }
+
+    const sectionTags = {
+      intro: ['PRESENTACIÓN', 'PRESENTACION', 'INTRO', 'BIENVENIDO', 'RESUMEN'],
+      safety: ['SEGURIDAD', 'CONSEJOS', 'TIPS', 'ESTIRAMIENTOS', 'CALENTAMIENTO']
+    };
+    
+    const tags = sectionTags[subTab as keyof typeof sectionTags] || [];
+    let content = '';
+
+    for (const tag of tags) {
+      const regex = new RegExp(`##\\s*[^\\n]*${tag}[^\\n]*\\n([\\s\\S]*?)(?=\\n##|$)`, 'i');
+      const match = normalizedText.match(regex);
+      if (match) {
+        content = match[1].trim();
+        break;
+      }
+    }
+
+    if (content) {
+      content = content.replace(/\|\s+\|/g, '|\n|');
+      content = content.replace(/([^:-])\|\|([^:-])/g, '$1|$2');
+      return content;
+    }
+    
+    return subTab === 'intro' ? normalizedText : `Sección ${subTab} no disponible. Prueba a regenerar.`;
+  };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1418,16 +1939,21 @@ export default function App() {
         age: 0,
         height: 170,
         gender: 'male',
-        activityLevel: 1.55,
         dietType: 'Normal',
-        allergies: '',
+        allergies: [],
+        otherAllergies: '',
+        diabetesType: 'none',
         dislikedFoods: '',
         goal: 'maintain',
         macroDistribution: 'balanced',
         favoriteSupermarket: 'Mercadona',
         freeMealEnabled: false,
         freeMealDay: 'Sábado',
-        freeMealType: 'cena'
+        freeMealType: 'cena',
+        gymEnabled: false,
+        gymGoal: 'maintenance',
+        trainingDaysPerWeek: 3,
+        theme: 'dark'
       });
       setHabits({});
       setGeneratedMenu(null);
@@ -1572,20 +2098,20 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-zinc-950 text-zinc-50 pb-24 font-sans selection:bg-lime-500/30">
+    <div className={`min-h-screen transition-colors duration-500 ${themeStyles.mainBg} pb-24 font-sans selection:bg-lime-500/30`}>
       {/* Header */}
-      <header className="pt-12 pb-6 px-6 sticky top-0 bg-zinc-950/60 backdrop-blur-2xl z-50 border-b border-white/5">
+      <header className={`pt-12 pb-6 px-6 sticky top-0 backdrop-blur-2xl z-50 border-b ${themeStyles.headerBg} ${profile.theme === 'light' ? 'border-slate-200' : 'border-white/5'}`}>
         <div className="flex items-center justify-between max-w-md mx-auto">
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className="flex flex-col"
           >
-            <h1 className="text-2xl font-display font-black tracking-tighter text-white flex items-center gap-2">
-              <Banana className="w-6 h-6 text-lime-400 fill-lime-400/20" />
-              Nutritiv<span className="text-lime-400">App</span>
+            <h1 className={`text-2xl font-display font-black tracking-tighter ${themeStyles.textMain} flex items-center gap-2`}>
+              <Banana className={`w-6 h-6 ${themeStyles.accent} fill-current/20`} />
+              Nutritiv<span className={themeStyles.accent}>App</span>
             </h1>
-            <p className="text-zinc-400 text-xs font-semibold tracking-widest uppercase mt-0.5">Rendimiento Diario</p>
+            <p className={`${themeStyles.textMuted} text-[10px] font-bold tracking-[0.2em] uppercase mt-0.5`}>Coach de Rendimiento</p>
           </motion.div>
           <div className="flex items-center gap-3">
             <motion.button 
@@ -1594,7 +2120,7 @@ export default function App() {
               onClick={() => { 
                 setEditProfile({
                   ...profile,
-                  allergies: profile.allergies || '',
+                  allergies: Array.isArray(profile.allergies) ? profile.allergies : [],
                   dislikedFoods: profile.dislikedFoods || ''
                 });
                 const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
@@ -1603,12 +2129,12 @@ export default function App() {
               }}
               className={`relative h-10 px-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
                 profile.age === 0 
-                  ? 'bg-lime-400 shadow-[0_0_20px_rgba(163,230,53,0.4)] hover:bg-lime-500' 
-                  : 'bg-gradient-to-br from-lime-400/20 to-lime-400/5 border border-lime-400/20 shadow-[0_0_15px_rgba(163,230,53,0.15)] hover:scale-105 active:scale-95'
+                  ? (profile.theme === 'light' ? 'bg-emerald-500 shadow-emerald-500/20 shadow-lg' : 'bg-lime-400 shadow-[0_0_20px_rgba(163,230,53,0.4)] shadow-lg')
+                  : `${themeStyles.iconBg} border ${themeStyles.border} shadow-sm hover:${themeStyles.iconBg}`
               }`}
             >
-              <UserIcon className={`w-5 h-5 ${profile.age === 0 ? 'text-zinc-950' : 'text-lime-400'}`} />
-              <span className={`text-[10px] font-bold uppercase tracking-wider hidden sm:block ${profile.age === 0 ? 'text-zinc-950' : 'text-lime-400'}`}>
+              <UserIcon className={`w-5 h-5 ${profile.age === 0 ? 'text-zinc-950' : themeStyles.accent}`} />
+              <span className={`text-[10px] font-bold uppercase tracking-wider hidden sm:block ${profile.age === 0 ? 'text-zinc-950' : themeStyles.accent}`}>
                 Perfil
               </span>
               {profile.age === 0 && (
@@ -1648,411 +2174,399 @@ export default function App() {
 
       <main className="px-6 pt-6 max-w-md mx-auto space-y-8">
         {/* Tabs */}
-        <div className="flex bg-zinc-900/50 p-1 rounded-2xl border border-white/5">
-          <button 
+        <div className={`grid grid-flow-col auto-cols-fr ${profile.theme === 'light' ? 'bg-slate-200/50' : 'bg-zinc-950/80'} backdrop-blur-md p-1 rounded-2xl border ${profile.theme === 'light' ? 'border-slate-300/50' : 'border-white/5'} mb-8 shadow-2xl`}>
+            <button 
             onClick={() => setActiveTab('today')}
-            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'today' ? 'bg-lime-400 text-zinc-950 shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+            className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${activeTab === 'today' ? `${themeStyles.accentBg} text-zinc-950 shadow-lg shadow-lime-400/20` : `${themeStyles.textMuted} hover:text-current`}`}
           >
-            Hoy
-          </button>
-          <button 
-            onClick={() => setActiveTab('week')}
-            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'week' ? 'bg-lime-400 text-zinc-950 shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
-          >
-            Semana
+            Calorías
           </button>
           <button 
             onClick={() => setActiveTab('plan')}
-            className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'plan' ? 'bg-lime-400 text-zinc-950 shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+            className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${activeTab === 'plan' ? `${themeStyles.accentBg} text-zinc-950 shadow-lg shadow-lime-400/20` : `${themeStyles.textMuted} hover:text-current`}`}
           >
             Plan
           </button>
           {profile.freeMealEnabled && (
             <button 
               onClick={() => setActiveTab('restaurants')}
-              className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${activeTab === 'restaurants' ? 'bg-lime-400 text-zinc-950 shadow-lg' : 'text-zinc-500 hover:text-zinc-300'}`}
+              className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${activeTab === 'restaurants' ? `${themeStyles.accentBg} text-zinc-950 shadow-lg shadow-lime-400/20` : `${themeStyles.textMuted} hover:text-current`}`}
             >
               Libre
             </button>
           )}
+          {profile.gymEnabled && (
+            <button 
+              onClick={() => setActiveTab('gym')}
+              className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${activeTab === 'gym' ? `${themeStyles.accentBg} text-zinc-950 shadow-lg shadow-lime-400/20` : `${themeStyles.textMuted} hover:text-current`}`}
+            >
+              Gym
+            </button>
+          )}
         </div>
 
-        <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait">
           {activeTab === 'today' && (
             <motion.div
               key="today"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="space-y-8 pb-32"
+              className="space-y-6 pb-32"
             >
-              {isStagnant && (
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-amber-500 font-bold text-sm mb-1">Estancamiento Detectado</h4>
-                    <p className="text-zinc-400 text-xs mb-3">Tu peso no ha variado significativamente en las últimas 2 semanas. ¿Quieres ajustar tus calorías objetivo?</p>
-                    <button 
-                      onClick={() => {
-                        setEditProfile({
-                          ...profile,
-                          allergies: profile.allergies || '',
-                          dislikedFoods: profile.dislikedFoods || ''
-                        });
-                        const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
-                        setEditWeight(latestWeight);
-                        setIsGoalModalOpen(true);
-                      }}
-                      className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-500 px-4 py-2 rounded-lg text-xs font-bold transition-colors"
-                    >
-                      Ajustar Objetivos
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Assistant Header */}
-              <div className="bg-zinc-900/50 border border-white/5 rounded-3xl p-6 relative overflow-hidden">
-                {/* Background glow based on state */}
-                <div className={`absolute -top-24 -right-24 w-48 h-48 rounded-full blur-3xl ${
-                  assistant.stateType === 'good' || assistant.stateType === 'start' ? 'bg-lime-400/10' :
-                  assistant.stateType === 'over' ? 'bg-rose-400/10' :
-                  'bg-amber-400/10'
-                }`}></div>
-                
-                <div className="relative z-10 text-center">
-                  <h2 className="text-6xl font-display font-black text-white mb-2 tracking-tighter">
-                    {Math.round(assistant.remainingCalories)}
-                  </h2>
-                  <p className="text-zinc-400 font-medium uppercase tracking-widest text-xs mb-6">{profile.name || 'Usuario'}, Kcal Restantes</p>
-                  
-                  <div className={`inline-block backdrop-blur-md border rounded-2xl px-6 py-4 ${
-                    assistant.stateType === 'good' || assistant.stateType === 'start' ? 'bg-lime-500/10 border-lime-500/20' :
-                    assistant.stateType === 'over' ? 'bg-rose-500/10 border-rose-500/20' :
-                    'bg-amber-500/10 border-amber-500/20'
-                  }`}>
-                    <h3 className={`text-xl font-bold mb-1 ${
-                      assistant.stateType === 'good' || assistant.stateType === 'start' ? 'text-lime-400' :
-                      assistant.stateType === 'over' ? 'text-rose-400' :
-                      'text-amber-400'
-                    }`}>
-                      {assistant.message}
-                    </h3>
-                    <p className="text-sm text-zinc-300">{assistant.subMessage}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Próximo paso */}
-              {meals.length > 0 && (meals[0].actionableRecommendation || meals[0].recommendations) && (
-                <div>
-                  <h3 className="text-lg font-display font-bold text-white tracking-tight uppercase mb-4">Próximo paso</h3>
-                  <div className="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-4 flex items-start gap-4">
-                    <div className="text-3xl bg-blue-500/10 text-blue-400 p-3 rounded-xl border border-blue-500/20 flex items-center justify-center w-14 h-14 shrink-0">
-                      <Info className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-blue-400 text-sm mb-1">Sugerencia del Coach</h4>
-                      <p className="text-xs text-zinc-300 leading-relaxed">{meals[0].actionableRecommendation?.replace(new RegExp(`${profile.name}`, 'gi'), '').replace(/^[,.\s]+|[,.\s]+$/g, '') || meals[0].recommendations?.replace(new RegExp(`${profile.name}`, 'gi'), '').replace(/^[,.\s]+|[,.\s]+$/g, '')}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Primary Food Entry */}
-              <div className="bg-zinc-900/80 border border-white/10 rounded-3xl p-5 shadow-xl">
-                <h3 className="text-lg font-display font-bold text-white tracking-tight uppercase mb-4">Añadir Comida</h3>
-                
-                {/* Text Input */}
-                <div className="relative mb-4">
-                  <input
-                    type="text"
-                    placeholder="Ej: He comido arroz con pollo..."
-                    className="w-full bg-zinc-950 border border-white/10 rounded-2xl pl-4 pr-14 py-4 text-white placeholder:text-zinc-500 focus:outline-none focus:border-lime-400 focus:ring-1 focus:ring-lime-400 transition-all text-base"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleTextFoodSubmit(e.currentTarget.value);
-                        e.currentTarget.value = '';
-                      }
-                    }}
-                  />
-                  <button 
-                    className="absolute right-2 top-2 bottom-2 bg-lime-400 text-zinc-950 px-4 rounded-xl hover:bg-lime-300 transition-colors flex items-center justify-center"
-                    onClick={() => {
-                      const input = document.querySelector('input[placeholder="Ej: He comido arroz con pollo..."]') as HTMLInputElement;
-                      if (input && input.value) {
-                        handleTextFoodSubmit(input.value);
-                        input.value = '';
-                      }
-                    }}
+              <div className="flex flex-col gap-4">
+                {/* Period Selector Dropdown */}
+                <div className="relative w-full">
+                  <select 
+                    value={evolutionPeriod}
+                    onChange={(e) => setEvolutionPeriod(e.target.value as any)}
+                    className={`w-full ${themeStyles.card} rounded-2xl px-5 py-4 text-xs font-black uppercase tracking-widest ${themeStyles.textMain} shadow-xl focus:outline-none focus:border-lime-400 appearance-none cursor-pointer transition-all ${profile.theme === 'light' ? 'hover:bg-slate-50' : 'hover:bg-zinc-800'}`}
                   >
-                    <Send className="w-5 h-5" />
-                  </button>
+                    <option value="today" className={profile.theme === 'light' ? 'text-slate-900 bg-white' : 'text-white bg-zinc-900'}>Hoy</option>
+                    <option value="weekly" className={profile.theme === 'light' ? 'text-slate-900 bg-white' : 'text-white bg-zinc-900'}>Semanal</option>
+                    <option value="monthly" className={profile.theme === 'light' ? 'text-slate-900 bg-white' : 'text-white bg-zinc-900'}>Mensual</option>
+                    <option value="quarterly" className={profile.theme === 'light' ? 'text-slate-900 bg-white' : 'text-white bg-zinc-900'}>Trimestral</option>
+                    <option value="semiannually" className={profile.theme === 'light' ? 'text-slate-900 bg-white' : 'text-white bg-zinc-900'}>Semestral</option>
+                    <option value="annually" className={profile.theme === 'light' ? 'text-slate-900 bg-white' : 'text-white bg-zinc-900'}>Anual</option>
+                  </select>
+                  <ChevronDown className={`absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 ${themeStyles.accent} pointer-events-none`} />
                 </div>
 
-                {/* Quick Buttons */}
-                <div className="grid grid-cols-3 gap-2 mb-4 hidden">
-                  <button 
-                    onClick={() => handleTextFoodSubmit("Comida ligera")} 
-                    className="flex flex-col items-center justify-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 p-3 rounded-2xl transition-colors border border-white/5"
-                  >
-                    <span className="text-xl">🥗</span>
-                    <span className="text-xs font-medium">Ligera</span>
-                  </button>
-                  <button 
-                    onClick={() => handleTextFoodSubmit("Comida normal")} 
-                    className="flex flex-col items-center justify-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 p-3 rounded-2xl transition-colors border border-white/5"
-                  >
-                    <span className="text-xl">🍽️</span>
-                    <span className="text-xs font-medium">Normal</span>
-                  </button>
-                  <button 
-                    onClick={() => handleTextFoodSubmit("Comida fuerte")} 
-                    className="flex flex-col items-center justify-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 p-3 rounded-2xl transition-colors border border-white/5"
-                  >
-                    <span className="text-xl">🥩</span>
-                    <span className="text-xs font-medium">Fuerte</span>
-                  </button>
-                </div>
-
-                {/* Camera Option */}
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full flex items-center justify-center gap-2 bg-zinc-950 text-zinc-400 hover:text-white p-4 rounded-2xl transition-colors border border-white/5"
-                >
-                  <Camera className="w-5 h-5" />
-                  <span className="text-sm font-medium">Escanear con cámara (Opcional)</span>
-                </button>
-              </div>
-
-        {/* Meal List */}
-        <section>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-display font-bold text-white tracking-tight uppercase">Comidas de hoy</h2>
-                  <span className="text-[10px] font-bold bg-lime-400/10 text-lime-400 px-2.5 py-1 rounded-full border border-lime-400/20 uppercase tracking-wider">
-                    {todaysMeals.length} {todaysMeals.length === 1 ? 'registro' : 'registros'}
-                  </span>
-                </div>
-                
-                <div className="space-y-3">
-                  <AnimatePresence mode="popLayout">
-                    {todaysMeals.length === 0 ? (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="text-center py-12 bg-zinc-900/30 rounded-[2rem] border border-white/5 border-dashed"
+                {/* Sub-tabs only for Today */}
+                {evolutionPeriod === 'today' ? (
+                  <div className="space-y-6">
+                    <div className={`flex ${profile.theme === 'light' ? 'bg-slate-200/50' : 'bg-zinc-950'} p-1 rounded-xl border ${profile.theme === 'light' ? 'border-slate-300/50' : 'border-white/5'}`}>
+                      <button 
+                        onClick={() => setTodaySubTab('calories')}
+                        className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${todaySubTab === 'calories' ? `${themeStyles.accentBg} text-zinc-950 shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
                       >
-                        <p className="text-zinc-500 font-medium">Aún no has registrado comidas hoy.</p>
-                        <p className="text-zinc-600 text-sm mt-1">Toca el botón para empezar.</p>
-                      </motion.div>
-                    ) : (
-                      todaysMeals.map((meal) => (
-                        <motion.div
-                          key={meal.id}
-                          layout
-                          initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
-                          whileHover={{ scale: 1.01, backgroundColor: "rgba(39, 39, 42, 0.8)" }}
-                          className="bg-zinc-900/50 border border-white/5 rounded-2xl p-4 flex flex-col gap-3 group transition-colors shadow-lg"
-                        >
-                          <div className="flex gap-4 items-start">
-                            <div className="w-16 h-16 rounded-xl overflow-hidden bg-zinc-800 shrink-0 relative mt-1 ring-1 ring-white/10">
-                              <img src={meal.imageUrl} alt={meal.foodName} className="w-full h-full object-cover" />
-                              <div className="absolute inset-0 bg-black/20"></div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-2">
-                                <h3 className="font-semibold text-zinc-100 truncate">{meal.foodName}</h3>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() => setEditingMeal(meal)}
-                                    className="p-1.5 -mt-1.5 text-zinc-500 hover:text-blue-400 hover:bg-blue-400/10 rounded-full transition-colors"
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => removeMeal(meal.id)}
-                                    className="p-1.5 -mt-1.5 -mr-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-400/10 rounded-full transition-colors"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </div>
-                              
-                              <div className="flex items-center gap-3 mt-1 text-xs font-medium">
-                                <span className="text-lime-400">{Math.round(meal.calories)} kcal</span>
-                                {meal.totalWeight && (
-                                  <>
-                                    <span className="text-zinc-500">•</span>
-                                    <span className="text-zinc-400">{meal.totalWeight}g</span>
-                                  </>
-                                )}
-                                <span className="text-zinc-500">•</span>
-                                <NutriScoreBadge score={meal.nutriScore} />
-                              </div>
-                              
-                              <div className="flex items-center gap-3 mt-1 text-[10px] font-medium">
-                                <span className="text-blue-400">P: {Math.round(meal.protein)}g</span>
-                                <span className="text-amber-400">H: {Math.round(meal.carbs)}g</span>
-                                <span className="text-rose-400">G: {Math.round(meal.fat)}g</span>
-                              </div>
+                        Calorías Diarias
+                      </button>
+                      <button 
+                        onClick={() => setTodaySubTab('meals')}
+                        className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${todaySubTab === 'meals' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
+                      >
+                        Comidas del día
+                      </button>
+                    </div>
 
-                              {/* Confidence Badge */}
-                              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                {meal.isHealthy !== undefined && (
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${meal.isHealthy ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
-                                    {meal.isHealthy ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                                    {meal.isHealthy ? 'Saludable' : 'Moderación'}
-                                  </span>
-                                )}
-                                {meal.confidence === 'alta' && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">
-                                    <CheckCircle2 className="w-3 h-3" /> Confianza Alta
-                                  </span>
-                                )}
-                                {meal.confidence === 'media' && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-medium border border-amber-500/20">
-                                    <Info className="w-3 h-3" /> Confianza Media
-                                  </span>
-                                )}
-                                {meal.confidence === 'baja' && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 text-[10px] font-medium border border-rose-500/20">
-                                    <AlertTriangle className="w-3 h-3" /> Confianza Baja
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Coach Analysis */}
-                          <div className="mt-1 pt-3 border-t border-zinc-800/50 text-xs space-y-2">
-                            {(meal.interpretation || meal.isHealthy !== undefined) && (
-                              <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-800/50 text-zinc-300">
-                                <Activity className="w-3 h-3 text-lime-400" />
-                                {meal.interpretation || (meal.isHealthy ? 'Equilibrado' : 'A tener en cuenta')}
-                              </div>
-                            )}
-                            {(meal.coachMessage || meal.healthAnalysis) && (
-                              <p className="text-zinc-400 leading-relaxed">
-                                <span className="font-semibold text-lime-400">Coach:</span> {meal.coachMessage || meal.healthAnalysis}
-                              </p>
-                            )}
-
-                            {(meal.confidence === 'media' || meal.confidence === 'baja') && (
-                              <>
-                                <p className="text-zinc-400 leading-relaxed">
-                                  <span className="font-semibold text-zinc-300">Nota de la IA:</span> {meal.confidenceMessage}
-                                </p>
-                                {meal.alternatives && meal.alternatives.length > 0 && (
-                                  <div className="mt-1">
-                                    <span className="font-semibold text-zinc-300">Otras posibilidades: </span>
-                                    <span className="text-zinc-400">{meal.alternatives.join(', ')}</span>
+                    {todaySubTab === 'calories' ? (
+                      <div className="space-y-6">
+                        {/* 1. Assistant Header (Calories) - Reordered Top */}
+                        <div className={`${themeStyles.bento} p-8 relative overflow-hidden group border-b-4 ${assistant.stateType === 'over' ? 'border-amber-500' : (profile.theme === 'light' ? 'border-emerald-500' : 'border-lime-400')} shadow-2xl`}>
+                          <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : 'bg-lime-400/5'} rounded-full blur-3xl`} />
+                          <div className="relative z-10">
+                            <div className="flex flex-col md:flex-row gap-8 items-start md:items-center justify-between">
+                               <div className="space-y-4 max-w-xl text-center md:text-left">
+                                  <div className="flex items-center justify-center md:justify-start gap-2.5">
+                                    <div className={`p-2 ${themeStyles.accentBg} rounded-xl shadow-lg`}>
+                                      <Bot className={`w-4 h-4 ${profile.theme === 'light' ? 'text-white' : 'text-zinc-900'}`} />
+                                    </div>
+                                    <span className={`text-[10px] font-black ${themeStyles.accent} uppercase tracking-[0.25em]`}>Coach NutritivApp</span>
                                   </div>
-                                )}
-                              </>
-                            )}
+                                  <h3 className={`text-4xl md:text-5xl font-display font-black tracking-tighter leading-none ${themeStyles.textMain}`}>
+                                    {assistant.message}
+                                  </h3>
+                                  <p className={`text-sm ${themeStyles.textMuted} font-medium leading-relaxed italic max-w-md`}>
+                                    "{assistant.subMessage}"
+                                  </p>
+                               </div>
+                               
+                               <div className="flex flex-col items-center md:items-end gap-2 group-hover:scale-105 transition-transform">
+                                  <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Margen de hoy</span>
+                                  <span className={`text-6xl font-display font-black tracking-tighter ${
+                                    assistant.remainingCalories < 0 ? 'text-amber-500' : (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400')
+                                  }`}>
+                                    {Math.round(assistant.remainingCalories)}
+                                  </span>
+                                  <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>kcal restantes</span>
+                               </div>
+                            </div>
+
+                            {/* Visual Progress Bar */}
+                            <div className="mt-10 space-y-3">
+                               <div className="flex justify-between items-end">
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex flex-col">
+                                      <span className={`text-[9px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Consumido</span>
+                                      <span className={`text-xl font-black ${themeStyles.textMain}`}>{Math.round(assistant.consumedCalories)} <span className="text-[10px] opacity-40">kcal</span></span>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className={`text-[9px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Objetivo Diario</span>
+                                    <span className={`text-xl font-black ${themeStyles.textMain}`}>
+                                      {Math.round(assistant.totalTarget)} 
+                                      <span className="text-[10px] ml-1 opacity-40">kcal</span>
+                                    </span>
+                                  </div>
+                               </div>
+                               <div className={`h-4 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'} rounded-full overflow-hidden border ${themeStyles.border} shadow-inner p-1 relative`}>
+                                  {/* Burned calories extra zone background */}
+                                  {assistant.burnedCalories > 0 && (
+                                    <div 
+                                      className="absolute right-0 top-0 bottom-0 bg-orange-500/10 border-l border-orange-500/20" 
+                                      style={{ width: `${(assistant.burnedCalories / (assistant.totalTarget + assistant.burnedCalories)) * 100}%` }}
+                                    />
+                                  )}
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${Math.min(100, (assistant.consumedCalories / (assistant.totalTarget + assistant.burnedCalories)) * 100)}%` }}
+                                    className={`h-full rounded-full relative z-10 ${
+                                       assistant.remainingCalories < 0 ? 'bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]' :
+                                       assistant.consumedCalories > 0 ? (profile.theme === 'light' ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-lime-400 shadow-[0_0_20px_rgba(163,230,53,0.6)]') :
+                                       ''
+                                    }`}
+                                  />
+                               </div>
+                            </div>
                           </div>
-                        </motion.div>
-                      ))
-                    )}
-                  </AnimatePresence>
-                </div>
-              </section>
-            </motion.div>
-          )}
-          {activeTab === 'week' && (
-            <motion.div
-              key="week"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-8 pb-8"
-            >
-              {/* Coach Weekly Advice */}
-              <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-3xl p-6 flex items-start gap-4">
-                <div className="p-3 bg-indigo-500/20 rounded-2xl">
-                  <Bot className="w-6 h-6 text-indigo-400" />
-                </div>
-                <div>
-                  <h3 className="text-indigo-400 font-bold text-lg mb-1">Consejo del Coach</h3>
-                  <p className="text-zinc-300 text-sm leading-relaxed">
-                    {weeklyStats.calories > weeklyGoals.calories 
-                      ? "Esta semana has superado ligeramente tu objetivo calórico. No te preocupes, mantén la constancia y prioriza proteínas en tus próximas comidas para equilibrar."
-                      : "Vas por muy buen camino esta semana. Tu adherencia al plan es excelente. Sigue así para ver resultados consistentes en tu composición corporal."}
-                  </p>
-                </div>
+                        </div>
+
+                        {/* 2. Extra Gym - Reordered Middle */}
+                        {profile.gymEnabled && assistant.burnedCalories > 0 && (
+                           <div className={`${themeStyles.bento} border-l-4 border-orange-500 bg-orange-500/5`}>
+                             <div className="flex items-center gap-3">
+                               <div className="p-2 bg-orange-500 rounded-xl shadow-lg shadow-orange-500/20">
+                                 <Zap className="w-4 h-4 text-white" fill="currentColor" />
+                               </div>
+                               <div>
+                                 <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest block">Extra Gym Activado</span>
+                                 <span className={`text-sm font-black ${themeStyles.textMain}`}>+{assistant.burnedCalories} kcal quemadas</span>
+                               </div>
+                             </div>
+                           </div>
+                        )}
+
+                        {/* 3. Distribution (Macros) - Reordered Bottom */}
+                        <div className={`${themeStyles.bento} p-6 space-y-6 relative overflow-hidden`}>
+                           <div className="flex items-center justify-between">
+                             <h4 className={`text-xs font-black ${themeStyles.textMain} uppercase tracking-widest`}>Distribución de Macros</h4>
+                             <PieChart className={`w-4 h-4 ${themeStyles.textMuted}`} />
+                           </div>
+                           <div className="space-y-5">
+                             {/* Protein */}
+                             <div className="space-y-1.5 text-xs font-black">
+                               <div className="flex justify-between uppercase tracking-tighter">
+                                 <span className={themeStyles.accent}>Proteínas</span>
+                                 <span className={themeStyles.textMuted}>{Math.round(totals.protein)}<span className="opacity-40"> / {goals.protein}g</span></span>
+                               </div>
+                               <div className={`h-3 ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-900'} rounded-full border ${themeStyles.border} overflow-hidden shadow-inner`}>
+                                 <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, (totals.protein / goals.protein) * 100)}%` }} className={`h-full ${profile.theme === 'light' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-lime-400 shadow-[0_0_15px_rgba(163,230,53,0.6)]'} rounded-full font-black`} />
+                               </div>
+                             </div>
+                             {/* Carbs */}
+                             <div className="space-y-1.5 text-xs font-black">
+                               <div className="flex justify-between uppercase tracking-tighter">
+                                 <span className={themeStyles.accent}>Hidratos</span>
+                                 <span className={themeStyles.textMuted}>{Math.round(totals.carbs)}<span className="opacity-40"> / {goals.carbs}g</span></span>
+                               </div>
+                               <div className={`h-3 ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-900'} rounded-full border ${themeStyles.border} overflow-hidden shadow-inner`}>
+                                 <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, (totals.carbs / goals.carbs) * 100)}%` }} className={`h-full ${profile.theme === 'light' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-lime-400 shadow-[0_0_15px_rgba(163,230,53,0.6)]'} rounded-full font-black`} />
+                               </div>
+                             </div>
+                             {/* Fats */}
+                             <div className="space-y-1.5 text-xs font-black">
+                               <div className="flex justify-between uppercase tracking-tighter">
+                                 <span className={themeStyles.accent}>Grasas</span>
+                                 <span className={themeStyles.textMuted}>{Math.round(totals.fat)}<span className="opacity-40"> / {goals.fat}g</span></span>
+                               </div>
+                               <div className={`h-3 ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-900'} rounded-full border ${themeStyles.border} overflow-hidden shadow-inner`}>
+                                 <motion.div 
+                                   initial={{ width: 0 }} 
+                                   animate={{ width: `${Math.min(100, (totals.fat / goals.fat) * 100)}%` }} 
+                                   className={`h-full ${profile.theme === 'light' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-lime-400 shadow-[0_0_15px_rgba(163,230,53,0.6)]'} rounded-full font-black`} 
+                                 />
+                               </div>
+                             </div>
+                           </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-8">
+                        {/* Primary Food Entry */}
+                    <div className={`${themeStyles.bento} p-6 relative overflow-hidden`}>
+                      <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : 'bg-lime-400/5'} rounded-full blur-2xl`}></div>
+                      <h3 className={`text-lg font-display font-bold ${themeStyles.textMain} tracking-tight uppercase mb-4 relative z-10 flex items-center gap-2`}>
+                        <Plus className={`w-5 h-5 ${themeStyles.accent}`} />
+                        Añadir Comida
+                      </h3>
+                      <div className="relative mb-4 z-10">
+                        <input
+                          type="text"
+                          placeholder="Ej: He comido arroz con pollo..."
+                          className={`w-full ${themeStyles.input} rounded-2xl pl-5 pr-14 py-5 transition-all text-base shadow-inner`}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleTextFoodSubmit(e.currentTarget.value);
+                              e.currentTarget.value = '';
+                            }
+                          }}
+                        />
+                        <button 
+                          className={`absolute right-2.5 top-2.5 bottom-2.5 ${themeStyles.buttonPrimary} px-5 rounded-xl transition-colors flex items-center justify-center shadow-lg`}
+                          onClick={() => {
+                            const input = document.querySelector('input[placeholder="Ej: He comido arroz con pollo..."]') as HTMLInputElement;
+                            if (input && input.value) {
+                              handleTextFoodSubmit(input.value);
+                              input.value = '';
+                            }
+                          }}
+                        >
+                          <Send className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`w-full flex items-center justify-center gap-3 ${themeStyles.buttonSecondary} p-5 rounded-2xl transition-all border group relative z-10`}
+                      >
+                        <Camera className={`w-5 h-5 ${themeStyles.accent} group-hover:scale-110 transition-transform`} />
+                        <span className="text-sm font-black uppercase tracking-widest">Escanear comida</span>
+                      </button>
+                    </div>
+
+                    {/* Meal List */}
+                    <section>
+                      <div className="flex items-center justify-between mb-6 px-2">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 ${themeStyles.accentMuted} rounded-xl border ${themeStyles.accentBorder}`}>
+                            <Utensils className={`w-5 h-5 ${themeStyles.accent}`} />
+                          </div>
+                          <h2 className={`text-lg font-display font-bold ${themeStyles.textMain} tracking-tight uppercase`}>Registros de hoy</h2>
+                        </div>
+                        <span className={`text-[10px] font-black ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} px-3 py-1 rounded-full shadow-lg uppercase tracking-widest`}>
+                          {todaysMeals.length} ítems
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <AnimatePresence mode="popLayout">
+                          {todaysMeals.length === 0 ? (
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`text-center py-16 ${themeStyles.iconBg} rounded-[2.5rem] border ${themeStyles.border} border-dashed`}>
+                              <Utensils className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-3 opacity-20`} />
+                              <p className={`${themeStyles.textMuted} font-bold uppercase tracking-widest text-xs`}>No hay registros hoy</p>
+                              <p className={`${themeStyles.textMuted} text-[10px] mt-1 opacity-60`}>Usa el buscador o la cámara para empezar</p>
+                            </motion.div>
+                          ) : (
+                            todaysMeals.map((meal) => (
+                              <motion.div
+                                key={meal.id} layout
+                                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+                                className={`${themeStyles.card} rounded-3xl p-5 flex gap-5 group transition-all`}
+                              >
+                                <div className={`w-16 h-16 rounded-2xl overflow-hidden ${themeStyles.iconBg} shrink-0 shadow-xl border ${themeStyles.border}`}>
+                                  <img src={meal.imageUrl} alt={meal.foodName} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between mb-1">
+                                    <h3 className={`font-bold ${themeStyles.textMain} truncate text-base tracking-tight`}>{meal.foodName}</h3>
+                                    <button onClick={() => removeMeal(meal.id)} className={`${themeStyles.textMuted} hover:text-rose-500 p-1 rounded-lg hover:bg-rose-500/10 transition-all`}>
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
+                                    <span className={`${themeStyles.accent} font-black text-xs tracking-tight`}>{Math.round(meal.calories)} Kcal</span>
+                                    <div className={`flex items-center gap-3 text-[10px] font-black uppercase ${themeStyles.textMuted} tracking-wider`}>
+                                      <span className={themeStyles.textMain}>P:{Math.round(meal.protein)}g</span>
+                                      <span className={themeStyles.textMain}>H:{Math.round(meal.carbs)}g</span>
+                                      <span className={themeStyles.textMain}>G:{Math.round(meal.fat)}g</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <NutriScoreBadge score={meal.nutriScore} />
+                                    {meal.isHealthy && (
+                                      <span className={`px-2 py-0.5 rounded-full ${themeStyles.accentMuted} ${themeStyles.accent} text-[9px] font-black uppercase tracking-widest border ${themeStyles.accentBorder}`}>Saludable</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </motion.div>
+                            ))
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </section>
+                  </div>
+                )}
               </div>
-
-              {/* Trends Panel */}
+            ) : (
               <section>
-                <div className="bg-gradient-to-b from-zinc-900/80 to-zinc-900/30 rounded-[2rem] p-6 border border-white/5 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-lime-400/5 rounded-full blur-3xl"></div>
-                  <div className="flex items-center gap-3 mb-6 relative z-10">
-                    <div className="p-2 bg-lime-400/10 rounded-xl border border-lime-400/20">
-                      <TrendingUp className="w-5 h-5 text-lime-400" />
+                  <div className={`${themeStyles.bento} p-8 relative overflow-hidden`}>
+                    <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : 'bg-lime-400/5'} rounded-full blur-3xl`}></div>
+                    
+                    <div className="flex items-center gap-4 mb-10 relative z-10">
+                      <div className={`p-3 ${themeStyles.accentBg} rounded-2xl shadow-lg`}>
+                        <TrendingUp className={`w-6 h-6 ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`} />
+                      </div>
+                      <div>
+                        <h2 className={`text-xl font-display font-black ${themeStyles.textMain} tracking-tight uppercase`}>Análisis Histórico</h2>
+                        <p className={`text-[10px] font-black ${themeStyles.accent} uppercase tracking-widest opacity-60`}>Seguimiento de Calorías</p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-lg font-display font-bold text-white tracking-tight uppercase">Historial de Calorías</h2>
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Consumo vs Objetivo</p>
-                    </div>
-                  </div>
 
-                  <div className="h-48 w-full -ml-4 relative z-10">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={trendsData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
-                        <XAxis 
-                          dataKey="name" 
-                          stroke="#52525b" 
-                          fontSize={10} 
-                          tickLine={false} 
-                          axisLine={false}
-                          tick={{ fill: '#71717a', fontWeight: 600 }}
-                          dy={10}
-                        />
-                        <YAxis yAxisId="cal" orientation="left" hide domain={[0, 'dataMax + 500']} />
-                        <Tooltip 
-                          contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '16px', color: '#fff' }}
-                          itemStyle={{ fontSize: '12px', fontWeight: 600 }}
-                          labelStyle={{ color: '#a1a1aa', marginBottom: '4px', fontSize: '10px', fontWeight: 700 }}
-                          cursor={{ fill: '#27272a', opacity: 0.4 }}
-                        />
-                        <Bar 
-                          yAxisId="cal" 
-                          dataKey="calories" 
-                          fill="#a3e635" 
-                          radius={[6, 6, 6, 6]} 
-                          barSize={12} 
-                          name="Consumidas" 
-                        />
-                        <Line 
-                          yAxisId="cal" 
-                          type="monotone" 
-                          dataKey="goal" 
-                          stroke="#818cf8" 
-                          strokeWidth={2} 
-                          strokeDasharray="5 5"
-                          dot={false}
-                          name="Objetivo" 
-                        />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  </div>
-                  
-                  <div className="mt-4 flex items-center justify-center gap-6 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-sm bg-lime-400"></div>
-                      <span>Consumidas</span>
+                    <div className="h-72 w-full -ml-4 relative z-10">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart data={trendsData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                          <XAxis 
+                            dataKey="name" 
+                            stroke={profile.theme === 'light' ? '#94a3b8' : '#52525b'}
+                            fontSize={8} 
+                            tickLine={false} 
+                            axisLine={false}
+                            tick={{ fill: profile.theme === 'light' ? '#64748b' : '#71717a', fontWeight: 800 }}
+                            dy={10}
+                            interval={evolutionPeriod === 'weekly' ? 0 : evolutionPeriod === 'monthly' ? 4 : Math.floor(trendsData.length / 8)}
+                          />
+                          <YAxis yAxisId="cal" orientation="left" hide domain={[0, 'auto']} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: profile.theme === 'light' ? '#ffffff' : '#18181b', 
+                              borderColor: profile.theme === 'light' ? '#e2e8f0' : 'rgba(163, 230, 53, 0.2)', 
+                              borderRadius: '20px', 
+                              color: profile.theme === 'light' ? '#0f172a' : '#fff', 
+                              fontSize: '11px', 
+                              boxShadow: '0 10px 30px rgba(0,0,0,0.1)' 
+                            }}
+                            itemStyle={{ fontSize: '11px', fontWeight: 700, padding: '2px 0' }}
+                            labelStyle={{ color: profile.theme === 'light' ? '#10b981' : '#a3e635', marginBottom: '6px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}
+                            cursor={{ fill: profile.theme === 'light' ? '#10b981' : '#a3e635', opacity: 0.05 }}
+                          />
+                          <Bar 
+                            yAxisId="cal" 
+                            dataKey="calories" 
+                            fill={profile.theme === 'light' ? '#10b981' : '#a3e635'} 
+                            radius={[2, 2, 0, 0]} 
+                            barSize={evolutionPeriod === 'weekly' ? 24 : evolutionPeriod === 'monthly' ? 12 : 4} 
+                            name="Consumidas" 
+                          />
+                          <Line 
+                            yAxisId="cal" 
+                            type="monotone" 
+                            dataKey="goal" 
+                            stroke="#818cf8" 
+                            strokeWidth={2} 
+                            strokeDasharray="6 6"
+                            dot={false}
+                            name="Objetivo" 
+                          />
+                        </ComposedChart>
+                      </ResponsiveContainer>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-0.5 bg-indigo-400 border-t border-dashed border-indigo-400"></div>
-                      <span>Objetivo</span>
+                    
+                    <div className={`mt-10 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-[10px] font-black uppercase tracking-widest ${themeStyles.textMuted} border-t ${themeStyles.border} pt-8`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-sm ${themeStyles.accentBg} shadow-sm`}></div>
+                        <span className={themeStyles.textMain}>Consumidas</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="w-4 h-0.5 bg-indigo-400 border-t border-dashed border-indigo-400"></div>
+                        <span className={themeStyles.textMain}>Objetivo</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </section>
-            </motion.div>
-          )}
+                </section>
+              )}
+            </div>
+          </motion.div>
+        )}
           {activeTab === 'plan' && (
             <motion.div
               key="plan"
@@ -2062,53 +2576,53 @@ export default function App() {
               className="space-y-6 pb-32"
             >
               {profile.age === 0 ? (
-                <div className="bg-zinc-900/80 rounded-[2rem] p-8 border border-white/5 text-center">
-                  <UserIcon className="w-12 h-12 text-lime-400 mx-auto mb-4 opacity-50" />
-                  <h3 className="text-xl font-display font-bold text-white mb-2">Configura tu Perfil</h3>
-                  <p className="text-zinc-400 text-sm mb-6">Introduce tu edad, peso y altura en la configuración para calcular tus macros y recibir un plan personalizado.</p>
+                <div className={`${themeStyles.bento} text-center`}>
+                  <UserIcon className={`w-12 h-12 ${themeStyles.accent} mx-auto mb-4 opacity-50`} />
+                  <h3 className={`text-xl font-display font-bold ${themeStyles.textMain} mb-2`}>Configura tu Perfil</h3>
+                  <p className={`${themeStyles.textMuted} text-sm mb-6`}>Introduce tu edad, peso y altura en la configuración para calcular tus macros y recibir un plan personalizado.</p>
                   <button 
                     onClick={() => { 
                       setEditProfile({
                         ...profile,
-                        allergies: profile.allergies || '',
+                        allergies: Array.isArray(profile.allergies) ? profile.allergies : [],
                         dislikedFoods: profile.dislikedFoods || ''
                       });
                       const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
                       setEditWeight(latestWeight);
                       setIsGoalModalOpen(true); 
                     }}
-                    className="bg-lime-400 text-zinc-950 px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-sm"
+                    className={themeStyles.buttonPrimary + " px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-sm"}
                   >
                     Configurar ahora
                   </button>
                 </div>
               ) : (
                 <>
-                  <div className="bg-gradient-to-br from-lime-400/10 to-zinc-900/80 rounded-[2rem] p-6 border border-lime-400/20">
+                  <div className={`${themeStyles.bento}`}>
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center gap-3">
-                        <Utensils className="w-6 h-6 text-lime-400" />
-                        <h2 className="text-xl font-display font-bold text-white uppercase tracking-tight">Plan Nutricional</h2>
+                        <Utensils className={`w-6 h-6 ${themeStyles.accent}`} />
+                        <h2 className={`text-xl font-display font-bold ${themeStyles.textMain} uppercase tracking-tight`}>Plan Nutricional</h2>
                       </div>
                     </div>
                     {generatedMenu ? (
                       <div className="space-y-6">
                         {isGeneratingMenu ? (
-                          <div className="bg-zinc-950/30 rounded-2xl border border-white/5 p-12 text-center">
+                          <div className={`${themeStyles.card} p-12 text-center`}>
                             <div className="relative w-20 h-20 mx-auto mb-6">
                               <motion.div
-                                className="absolute inset-0 rounded-2xl bg-lime-400/20"
+                                className={`absolute inset-0 rounded-2xl ${themeStyles.accentMuted}`}
                                 animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.2, 0.5] }}
                                 transition={{ repeat: Infinity, duration: 2 }}
                               />
                               <div className="absolute inset-0 flex items-center justify-center">
-                                <Utensils className="w-8 h-8 text-lime-400" />
+                                <Utensils className={`w-8 h-8 ${themeStyles.accent}`} />
                               </div>
                             </div>
                             <div className="space-y-2">
-                              <p className="text-white font-bold">Diseñando el plan de {profile.name || 'Usuario'}...</p>
+                              <p className={`${themeStyles.textMain} font-bold`}>Diseñando el plan de {profile.name || 'Usuario'}...</p>
                               <motion.div 
-                                className="text-zinc-500 text-xs font-mono h-4"
+                                className={`${themeStyles.textMuted} text-xs font-mono h-4`}
                                 animate={{ opacity: [0, 1, 0] }}
                                 transition={{ repeat: Infinity, duration: 1.5 }}
                               >
@@ -2117,19 +2631,19 @@ export default function App() {
                             </div>
                           </div>
                         ) : (
-                          <div className="bg-zinc-950/30 rounded-2xl border border-white/5 p-6 text-center">
-                            <CheckCircle2 className="w-12 h-12 text-lime-400 mx-auto mb-3 opacity-50" />
-                            <p className="text-zinc-300 font-bold mb-2">¡Plan de {profile.name || 'Usuario'} listo!</p>
-                            <p className="text-zinc-500 text-xs mb-6 px-4">Tu plan nutricional personalizado y la lista de la compra optimizada ya están disponibles.</p>
+                          <div className={`${themeStyles.card} p-6 text-center`}>
+                            <CheckCircle2 className={`w-12 h-12 ${themeStyles.accent} mx-auto mb-3 opacity-50`} />
+                            <p className={`${themeStyles.textMain} font-bold mb-2`}>¡Plan de {profile.name || 'Usuario'} listo!</p>
+                            <p className={`${themeStyles.textMuted} text-xs mb-6 px-4`}>Tu plan nutricional personalizado y la lista de la compra optimizada ya están disponibles.</p>
                             
                             <div className="grid grid-cols-2 gap-3">
                               <button 
                                 type="button"
                                 onClick={downloadMenuPDF}
-                                className="flex flex-col items-center gap-2 bg-lime-400/10 hover:bg-lime-400/20 text-lime-400 p-4 rounded-2xl border border-lime-400/20 transition-all group"
+                                className={`flex flex-col items-center gap-2 ${themeStyles.accentMuted} p-4 rounded-2xl border ${themeStyles.accentBorder} transition-all group`}
                               >
-                                <Download className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                                <span className="text-[10px] font-bold uppercase tracking-widest">Descargar Plan</span>
+                                <Download className={`w-6 h-6 ${themeStyles.accent} group-hover:scale-110 transition-transform`} />
+                                <span className={`text-[10px] font-bold ${themeStyles.accent} uppercase tracking-widest`}>Descargar Plan</span>
                               </button>
                               <button 
                                 onClick={() => handleGenerateMenu()}
@@ -2204,29 +2718,34 @@ export default function App() {
                                 <p className="text-emerald-400 text-sm font-medium mb-1">¡Lista generada con éxito!</p>
                                 <p className="text-zinc-400 text-xs mb-4">La lista se ha generado orientada a tu supermercado favorito: <span className="text-lime-400 font-bold">{profile.favoriteSupermarket}</span>.</p>
                                 
-                                <div className="grid grid-cols-2 gap-3">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      downloadShoppingListHTML();
-                                    }}
-                                    className="flex items-center justify-center gap-2 p-3 rounded-xl bg-lime-400 text-zinc-950 hover:bg-lime-300 transition-colors font-bold text-[10px] uppercase tracking-widest"
-                                  >
-                                    <CheckSquare className="w-4 h-4" />
-                                    Lista Web
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      downloadShoppingListPDF();
-                                    }}
-                                    className="flex items-center justify-center gap-2 p-3 rounded-xl bg-zinc-800 text-white hover:bg-zinc-700 transition-colors font-bold text-[10px] uppercase tracking-widest"
-                                  >
-                                    <Download className="w-4 h-4" />
-                                    PDF
-                                  </button>
+                                <div className="space-y-4">
+                                  <p className="text-zinc-500 text-[10px] uppercase font-bold tracking-widest text-center">
+                                    Puedes ir marcando los productos mientras compras en el supermercado
+                                  </p>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        downloadShoppingListHTML();
+                                      }}
+                                      className="flex items-center justify-center gap-2 p-3 rounded-xl bg-lime-400 text-zinc-950 hover:bg-lime-300 transition-colors font-bold text-[10px] uppercase tracking-widest"
+                                    >
+                                      <CheckSquare className="w-4 h-4" />
+                                      Lista Web
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        downloadShoppingListPDF();
+                                      }}
+                                      className="flex items-center justify-center gap-2 p-3 rounded-xl bg-zinc-800 text-white hover:bg-zinc-700 transition-colors font-bold text-[10px] uppercase tracking-widest"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                      PDF
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -2235,14 +2754,14 @@ export default function App() {
                       </div>
                     ) : (
                       <div className="text-center py-8">
-                        <p className="text-zinc-500 text-sm mb-4">Genera tu menú semanal y lista de la compra adaptados a tus preferencias.</p>
-                        <button 
-                          onClick={() => handleGenerateMenu()}
-                          disabled={isGeneratingMenu}
-                          className="bg-lime-400 text-zinc-950 px-6 py-2 rounded-xl font-bold uppercase tracking-wider text-xs"
-                        >
-                          {isGeneratingMenu ? 'Generando...' : 'Generar Plan'}
-                        </button>
+                            <p className={`${themeStyles.textMuted} text-center py-8`}>Genera tu menú semanal y lista de la compra adaptados a tus preferencias.</p>
+                            <button 
+                              onClick={() => handleGenerateMenu()}
+                              disabled={isGeneratingMenu}
+                              className={`${themeStyles.buttonPrimary} px-6 py-2 rounded-xl font-bold uppercase tracking-wider text-xs`}
+                            >
+                              {isGeneratingMenu ? 'Generando...' : 'Generar Plan'}
+                            </button>
                       </div>
                     )}
                   </div>
@@ -2251,7 +2770,7 @@ export default function App() {
             </motion.div>
           )}
 
-          {activeTab === 'restaurants' && (
+          {activeTab === 'restaurants' && profile.freeMealEnabled && (
             <motion.div
               key="restaurants"
               initial={{ opacity: 0, x: 20 }}
@@ -2260,23 +2779,23 @@ export default function App() {
               className="space-y-8 pb-32"
             >
               {/* Encouragement Card */}
-              <div className="bg-gradient-to-br from-lime-400/20 to-lime-400/5 border border-lime-400/20 rounded-3xl p-6 relative overflow-hidden">
-                <div className="absolute -top-12 -right-12 w-32 h-32 bg-lime-400/20 rounded-full blur-3xl animate-pulse"></div>
-                <div className="relative z-10">
+              <div className={`${themeStyles.bento} relative overflow-hidden`}>
+                <div className={`absolute -top-12 -right-12 w-32 h-32 ${themeStyles.accentBg} rounded-full blur-3xl animate-pulse opacity-10`}></div>
+                <div className="relative z-10 p-2">
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 bg-lime-400/20 rounded-xl border border-lime-400/30">
-                      <Star className="w-6 h-6 text-lime-400" />
+                    <div className={`p-2 ${themeStyles.accentMuted} rounded-xl border ${themeStyles.accentBorder}`}>
+                      <Star className={`w-6 h-6 ${themeStyles.accent}`} />
                     </div>
-                    <h2 className="text-xl font-display font-black text-white uppercase tracking-tight">¡Tu comida libre, {profile.name || 'campeón'}!</h2>
+                    <h2 className={`text-xl font-display font-black ${themeStyles.textMain} uppercase tracking-tight`}>¡Tu comida libre, {profile.name || 'campeón'}!</h2>
                   </div>
-                  <p className="text-zinc-300 text-sm leading-relaxed">
+                  <p className={`${themeStyles.textMuted} text-sm leading-relaxed`}>
                     Disfruta de tu momento. He buscado los mejores sitios que se adaptan a tus preferencias para que tu comida libre sea espectacular.
                   </p>
                 </div>
               </div>
 
               {/* Search Section */}
-              <div className="bg-zinc-900/50 border border-white/5 rounded-3xl p-6 space-y-6">
+              <div className={`${themeStyles.card} p-8 space-y-6`}>
                 <form onSubmit={handleSearchRestaurants} className="space-y-4 max-w-xl mx-auto">
                   <div className="relative">
                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
@@ -2285,27 +2804,27 @@ export default function App() {
                       value={restaurantLocation}
                       onChange={(e) => setRestaurantLocation(e.target.value)}
                       placeholder="Indica tu ubicación (ej: Madrid, Chueca...)"
-                      className="w-full bg-zinc-950 border border-white/10 rounded-2xl pl-12 pr-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-lime-400 transition-all"
+                      className={`${themeStyles.input} w-full rounded-2xl pl-12 pr-4 py-4 text-sm transition-all`}
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="flex items-center justify-between p-3 bg-zinc-950 rounded-xl border border-white/5">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Dieta ({profile.dietType})</span>
+                    <div className={`flex items-center justify-between p-4 ${themeStyles.iconBg} rounded-xl border ${themeStyles.border}`}>
+                      <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Dieta ({profile.dietType})</span>
                       <button 
                         type="button"
                         onClick={() => setRestaurantFilters({...restaurantFilters, dietType: !restaurantFilters.dietType})}
-                        className={`w-10 h-2.5 rounded-full transition-colors relative ${restaurantFilters.dietType ? 'bg-lime-400' : 'bg-zinc-700'}`}
+                        className={`w-10 h-2.5 rounded-full transition-colors relative ${restaurantFilters.dietType ? themeStyles.accentBg : 'bg-zinc-700'}`}
                       >
                         <div className={`absolute -top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${restaurantFilters.dietType ? 'left-6' : 'left-0'}`} />
                       </button>
                     </div>
-                    <div className="flex items-center justify-between p-3 bg-zinc-950 rounded-xl border border-white/5">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Alergias ({profile.allergies || 'No'})</span>
+                    <div className={`flex items-center justify-between p-4 ${themeStyles.iconBg} rounded-xl border ${themeStyles.border}`}>
+                      <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Alergias ({profile.allergies.length > 0 ? profile.allergies.join(', ') : 'No'})</span>
                       <button 
                         type="button"
                         onClick={() => setRestaurantFilters({...restaurantFilters, allergies: !restaurantFilters.allergies})}
-                        className={`w-10 h-2.5 rounded-full transition-colors relative ${restaurantFilters.allergies ? 'bg-lime-400' : 'bg-zinc-700'}`}
+                        className={`w-10 h-2.5 rounded-full transition-colors relative ${restaurantFilters.allergies ? themeStyles.accentBg : 'bg-zinc-700'}`}
                       >
                         <div className={`absolute -top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${restaurantFilters.allergies ? 'left-6' : 'left-0'}`} />
                       </button>
@@ -2316,13 +2835,13 @@ export default function App() {
                     value={restaurantFilters.other}
                     onChange={(e) => setRestaurantFilters({...restaurantFilters, other: e.target.value})}
                     placeholder="Otros filtros (ej: terraza, barato, romántico...)"
-                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-lime-400 transition-all"
+                    className={`${themeStyles.input} w-full rounded-xl px-4 py-3 text-xs transition-all`}
                   />
 
                   <button 
                     type="submit"
                     disabled={isSearchingRestaurants}
-                    className="w-full bg-lime-400 hover:bg-lime-300 disabled:opacity-50 text-zinc-950 font-black uppercase tracking-widest py-3 rounded-2xl transition-all shadow-lg shadow-lime-400/20 flex items-center justify-center gap-2 text-xs"
+                    className={`${themeStyles.buttonPrimary} w-full font-black uppercase tracking-widest py-4 rounded-2xl transition-all flex items-center justify-center gap-2 text-xs`}
                   >
                     {isSearchingRestaurants ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
                     {isSearchingRestaurants ? 'Buscando...' : 'Buscar Restaurantes'}
@@ -2337,7 +2856,7 @@ export default function App() {
                     <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Ordenar resultados por:</span>
                     <button
                       onClick={() => setRestaurantSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                      className="flex items-center gap-1.5 text-[10px] font-bold text-lime-400 uppercase tracking-widest hover:text-lime-300 transition-colors"
+                      className={`flex items-center gap-1.5 text-[10px] font-black ${themeStyles.accent} uppercase tracking-widest hover:opacity-80 transition-colors`}
                     >
                       {restaurantSortOrder === 'desc' ? (
                         <>Descendente <TrendingUp className="w-3 h-3 rotate-180" /></>
@@ -2349,13 +2868,13 @@ export default function App() {
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => setRestaurantSort('rating')}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all ${restaurantSort === 'rating' ? 'bg-lime-400 text-zinc-950 border-lime-400' : 'bg-zinc-900 text-zinc-400 border-white/5 hover:border-white/20'}`}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all ${restaurantSort === 'rating' ? `${themeStyles.accentBg} text-zinc-950 ${themeStyles.accentBorder}` : `${themeStyles.iconBg} ${themeStyles.textMuted} ${themeStyles.border} hover:${themeStyles.accentBorder}`}`}
                     >
                       Valoración
                     </button>
                     <button
                       onClick={() => setRestaurantSort('price')}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all ${restaurantSort === 'price' ? 'bg-lime-400 text-zinc-950 border-lime-400' : 'bg-zinc-900 text-zinc-400 border-white/5 hover:border-white/20'}`}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all ${restaurantSort === 'price' ? `${themeStyles.accentBg} text-zinc-950 ${themeStyles.accentBorder}` : `${themeStyles.iconBg} ${themeStyles.textMuted} ${themeStyles.border} hover:${themeStyles.accentBorder}`}`}
                     >
                       Precio
                     </button>
@@ -2489,11 +3008,400 @@ export default function App() {
               </div>
             </motion.div>
           )}
+
+          {activeTab === 'gym' && profile.gymEnabled && (
+            <motion.div
+              key="gym"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8 pb-32"
+            >
+              {/* Premium Gym Header */}
+              <div className={`${themeStyles.bento} p-8 relative overflow-hidden`}>
+                <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : 'bg-lime-400/5'} rounded-full blur-3xl`}></div>
+                
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 text-left">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl ${themeStyles.accentMuted} flex items-center justify-center border ${themeStyles.accentBorder}`}>
+                        <Dumbbell className={`w-5 h-5 ${themeStyles.accent}`} />
+                      </div>
+                      <div>
+                        <h2 className={`text-xl font-display font-black ${themeStyles.textMain} uppercase tracking-tight leading-none`}>Tu Rutina GYM</h2>
+                        <p className={`${themeStyles.textMuted} text-[9px] font-bold uppercase tracking-widest mt-1`}>
+                          {profile.trainingDaysPerWeek} Días • {translateGymGoal(profile.gymGoal)}
+                        </p>
+                      </div>
+                    </div>
+                    <p className={`${themeStyles.textMuted} text-xs max-w-sm leading-relaxed`}>
+                      Rutina profesional para <span className={`${themeStyles.textMain} font-bold`}>{profile.age} años</span> y objetivo de <span className={`${themeStyles.accent} font-bold`}>{translateGymGoal(profile.gymGoal).toLowerCase()}</span>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Workout Content */}
+              <div className="space-y-6">
+                {workoutPlan && !isGeneratingWorkout && (
+                  <div className="flex flex-col gap-4">
+                    <div className={`grid grid-cols-3 gap-1.5 ${themeStyles.iconBg} p-1 rounded-xl border ${themeStyles.border} w-full`}>
+                      {[
+                        { id: 'intro', label: 'Info', icon: Info },
+                        { id: 'exercises', label: 'Rutina', icon: Activity },
+                        { id: 'safety', label: 'Seguridad', icon: AlertTriangle }
+                      ].map((st) => (
+                        <button
+                          key={st.id}
+                          onClick={() => setGymSubTab(st.id as any)}
+                          className={`py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all flex flex-col items-center gap-1 ${
+                            gymSubTab === st.id 
+                              ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` 
+                              : `${themeStyles.textMuted} hover:text-current`
+                          }`}
+                        >
+                          <st.icon className="w-3.5 h-3.5" />
+                          {st.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button 
+                      onClick={() => handleGenerateWorkout()}
+                      disabled={isGeneratingWorkout}
+                      className={`w-full ${themeStyles.buttonSecondary} font-bold uppercase tracking-widest py-3 rounded-xl transition-all text-[10px] flex items-center justify-center gap-2`}
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingWorkout ? 'animate-spin' : ''}`} />
+                      Regenerar Plan Completo
+                    </button>
+                  </div>
+                )}
+
+                {isGeneratingWorkout ? (
+                  <div className="bg-zinc-950/30 rounded-[3rem] border border-white/5 p-16 text-center">
+                    <div className="relative w-24 h-24 mx-auto mb-8">
+                      <motion.div
+                        className="absolute inset-0 rounded-3xl bg-lime-400/20"
+                        animate={{ scale: [1, 1.25, 1], opacity: [0.6, 0.2, 0.6] }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Dumbbell className="w-10 h-10 text-lime-400" />
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <p className="text-xl text-white font-bold tracking-tight">Tu experto AI está diseñando la rutina...</p>
+                      <motion.div 
+                        className="text-zinc-500 text-xs font-mono h-4 uppercase tracking-[0.2em]"
+                        animate={{ opacity: [0, 1, 0] }}
+                        transition={{ repeat: Infinity, duration: 1.5 }}
+                      >
+                        {`> Programando microciclo de ${profile.trainingDaysPerWeek} días...`}
+                      </motion.div>
+                    </div>
+                  </div>
+                ) : workoutPlan ? (
+                  <motion.div
+                    key={gymSubTab}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-6"
+                  >
+                    {gymSubTab === 'exercises' ? (
+                      <div className="space-y-6">
+                        {/* Daily routines logic */}
+                        {(() => {
+                          const normalized = workoutPlan.replace(/\r\n/g, '\n');
+                          const h2Tags = ['EJERCICIOS', 'RUTINA', 'DETALLE', 'TABLAS', 'CONTENIDO', 'RUTINAS', 'PROGRAMA', 'WORKOUT'];
+                          let exercisesContent = '';
+                          for (const tag of h2Tags) {
+                            const regex = new RegExp(`##\\s*[^\\n]*${tag}[^\\n]*\\n`, 'i');
+                            const match = normalized.match(regex);
+                            if (match && match.index !== undefined) {
+                              const start = match.index + match[0].length;
+                              const nextH2 = normalized.indexOf('\n## ', start);
+                              exercisesContent = nextH2 !== -1 ? normalized.substring(start, nextH2) : normalized.substring(start);
+                              break;
+                            }
+                          }
+
+                          if (!exercisesContent) return <div className="p-10 text-center text-zinc-500 font-bold uppercase tracking-widest bg-zinc-900/50 rounded-3xl border border-white/5">No se encontraron rutinas detalladas.</div>;
+
+                          const dayChunks = exercisesContent.split(/\n###\s+/).filter(Boolean);
+                          const parsedDays = dayChunks.map((chunk, idx) => {
+                            const lines = chunk.trim().split('\n');
+                            const headerRaw = lines[0].replace(/^###\s*/, '').replace(/^#+/, '').trim();
+                            const dayMatch = headerRaw.match(/Día\s*(\d+)/i);
+                            const label = dayMatch ? `Día ${dayMatch[1]}` : `Día ${idx + 1}`;
+                            
+                            const dayNameMatch = headerRaw.match(/(Lunes|Martes|Miércoles|Jueves|Viernes|Sábado|Domingo)/i);
+                            const dayName = dayNameMatch ? dayNameMatch[0] : label;
+                            
+                            const objective = headerRaw.replace(dayName, '').replace(label, '').replace(/^[:\s-]+/, '').trim() || 'Entrenamiento';
+                            return { id: idx, dayName, label, objective, content: lines.slice(1).join('\n').trim() };
+                          });
+
+                          if (parsedDays.length === 0) return null;
+
+                          const activeDayData = parsedDays.find(d => d.label === gymDay || d.dayName.toLowerCase() === gymDay.toLowerCase()) || parsedDays[0];
+
+                          return (
+                            <div className="space-y-6">
+                              {/* Daily Tabs Selector */}
+                              <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar px-1 scroll-smooth">
+                                {parsedDays.map((d) => (
+                                  <button
+                                    key={d.id}
+                                    onClick={() => setGymDay(d.label)}
+                                    className={`px-6 py-3 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap min-w-[100px] border-solid ${
+                                      gymDay === d.label || gymDay.toLowerCase() === d.dayName.toLowerCase()
+                                        ? `${profile.theme === 'light' ? 'bg-emerald-500 border-emerald-500 shadow-emerald-500/20' : 'bg-lime-400 border-lime-400 shadow-lime-400/20'} text-zinc-950 shadow-lg scale-105`
+                                        : `${profile.theme === 'light' ? 'bg-white border-slate-200 text-slate-400' : 'bg-zinc-900 border-white/5 text-zinc-500 hover:text-zinc-300'}`
+                                    }`}
+                                  >
+                                    {d.label}
+                                  </button>
+                                ))}
+                              </div>
+
+                              {/* Day Detail Content */}
+                              <motion.div
+                                key={gymDay}
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className={`${themeStyles.bento} p-6 md:p-8 shadow-2xl space-y-8 relative overflow-hidden`}
+                              >
+                                <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : 'bg-lime-400/5'} rounded-full blur-2xl mr-[-10%] mt-[-10%]`} />
+                                
+                                <div className="relative z-10 space-y-6">
+                                  <div className="flex flex-col gap-1">
+                                    <div className={`flex items-center gap-1.5 text-[8px] font-black ${themeStyles.accent} uppercase tracking-[0.2em] mb-1`}>
+                                      <Activity className="w-3 h-3" />
+                                      <span>Bloque de entrenamiento</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <div className={`w-1 h-5 ${themeStyles.accentBg} rounded-full`} />
+                                      <div className={`flex items-center gap-2 ${themeStyles.textMain} font-display font-black text-lg uppercase tracking-tighter`}>
+                                        <span className={themeStyles.accent}>{activeDayData.label}</span>
+                                        <span className="opacity-20">/</span>
+                                        <div className="relative inline-block border-b-2 border-dotted border-lime-400/20">
+                                          <select
+                                            value={activeDayData.dayName.charAt(0).toUpperCase() + activeDayData.dayName.slice(1).toLowerCase()}
+                                            onChange={(e) => {
+                                               const newDay = e.target.value;
+                                               if (workoutPlan) {
+                                                  const updatedPlan = workoutPlan.replace(activeDayData.dayName, newDay);
+                                                  setWorkoutPlan(updatedPlan);
+                                               }
+                                            }}
+                                            className="bg-transparent text-current border-none focus:ring-0 p-0 cursor-pointer appearance-none pr-4 uppercase text-sm font-black"
+                                          >
+                                            {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(d => (
+                                               <option key={d} value={d} className={profile.theme === 'light' ? 'bg-white text-slate-900' : 'bg-zinc-900 text-white'}>{d}</option>
+                                            ))}
+                                          </select>
+                                          <ChevronDown className={`w-2.5 h-2.5 ${themeStyles.accent} absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-40`} />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1 text-left">
+                                    <span className={`text-[8px] font-black ${themeStyles.textMuted} uppercase tracking-[0.2em] pl-1`}>Foco de la sesión</span>
+                                    <h4 className={`text-sm font-display font-black ${themeStyles.textMain} uppercase tracking-tight`}>{activeDayData.objective}</h4>
+                                  </div>
+                                  
+                                  <div className={`h-px w-full ${themeStyles.border} shadow-sm`} />
+                                </div>
+
+                                <div className={`prose ${profile.theme === 'light' ? 'prose-slate' : 'prose-invert'} max-w-none 
+                                  prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
+                                  prose-h3:hidden
+                                  prose-strong:${themeStyles.accent} prose-strong:font-black
+                                  prose-p:text-sm prose-p:leading-relaxed text-left
+                                  prose-li:text-sm prose-li:my-1
+                                `}>
+                                  <Markdown 
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                      h4: () => null,
+                                      table: ({node, ...props}) => {
+                                        const tableContent = node?.position ? workoutPlan?.substring(node.position.start.offset, node.position.end.offset) : '';
+                                        const tableId = `table-${node?.position?.start.offset || 0}`;
+                                        
+                                        const textBeforeTable = workoutPlan.substring(0, node?.position?.start.offset || 0);
+                                        const headerMatch = textBeforeTable.match(/####\s*([^\n]+)\s*$/m) || 
+                                                            textBeforeTable.match(/###\s*([^\n]+)\s*$/m) ||
+                                                            textBeforeTable.match(/\*\*([^\*]+)\*\*\s*$/m);
+                                        const sectionTitleRaw = headerMatch ? headerMatch[1].trim() : 'Ejercicios';
+                                        let sectionTitle = sectionTitleRaw;
+                                        if (sectionTitleRaw.toLowerCase().includes('calentamiento')) sectionTitle = 'Calentamiento';
+                                        else if (sectionTitleRaw.toLowerCase().includes('principal')) sectionTitle = 'Parte Principal';
+                                        else if (sectionTitleRaw.toLowerCase().includes('calma')) sectionTitle = 'Vuelta a la calma';
+
+                                        let checkDate = todayStr;
+                                        if (activeDayData.dayName) {
+                                          const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+                                          const targetIdx = days.indexOf(activeDayData.dayName.toLowerCase());
+                                          if (targetIdx !== -1) {
+                                            const now = new Date();
+                                            const currentIdx = now.getDay();
+                                            const diff = targetIdx - currentIdx;
+                                            const targetDate = new Date(now);
+                                            targetDate.setDate(now.getDate() + diff);
+                                            checkDate = targetDate.toISOString().split('T')[0];
+                                          }
+                                        }
+                                        
+                                        const isCompleted = habits[checkDate]?.completedExercises?.includes(tableId);
+
+                                        return (
+                                          <div className="my-8 relative group">
+                                            <div className="flex items-center justify-between gap-4 mb-4">
+                                              <div className="flex items-center gap-3 px-2 text-left">
+                                                <div className={`w-1 h-5 ${isCompleted ? (profile.theme === 'light' ? 'bg-emerald-500' : 'bg-lime-400') : 'bg-zinc-500'} rounded-full`} />
+                                                <h5 className={`text-[11px] font-black uppercase tracking-widest ${isCompleted ? themeStyles.accent : themeStyles.textMain}`}>{sectionTitle}</h5>
+                                              </div>
+                                              
+                                              <div className="flex items-center gap-2 pr-2">
+                                                <button
+                                                  onClick={() => handleToggleExercise(tableId, activeDayData.dayName)}
+                                                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border font-black uppercase tracking-widest text-[9px] transition-all ${
+                                                    isCompleted 
+                                                      ? `${profile.theme === 'light' ? 'bg-emerald-500 border-emerald-500 shadow-lg' : 'bg-lime-400 border-lime-400 shadow-lg shadow-lime-400/20'} text-zinc-950` 
+                                                      : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent}`
+                                                  }`}
+                                                >
+                                                  <CheckCircle2 className="w-4 h-4" />
+                                                  {isCompleted ? 'Hecho' : 'Pendiente'}
+                                                </button>
+                                                <button
+                                                  onClick={() => tableContent && handleRegenerateWorkoutTable(tableContent)}
+                                                  className={`p-2.5 rounded-xl ${themeStyles.iconBg} border ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent} transition-all shadow-sm`}
+                                                  title="Regenerar"
+                                                >
+                                                  <RefreshCw className="w-4 h-4" />
+                                                </button>
+                                              </div>
+                                            </div>
+
+                                            <div className={`overflow-x-auto rounded-[2.5rem] border ${themeStyles.border} ${profile.theme === 'light' ? 'bg-slate-50 shadow-inner' : 'bg-zinc-950/30'} shadow-sm`}>
+                                              <table {...props} className="w-full text-left border-collapse" />
+                                            </div>
+                                          </div>
+                                        );
+                                      },
+                                      thead: ({node, ...props}) => <thead {...props} className={`${profile.theme === 'light' ? 'bg-slate-100' : 'bg-white/5'} border-b ${themeStyles.border}`} />,
+                                      th: ({node, ...props}) => <th {...props} className={`px-5 py-4 text-left text-[9px] font-black uppercase tracking-widest ${themeStyles.textMuted} border-b ${themeStyles.border} first:${themeStyles.textMain} first:min-w-[150px]`} />,
+                                      td: ({node, ...props}) => <td {...props} className={`px-5 py-4 ${themeStyles.textMuted} border-b ${themeStyles.border} text-[11px] font-medium first:${themeStyles.textMain} first:font-bold`} />,
+                                      a: ({node, ...props}) => (
+                                        <a {...props} className={`inline-flex items-center gap-2 ${themeStyles.accent} font-bold hover:${themeStyles.textMain} transition-colors`} target="_blank" rel="noopener noreferrer">
+                                          {props.children}
+                                          <Camera className="w-4 h-4 opacity-50" />
+                                        </a>
+                                      )
+                                    }}
+                                  >
+                                    {(() => {
+                                      const lines = activeDayData.content.split('\n');
+                                      let tableHeaders: string[] = [];
+                                      return lines.map(line => {
+                                        const trimmed = line.trim();
+                                        if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+                                          const cells = trimmed.split('|').map(c => c.trim());
+                                          if (cells.length > 2) {
+                                            if (tableHeaders.length === 0 && (trimmed.toLowerCase().includes('serie') || trimmed.toLowerCase().includes('rep'))) {
+                                              if (trimmed.match(/[a-zA-Z]/) && !trimmed.includes('---')) {
+                                                tableHeaders = cells;
+                                              }
+                                            }
+                                            
+                                            if (tableHeaders.length > 0) {
+                                              const sIdx = tableHeaders.findIndex(h => h.toLowerCase().includes('serie'));
+                                              const rIdx = tableHeaders.findIndex(h => h.toLowerCase().includes('repeticion') || h.toLowerCase().includes('reps'));
+                                              
+                                              if (sIdx !== -1 && rIdx !== -1) {
+                                                const newCells = [...cells];
+                                                if (trimmed.includes('---')) {
+                                                  newCells.splice(rIdx, 1);
+                                                } else if (JSON.stringify(cells) === JSON.stringify(tableHeaders)) {
+                                                  newCells[sIdx] = 'Series x Reps';
+                                                  newCells.splice(rIdx, 1);
+                                                } else {
+                                                  if (cells[rIdx]) {
+                                                    newCells[sIdx] = `${cells[sIdx]} x ${cells[rIdx]}`;
+                                                    newCells.splice(rIdx, 1);
+                                                  }
+                                                }
+                                                return newCells.join(' | ').trim();
+                                              }
+                                            }
+                                          }
+                                        } else if (trimmed === '') {
+                                          tableHeaders = [];
+                                        }
+                                        return line;
+                                      }).join('\n');
+                                    })()}
+                                  </Markdown>
+                                </div>
+
+                                {/* Summary Technical legend */}
+                                <div className={`pt-6 flex flex-wrap gap-3 justify-center border-t ${themeStyles.border}`}>
+                                  {[
+                                    { lab: 'RPE', desc: 'Esfuerzo' },
+                                    { lab: 'Series', desc: 'Bloques' },
+                                    { lab: 'Descanso', desc: 'Tiempo' }
+                                  ].map((item, idx) => (
+                                    <div key={idx} className={`flex items-center gap-1.5 px-3 py-1.5 ${themeStyles.iconBg} rounded-xl border ${themeStyles.border} shadow-sm`}>
+                                      <span className={`text-[8px] font-black ${themeStyles.accent} uppercase`}>{item.lab}:</span>
+                                      <span className={`text-[8px] ${themeStyles.textMuted} font-bold uppercase tracking-tighter`}>{item.desc}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </motion.div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    ) : (
+                      <div className="bg-zinc-900/50 border border-white/5 rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden text-left">
+                        <div className="prose prose-invert prose-zinc max-w-none
+                          prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
+                          prose-h2:text-2xl prose-h2:text-lime-400 prose-h2:border-b prose-h2:border-white/10 prose-h2:pb-4 prose-h2:mb-6
+                          prose-h3:text-lg prose-h3:text-white prose-h3:mt-8 prose-h3:mb-4
+                          prose-strong:text-orange-500 prose-strong:font-black
+                          prose-p:text-zinc-400 prose-p:leading-relaxed prose-p:text-sm
+                          prose-li:text-zinc-300 prose-li:my-1 prose-li:text-sm
+                        ">
+                          <Markdown remarkPlugins={[remarkGfm]}>
+                            {getWorkoutSection(workoutPlan, gymSubTab)}
+                          </Markdown>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                ) : (
+                  <div className="bg-zinc-950/30 rounded-[3rem] border border-white/5 p-20 text-center">
+                    <div className="w-20 h-20 bg-zinc-900 rounded-3xl flex items-center justify-center mx-auto mb-8 border border-white/5">
+                      <Dumbbell className="w-10 h-10 text-zinc-700" />
+                    </div>
+                    <h3 className="text-2xl font-display font-black text-white uppercase tracking-tight mb-3">No tienes un plan activo</h3>
+                    <p className="text-zinc-500 text-sm mb-8 max-w-xs mx-auto leading-relaxed">Genera tu primera rutina personalizada basada en tu perfil anatómico y objetivos deportivos.</p>
+                    <button 
+                      onClick={() => handleGenerateWorkout()}
+                      className="bg-lime-400 text-zinc-950 font-black uppercase tracking-widest px-10 py-5 rounded-2xl hover:bg-lime-300 transition-all shadow-xl hover:scale-105 active:scale-95"
+                    >
+                      Generar Rutina
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
       </main>
 
       <input
-        type="file"
         accept="image/*"
         capture="environment"
         ref={fileInputRef}
@@ -2603,229 +3511,391 @@ export default function App() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 w-full max-w-lg max-h-[90vh] flex flex-col"
+              className={`${themeStyles.card} border ${themeStyles.border} rounded-3xl p-6 w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden`}
             >
-              <div className="flex justify-between items-center mb-6 shrink-0">
+              <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : 'bg-lime-400/5'} rounded-full blur-2xl pointer-events-none`}></div>
+              
+              <div className="flex justify-between items-center mb-6 shrink-0 relative z-10">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-lime-400/10 rounded-xl border border-lime-400/20">
-                    <UserIcon className="w-6 h-6 text-lime-400" />
+                  <div className={`p-2 ${themeStyles.accentMuted} rounded-xl border ${themeStyles.accentBorder}`}>
+                    <UserIcon className={`w-6 h-6 ${themeStyles.accent}`} />
                   </div>
-                  <h3 className="text-xl font-display font-bold text-white uppercase">Configuración de Perfil</h3>
+                  <h3 className={`text-xl font-display font-bold ${themeStyles.textMain} uppercase tracking-tight`}>Configuración de Perfil</h3>
                 </div>
-                <button onClick={() => setIsGoalModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors">
+                <button onClick={() => setIsGoalModalOpen(false)} className={`${themeStyles.textMuted} hover:text-rose-500 transition-colors`}>
                   <X className="w-5 h-5" />
                 </button>
               </div>
+
+              <div className={`grid grid-cols-3 gap-1.5 mb-6 shrink-0 px-1 relative z-10 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-950'} p-1 rounded-xl`}>
+                {[
+                  { id: 'user', label: 'Personal' },
+                  { id: 'diet', label: 'Dieta' },
+                  { id: 'exercise', label: 'Gym' }
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setProfileTab(tab.id as any)}
+                    className={`flex items-center justify-center py-2.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                      profileTab === tab.id 
+                        ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` 
+                        : `${themeStyles.textMuted} hover:text-current`
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
               
-              <form onSubmit={handleSaveGoal} className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-24">
-                <div className="bg-zinc-950 p-4 rounded-2xl border border-white/5 space-y-3">
-                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Nombre / Alias</label>
-                  <input 
-                    type="text" 
-                    value={editProfile.name}
-                    onChange={(e) => setEditProfile({...editProfile, name: e.target.value})}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors"
-                    placeholder="¿Cómo quieres que te llame?"
-                  />
-                </div>
+              <form onSubmit={handleSaveGoal} className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar pb-10 text-left relative z-10">
+                {profileTab === 'user' && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
+                    <div className={`${themeStyles.iconBg} p-6 rounded-3xl border ${themeStyles.border} space-y-4 shadow-sm`}>
+                      <div className="flex flex-col md:flex-row gap-4">
+                        <div className="flex-1 space-y-2">
+                          <label className={`block text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Nombre completo</label>
+                          <input 
+                            type="text" 
+                            value={editProfile.name}
+                            onChange={(e) => setEditProfile({...editProfile, name: e.target.value})}
+                            className={`w-full ${themeStyles.input} rounded-xl px-4 py-4 text-sm font-bold focus:outline-none transition-all shadow-inner`}
+                            placeholder="Tu nombre..."
+                          />
+                        </div>
+                      </div>
 
-                <div className="bg-lime-400/5 border border-lime-400/20 rounded-xl p-3">
-                  <div className="flex gap-2">
-                    <Info className="w-4 h-4 text-lime-400 shrink-0" />
-                    <p className="text-zinc-400 text-[10px] leading-relaxed">
-                      Calculamos automáticamente tus calorías y macros según tu objetivo y distribución seleccionada.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <NumberInput
-                    label="Peso (kg)"
-                    value={editWeight}
-                    onChange={setEditWeight}
-                    step={0.1}
-                    min={30}
-                    max={300}
-                    placeholder="75.5"
-                  />
-                  <NumberInput
-                    label="Altura (cm)"
-                    value={editProfile.height || ''}
-                    onChange={(val: string) => setEditProfile({...editProfile, height: parseInt(val) || 0})}
-                    step={1}
-                    min={100}
-                    max={250}
-                    placeholder="175"
-                  />
-                  <NumberInput
-                    label="Edad"
-                    value={editProfile.age || ''}
-                    onChange={(val: string) => setEditProfile({...editProfile, age: parseInt(val) || 0})}
-                    step={1}
-                    min={12}
-                    max={120}
-                    placeholder="42"
-                  />
-                  <div>
-                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Género</label>
-                    <select 
-                      value={editProfile.gender}
-                      onChange={(e) => setEditProfile({...editProfile, gender: e.target.value as 'male' | 'female'})}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
-                    >
-                      <option value="male">Hombre</option>
-                      <option value="female">Mujer</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Nivel de Actividad</label>
-                  <select 
-                    value={editProfile.activityLevel}
-                    onChange={(e) => setEditProfile({...editProfile, activityLevel: parseFloat(e.target.value)})}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
-                  >
-                    <option value={1.2}>Sedentario</option>
-                    <option value={1.375}>Ligero (1-3 días/sem)</option>
-                    <option value={1.55}>Moderado (3-5 días/sem)</option>
-                    <option value={1.725}>Intenso (6-7 días/sem)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Objetivo</label>
-                  <select 
-                    value={editProfile.goal}
-                    onChange={(e) => setEditProfile({...editProfile, goal: e.target.value as any})}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
-                  >
-                    <option value="lose">Perder Peso (-500 kcal)</option>
-                    <option value="maintain">Mantener Peso</option>
-                    <option value="gain">Ganar Músculo (+300 kcal)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Macros</label>
-                  <select 
-                    value={editProfile.macroDistribution}
-                    onChange={(e) => setEditProfile({...editProfile, macroDistribution: e.target.value as any})}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
-                  >
-                    <option value="balanced">Equilibrada (30/40/30)</option>
-                    <option value="low_carb">Baja en Carbohidratos (40/20/40)</option>
-                    <option value="high_protein">Alta en Proteínas (40/30/30)</option>
-                    <option value="keto">Cetogénica (25/5/70)</option>
-                  </select>
-                </div>
-                
-                <div className="space-y-3 pt-3 border-t border-zinc-800">
-                  <h4 className="text-[10px] font-bold text-white uppercase tracking-wider">Preferencias de Alimentación</h4>
-                  <div className="grid grid-cols-1 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Tipo de Dieta</label>
-                      <select 
-                        value={editProfile.dietType}
-                        onChange={(e) => setEditProfile({...editProfile, dietType: e.target.value})}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
-                      >
-                        <option value="Normal">Normal (Omnívora)</option>
-                        <option value="Vegetariana">Vegetariana</option>
-                        <option value="Vegana">Vegana</option>
-                        <option value="Pescetariana">Pescetariana</option>
-                        <option value="Keto">Keto</option>
-                        <option value="Paleo">Paleo</option>
-                      </select>
+                      <div className="pt-2 space-y-2">
+                        <label className={`block text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Tema de la aplicación</label>
+                        <div className={`p-1 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-950'} rounded-2xl flex border ${themeStyles.border} shadow-inner`}>
+                          <button 
+                            type="button"
+                            onClick={() => setEditProfile({...editProfile, theme: 'light'})}
+                            className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                              editProfile.theme === 'light' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-300'
+                            }`}
+                          >
+                            <Sun className="w-4 h-4" /> Modo Claro
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => setEditProfile({...editProfile, theme: 'dark'})}
+                            className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                              editProfile.theme === 'dark' ? 'bg-zinc-800 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-300'
+                            }`}
+                          >
+                            <Moon className="w-4 h-4" /> Modo Oscuro
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-3">
-                      <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Supermercado Favorito</label>
-                      <select 
-                        value={editProfile.favoriteSupermarket}
-                        onChange={(e) => setEditProfile({...editProfile, favoriteSupermarket: e.target.value})}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
-                      >
-                        <option value="Mercadona">Mercadona</option>
-                        <option value="Carrefour">Carrefour</option>
-                        <option value="Aldi">Aldi</option>
-                        <option value="Lidl">Lidl</option>
-                        <option value="Alcampo">Alcampo</option>
-                        <option value="Eroski">Eroski</option>
-                      </select>
-                    </div>
+                      <div className="space-y-4">
+                        <RulerPicker
+                          label="Edad"
+                          value={editProfile.age}
+                          onChange={(val: string) => setEditProfile({...editProfile, age: parseInt(val) || 0})}
+                          min={15}
+                          max={100}
+                          step={1}
+                          unit="Años"
+                        />
+                      </div>
 
-                    <div className="mt-3 p-3 bg-zinc-900 rounded-xl border border-white/5 space-y-3">
+                      <div className="space-y-4">
+                        <RulerPicker
+                          label="Altura"
+                          value={editProfile.height}
+                          onChange={(val: string) => setEditProfile({...editProfile, height: parseInt(val) || 0})}
+                          min={120}
+                          max={230}
+                          step={1}
+                          unit="cm"
+                        />
+                      </div>
+
+                      <div className="space-y-4">
+                        <RulerPicker
+                          label="Peso Actual"
+                          value={editWeight}
+                          onChange={setEditWeight}
+                          min={40}
+                          max={200}
+                          step={0.1}
+                          unit="kg"
+                        />
+                      </div>
+                      <div className="space-y-1.5 px-2">
+                        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Género</label>
+                        <select 
+                          value={editProfile.gender}
+                          onChange={(e) => setEditProfile({...editProfile, gender: e.target.value as 'male' | 'female'})}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none shadow-sm"
+                        >
+                          <option value="male">Hombre</option>
+                          <option value="female">Mujer</option>
+                        </select>
+                      </div>
+
+                    <div className="bg-indigo-500/5 p-4 rounded-2xl border border-indigo-500/10 space-y-4">
                       <div className="flex items-center justify-between">
-                        <label className="text-[10px] font-bold text-white uppercase tracking-widest">Comida/Cena Libre Semanal</label>
+                        <div className="flex items-center gap-2">
+                          <Activity className="w-3.5 h-3.5 text-indigo-400" />
+                          <label className="block text-[10px] font-bold text-indigo-200/60 uppercase tracking-widest">¿Tienes Diabetes?</label>
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={() => setEditProfile({
+                            ...editProfile, 
+                            diabetesType: editProfile.diabetesType !== 'none' ? 'none' : 'type2'
+                          })}
+                          className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.diabetesType !== 'none' ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                        >
+                          <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.diabetesType !== 'none' ? 'left-6' : 'left-0'}`} />
+                        </button>
+                      </div>
+
+                      {editProfile.diabetesType !== 'none' && (
+                        <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                          <label className="block text-[10px] font-bold text-indigo-200/40 uppercase tracking-widest">Tipo de Diabetes</label>
+                          <select 
+                            value={editProfile.diabetesType}
+                            onChange={(e) => setEditProfile({...editProfile, diabetesType: e.target.value as any})}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-colors appearance-none shadow-sm"
+                          >
+                            <option value="type1">Diabetes Tipo 1</option>
+                            <option value="type2">Diabetes Tipo 2</option>
+                            <option value="prediabetes">Pre-diabetes</option>
+                          </select>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <Info className="w-3 h-3 text-indigo-400 shrink-0 mt-0.5" />
+                        <p className="text-[9px] text-zinc-500 leading-tight">Esta información es vital para ajustar el índice glucémico de las comidas y la intensidad del ejercicio.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {profileTab === 'diet' && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Tipo de Dieta</label>
+                        <select 
+                          value={editProfile.dietType}
+                          onChange={(e) => setEditProfile({...editProfile, dietType: e.target.value})}
+                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all appearance-none`}
+                        >
+                          <option value="Normal">Normal</option>
+                          <option value="Vegetariana">Vegetariana</option>
+                          <option value="Vegana">Vegana</option>
+                          <option value="Pescetariana">Pescetariana</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Objetivo</label>
+                        <select 
+                          value={editProfile.goal}
+                          onChange={(e) => setEditProfile({...editProfile, goal: e.target.value as any})}
+                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all appearance-none`}
+                        >
+                          <option value="lose">Bajar Peso</option>
+                          <option value="maintain">Mantenimiento</option>
+                          <option value="gain">Ganar Músculo/Volumen</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Alergias e Intolerancias</label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {['Gluten', 'Lactosa', 'Frutos Secos', 'Marisco', 'Huevo', 'Otros'].map(id => (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => {
+                              const lid = id.toLowerCase().replace(' ', '_');
+                              const exists = editProfile.allergies.includes(lid);
+                              setEditProfile({
+                                ...editProfile,
+                                allergies: exists 
+                                  ? editProfile.allergies.filter(a => a !== lid)
+                                  : [...editProfile.allergies, lid]
+                              });
+                            }}
+                            className={`flex items-center gap-2 p-2.5 rounded-xl border text-[10px] font-bold transition-all ${
+                              editProfile.allergies.includes(id.toLowerCase().replace(' ', '_'))
+                                ? 'bg-lime-400/10 border-lime-400 text-lime-400'
+                                : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'
+                            }`}
+                          >
+                            <div className={`w-3 h-3 rounded-sm border ${editProfile.allergies.includes(id.toLowerCase().replace(' ', '_')) ? 'bg-lime-400 border-lime-400' : 'border-zinc-700'}`} />
+                            {id}
+                          </button>
+                        ))}
+                      </div>
+
+                      {editProfile.allergies.includes('otros') && (
+                        <input 
+                          type="text" 
+                          value={editProfile.otherAllergies}
+                          onChange={(e) => setEditProfile({...editProfile, otherAllergies: e.target.value})}
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-lime-500 transition-colors animate-in fade-in"
+                          placeholder="Especifica (ej. Melocotón, Fresas...)"
+                        />
+                      )}
+                    </div>
+
+                    <div className="space-y-4 mt-2">
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest text-left">Distribución Macros</label>
+                        <select 
+                          value={editProfile.macroDistribution}
+                          onChange={(e) => setEditProfile({...editProfile, macroDistribution: e.target.value as any})}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
+                        >
+                          <option value="balanced">Equilibrada</option>
+                          <option value="low_carb">Baja en Carbohidratos</option>
+                          <option value="high_protein">Alta en Proteína</option>
+                          <option value="keto">Keto</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest text-left">Supermercado Preferido</label>
+                        <select 
+                          value={editProfile.favoriteSupermarket}
+                          onChange={(e) => setEditProfile({...editProfile, favoriteSupermarket: e.target.value})}
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-lime-500 transition-colors appearance-none"
+                        >
+                          <option value="Mercadona">Mercadona</option>
+                          <option value="Carrefour">Carrefour</option>
+                          <option value="Aldi">Aldi</option>
+                          <option value="Lidl">Lidl</option>
+                          <option value="Eroski">Eroski</option>
+                          <option value="Alcampo">Alcampo</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-zinc-950 rounded-2xl border border-white/5 space-y-4 shadow-inner">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Pizza className="w-3.5 h-3.5 text-amber-400" />
+                          <label className="text-[10px] font-bold text-zinc-200 uppercase tracking-widest">Momento Libre Semanal</label>
+                        </div>
                         <button 
                           type="button"
                           onClick={() => setEditProfile({...editProfile, freeMealEnabled: !editProfile.freeMealEnabled})}
-                          className={`w-10 h-2.5 rounded-full transition-colors relative ${editProfile.freeMealEnabled ? 'bg-lime-400' : 'bg-zinc-700'}`}
+                          className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.freeMealEnabled ? 'bg-lime-400' : 'bg-zinc-700'}`}
                         >
-                          <div className={`absolute -top-1 w-4.5 h-4.5 rounded-full bg-white shadow-sm transition-all ${editProfile.freeMealEnabled ? 'left-5.5' : 'left-0'}`} />
+                          <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.freeMealEnabled ? 'left-6' : 'left-0'}`} />
                         </button>
                       </div>
                       
                       {editProfile.freeMealEnabled && (
                         <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2">
-                          <div>
-                            <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Día</label>
-                            <select 
-                              value={editProfile.freeMealDay}
-                              onChange={(e) => setEditProfile({...editProfile, freeMealDay: e.target.value})}
-                              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none"
-                            >
-                              {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(day => (
-                                <option key={day} value={day}>{day}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-[8px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Tipo</label>
-                            <select 
-                              value={editProfile.freeMealType}
-                              onChange={(e) => setEditProfile({...editProfile, freeMealType: e.target.value as any})}
-                              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none"
-                            >
-                              <option value="comida">Comida</option>
-                              <option value="cena">Cena</option>
-                            </select>
-                          </div>
+                          <select 
+                            value={editProfile.freeMealDay}
+                            onChange={(e) => setEditProfile({...editProfile, freeMealDay: e.target.value})}
+                            className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-lime-500/50"
+                          >
+                            {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(d => <option key={d}>{d}</option>)}
+                          </select>
+                          <select 
+                            value={editProfile.freeMealType}
+                            onChange={(e) => setEditProfile({...editProfile, freeMealType: e.target.value as any})}
+                            className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-lime-500/50"
+                          >
+                            <option value="comida">Comida</option>
+                            <option value="cena">Cena</option>
+                          </select>
                         </div>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      <div>
-                        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Alergias</label>
-                        <input 
-                          type="text" 
-                          value={editProfile.allergies}
-                          onChange={(e) => setEditProfile({...editProfile, allergies: e.target.value})}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors"
-                          placeholder="Gluten..."
-                        />
+                  </div>
+                )}
+
+                {profileTab === 'exercise' && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div className={`${themeStyles.iconBg} rounded-2xl border ${themeStyles.border} p-5 space-y-4 shadow-sm`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Dumbbell className={`w-4 h-4 ${themeStyles.accent}`} />
+                          <label className={`text-[10px] font-black ${themeStyles.textMain} uppercase tracking-widest`}>Plan de Entrenamiento AI (GYM)</label>
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={() => setEditProfile({...editProfile, gymEnabled: !editProfile.gymEnabled})}
+                          className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.gymEnabled ? themeStyles.accentBg : (profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800')}`}
+                        >
+                          <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.gymEnabled ? 'left-6' : 'left-0'}`} />
+                        </button>
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">A Evitar</label>
-                        <input 
-                          type="text" 
-                          value={editProfile.dislikedFoods}
-                          onChange={(e) => setEditProfile({...editProfile, dislikedFoods: e.target.value})}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500 transition-colors"
-                          placeholder="Brócoli..."
-                        />
-                      </div>
+
+                      {editProfile.gymEnabled ? (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                          <div className="space-y-1.5 text-left">
+                            <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Objetivo Gym</label>
+                            <select 
+                              value={editProfile.gymGoal}
+                              onChange={(e) => setEditProfile({...editProfile, gymGoal: e.target.value as any})}
+                              className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all appearance-none`}
+                            >
+                              <option value="muscle">Ganar Músculo</option>
+                              <option value="strength">Fuerza</option>
+                              <option value="cardio">Resistencia (Cardio)</option>
+                              <option value="fat_loss">Pérdida de Grasa</option>
+                              <option value="flexibility">Flexibilidad</option>
+                              <option value="maintenance">Mantenimiento</option>
+                            </select>
+                          </div>
+                          
+                          <div className="space-y-1.5 text-left">
+                            <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Frecuencia Semanal</label>
+                            <div className={`${profile.theme === 'light' ? 'bg-slate-50' : 'bg-zinc-950'} border ${themeStyles.border} rounded-2xl p-4 space-y-4`}>
+                              <div className="flex justify-between items-baseline">
+                                <span className={`text-xl font-black ${themeStyles.accent}`}>{editProfile.trainingDaysPerWeek} <span className={`text-[10px] ${themeStyles.textMuted} uppercase font-bold tracking-tighter`}>días</span></span>
+                                <span className={`text-[8px] font-bold ${themeStyles.textMuted} uppercase tracking-widest opacity-50`}>Intensidad Sugerida</span>
+                              </div>
+                              <input 
+                                type="range" 
+                                min="0" 
+                                max="7" 
+                                step="1"
+                                value={editProfile.trainingDaysPerWeek}
+                                onChange={(e) => setEditProfile({...editProfile, trainingDaysPerWeek: parseInt(e.target.value)})}
+                                className={`w-full ${profile.theme === 'light' ? 'accent-emerald-500' : 'accent-lime-400'} h-1 bg-current opacity-10 rounded-lg appearance-none cursor-pointer`}
+                              />
+                            </div>
+                          </div>
+
+                          <div className={`flex gap-2 p-3 ${themeStyles.iconBg} border ${themeStyles.border} rounded-xl`}>
+                            <Info className={`w-3.5 h-3.5 ${themeStyles.accent} shrink-0 mt-0.5`} />
+                            <p className={`text-[9px] ${themeStyles.textMuted} italic leading-relaxed`}>
+                              El sistema ajustará tu gasto calórico (TDEE) basándose en estos días de entreno para que tu dieta sea 100% efectiva.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="py-8 text-center px-4">
+                          <p className={`text-[10px] ${themeStyles.textMuted} font-medium uppercase tracking-widest leading-loose opacity-60`}>
+                            Activa el plan AI para obtener rutinas profesionales diseñadas para tu edad y nivel.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
+                )}
 
-                <div className="pt-4 border-t border-zinc-800">
+                <div className="pt-4 border-t border-zinc-800 shrink-0">
                   <button 
                     type="submit"
-                    disabled={!editWeight || !editProfile.age || !editProfile.height}
-                    className="w-full bg-lime-400 hover:bg-lime-300 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-950 font-black uppercase tracking-widest py-4 rounded-xl transition-all shadow-lg shadow-lime-400/10"
+                    disabled={!editWeight || !editProfile.name || !editProfile.age || !editProfile.height}
+                    className="w-full bg-lime-400 hover:bg-lime-300 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-950 font-black uppercase tracking-widest py-4 rounded-2xl transition-all shadow-lg shadow-lime-400/20 flex items-center justify-center gap-3 active:scale-[0.98]"
                   >
-                    Calcular y Guardar
+                    <Save className="w-5 h-5" />
+                    Actualizar Perfil
                   </button>
                 </div>
               </form>
@@ -2871,7 +3941,7 @@ export default function App() {
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] rounded-2xl p-3 text-sm ${msg.role === 'user' ? 'bg-indigo-500 text-white rounded-br-sm' : 'bg-zinc-800 text-zinc-200 rounded-bl-sm'}`}>
                     <div className="prose prose-invert prose-sm max-w-none prose-p:leading-snug prose-p:m-0 prose-ul:m-0 prose-li:m-0">
-                      <Markdown>
+                      <Markdown remarkPlugins={[remarkGfm]}>
                         {msg.parts[0].text}
                       </Markdown>
                     </div>

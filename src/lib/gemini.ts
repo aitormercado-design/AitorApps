@@ -1,6 +1,14 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env?.VITE_GEMINI_API_KEY;
+const getApiKey = () => {
+  // Try different ways to get the key, as Vite handles env vars differently in dev vs build
+  const key = (import.meta as any).env?.VITE_GEMINI_API_KEY || 
+              process.env.GEMINI_API_KEY || 
+              (window as any)._env_?.VITE_GEMINI_API_KEY;
+  return key;
+};
+
+const apiKey = getApiKey();
 if (!apiKey) {
   console.error("CRITICAL: GEMINI_API_KEY is not defined in the environment.");
 }
@@ -38,7 +46,7 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
 
   try {
     const prompt = contextStr 
-      ? `Analiza detalladamente esta imagen de comida. Identifica el tamaño de la porción (peso total estimado en gramos), el método de preparación y los ingredientes visibles con sus cantidades estimadas. Estima su valor nutricional con la mayor precisión posible. Evalúa si es saludable y, basándote en este contexto: "${contextStr}", sugiere qué debería comer el resto del día. Calcula un NutriScore (A-E) basado en la densidad nutricional. Devuelve un objeto JSON.`
+      ? `Analiza detalladamente esta imagen de comida. Identifica el tamaño de la porción (peso total estimado en gramos), el método de preparación y los ingredientes visibles con sus cantidades estimadas. Estima su valor nutricional con la mayor precisión posible. Evalúa si es saludable y, basándote en este contexto: "${contextStr}", sugiere qué debería comer el resto del día. Calcula un NutriScore (A-E) basado en la densidad nutricional. Si el usuario tiene diabetes, presta especial atención al índice glucémico y balance de carbohidratos. Devuelve un objeto JSON.`
       : `Analiza detalladamente esta imagen de comida. Identifica el tamaño de la porción (peso total estimado en gramos), el método de preparación y los ingredientes visibles con sus cantidades estimadas. Estima su valor nutricional con la mayor precisión posible. Evalúa si es saludable y sugiere qué debería comer el resto del día. Calcula un NutriScore (A-E) basado en la densidad nutricional. Devuelve un objeto JSON.`;
 
     console.log("Sending request to Gemini...");
@@ -57,7 +65,7 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
         ],
       },
       config: {
-        systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es analizar imágenes de comida y estimar de forma precisa su contenido nutricional y peso. Evalúa la calidad nutricional asignando un NutriScore de A a E. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él de forma personal. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida. Evalúa tu nivel de confianza en la detección. Desglosa los ingredientes principales con sus gramos estimados. Sé consistente con las estimaciones de peso y calorías.",
+        systemInstruction: "Eres un experto nutricionista especializado en nutrición deportiva y gestión de patologías como la DIABETES. Actúa como un coach muy empático, positivo y motivador. Tu tarea es analizar imágenes de comida y estimar de forma precisa su contenido nutricional y peso. Evalúa la calidad nutricional asignando un NutriScore de A a E. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Si el usuario es diabético, enfócate en la estabilidad de la glucosa sin ser alarmista. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él de forma personal. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida. Evalúa tu nivel de confianza en la detección. Desglosa los ingredientes principales con sus gramos estimados. Sé consistente con las estimaciones de peso y calorías.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -423,11 +431,25 @@ export async function generateShoppingList(menu: WeeklyMenu, supermarket: string
 
 export async function generateWorkoutPlan(profileStr: string): Promise<string> {
   try {
+    const data = JSON.parse(profileStr);
+    const trainingDays = data.trainingDaysPerWeek || 3;
+    
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Genera una rutina de ejercicio semanal personalizada basada en este perfil: ${profileStr}. Devuelve la respuesta en formato Markdown.`,
+      contents: `Genera una rutina de entrenamiento para GYM semanal personalizada para este perfil: ${profileStr}.
+      REQUISITOS OBLIGATORIOS:
+      1. Genera exactamente ${trainingDays} días de entrenamiento DIFERENTES.
+      2. Usa encabezados ## PRESENTACIÓN, ## PLANIFICACIÓN, ## EJERCICIOS y ## SEGURIDAD.
+      3. DENTRO de la sección ## EJERCICIOS, cada día DEBE empezar con un encabezado ### (ej: ### Día 1: Fuerza). Es vital que cada día tenga su propio encabezado ### y siga el formato "Día X: Nombre".
+      4. Para cada uno de los ${trainingDays} días, genera 3 TABLAS con sus respectivos títulos: Calentamiento, Ejercicios y Vuelta a la calma.
+      5. Las tablas deben tener: | Ejercicio | Series | Reps | RPE | Descanso |.
+      Devuelve la respuesta en formato Markdown estructurado.`,
       config: {
-        systemInstruction: "Eres un experto entrenador personal y especialista en hipertrofia y fitness. Diseña una rutina de entrenamiento semanal detallada, enfocada en la ganancia muscular y adaptada a la edad y nivel del usuario. Incluye días de entrenamiento, ejercicios, series, repeticiones y tiempos de descanso. Usa formato Markdown con tablas o listas claras.",
+        systemInstruction: `Eres un experto entrenador personal de alto rendimiento.
+        Diseña una rutina semanal completa con exactamente el número de días indicados (${trainingDays} días).
+        Estructura el contenido con secciones claras usando ## y subsecciones por día usando ###.
+        Es fundamental que todos los días de entrenamiento estén incluidos bajo la sección ## EJERCICIOS.
+        Añade enlaces de imagen en los nombres de ejercicio: [Nombre](https://www.google.com/search?q=gym+exercise+Nombre&tbm=isch).`,
       }
     });
     return response.text || "No se pudo generar la rutina.";
@@ -468,9 +490,10 @@ export async function chatWithCoach(messages: {role: 'user' | 'model', parts: {t
     const chat = ai.chats.create({
       model: "gemini-3-flash-preview",
       config: {
-        systemInstruction: `Eres el Coach de NutritivApp, un experto en nutrición y entrenamiento muy cercano, motivador y empático. 
+        systemInstruction: `Eres el Coach de NutritivApp, un experto en nutrición deportiva, entrenamiento de alto rendimiento y SALUD METABÓLICA (Diabetes). Eres muy cercano, motivador y empático. 
 Tu objetivo es ayudar al usuario a cumplir sus metas de forma saludable y positiva. 
 Si el nombre del usuario aparece en el contexto, úsalo con frecuencia para dirigirte a él de forma personal.
+Si el usuario menciona diabetes o picos glucémicos, actúa como un experto en control glucémico a través de la dieta y el ejercicio.
 Responde siempre de forma breve, humana y alentadora. No seas demasiado técnico a menos que te pregunten.
 
 Contexto del usuario:
@@ -487,11 +510,15 @@ ${contextStr}`,
     const chatWithHistory = ai.chats.create({
       model: "gemini-3-flash-preview",
       config: {
-        systemInstruction: `Eres un entrenador personal y nutricionista experto, actuando como un coach muy empático, positivo y motivador 24/7 en una app.
+        systemInstruction: `Eres un auténtico experto en fitness, fisiología del ejercicio y nutrición clínica (diabetes). Actúas como un coach motivador 24/7.
 Contexto del usuario:
 ${contextStr}
 
-Responde de forma concisa, muy alentadora y directa a las preguntas o comentarios del usuario, sin ser estricto ni condescendiente.`,
+Instrucciones:
+1. Sé extremadamente motivador y profesional. Demuestra autoridad en fitness.
+2. Si el usuario tiene diabetes, ofrece consejos para estabilizar la glucosa (ej: orden de ingestión de alimentos, ejercicio ligero post-prandial).
+3. Personaliza tus respuestas basándote en su objetivo (fuerza, cardio, etc.).
+4. Responde de forma concisa, alentadora y directa, sin ser condescendiente.`,
       },
       history: history
     });
@@ -515,6 +542,9 @@ export type Restaurant = {
 };
 
 export async function findRestaurants(location: string, preferences: string): Promise<Restaurant[]> {
+  if (!apiKey) {
+    throw new Error("La clave de API de Gemini no está configurada. Si no puedes editar GEMINI_API_KEY, añade una nueva variable llamada VITE_GEMINI_API_KEY en los secretos.");
+  }
   try {
     const prompt = `Busca los mejores restaurantes en ${location} que cumplan con estas preferencias dietéticas: ${preferences}. 
     Devuelve una lista extensa de al menos 15-20 restaurantes reales con su nombre, puntuación estimada (1-5), dirección, una breve descripción de por qué encaja con el usuario, su especialidad, nivel de precio (1-4) y una estimación de distancia en km desde el centro de la ubicación indicada.

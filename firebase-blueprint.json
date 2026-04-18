@@ -31,6 +31,9 @@
         },
         "checkedItems": {
           "type": "object"
+        },
+        "workoutPlan": {
+          "type": "string"
         }
       }
     }
