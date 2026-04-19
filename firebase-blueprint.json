@@ -2,48 +2,64 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "User data including profile, goals, habits, meals, weights, etc.",
+      "description": "User profile and settings",
       "type": "object",
       "properties": {
-        "profile": {
-          "type": "object"
-        },
-        "goals": {
-          "type": "object"
-        },
-        "habits": {
-          "type": "object"
-        },
-        "generatedMenu": {
-          "type": "object"
-        },
-        "shoppingList": {
-          "type": "object"
-        },
-        "chatMessages": {
-          "type": "array"
-        },
-        "meals": {
-          "type": "array"
-        },
-        "weights": {
-          "type": "array"
-        },
-        "checkedItems": {
-          "type": "object"
-        },
-        "workoutPlan": {
-          "type": "string"
-        }
+        "profile": { "type": "object" },
+        "goals": { "type": "object" },
+        "generatedMenu": { "type": "object" },
+        "shoppingList": { "type": "object" },
+        "workoutPlan": { "type": "string" }
+      }
+    },
+    "Meal": {
+      "title": "Meal",
+      "description": "A single meal entry",
+      "type": "object",
+      "properties": {
+        "foodName": { "type": "string" },
+        "calories": { "type": "number" },
+        "protein": { "type": "number" },
+        "carbs": { "type": "number" },
+        "fat": { "type": "number" },
+        "timestamp": { "type": "number" }
+      }
+    },
+    "Weight": {
+      "title": "Weight Entry",
+      "description": "Daily weight tracking",
+      "type": "object",
+      "properties": {
+        "weight": { "type": "number" },
+        "date": { "type": "string" }
+      }
+    },
+    "Habits": {
+      "title": "Daily Habits",
+      "description": "Water, sleep, manual workouts tracked per day",
+      "type": "object",
+      "properties": {
+        "water": { "type": "number" },
+        "sleep": { "type": "number" }
       }
     }
   },
   "firestore": {
     "/users/{userId}": {
-      "schema": {
-        "$ref": "#/entities/User"
-      },
-      "description": "User data"
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Main user document"
+    },
+    "/users/{userId}/meals/{mealId}": {
+      "schema": { "$ref": "#/entities/Meal" },
+      "description": "User's meals history logged using subcollections"
+    },
+    "/users/{userId}/weights/{weightId}": {
+      "schema": { "$ref": "#/entities/Weight" },
+      "description": "User's weights tracking subcollection"
+    },
+    "/users/{userId}/habits/{habitId}": {
+      "schema": { "$ref": "#/entities/Habits" },
+      "description": "User's daily habits subcollection"
     }
   }
 }
