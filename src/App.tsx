@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, Download, LogOut, Banana, User as UserIcon, Star, MapPin, Search, Pizza, Save, Edit2 } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, Download, LogOut, Banana, User as UserIcon, Star, MapPin, Search, Pizza, Save, Edit2, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, WeeklyMenu, ShoppingList, findRestaurants, Restaurant } from './lib/gemini';
+import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, extractIngredients, WeeklyMenu, ShoppingList, findRestaurants, Restaurant } from './lib/gemini';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -91,6 +91,7 @@ type UserProfile = {
   freeMealDay: string;
   freeMealType: 'comida' | 'cena';
   gymEnabled: boolean;
+  workoutType: 'gym' | 'home';
   gymGoal: 'muscle' | 'strength' | 'cardio' | 'fat_loss' | 'flexibility' | 'maintenance';
   trainingDaysPerWeek: number;
   theme: 'light' | 'dark';
@@ -155,7 +156,7 @@ const NutriScoreBadge = ({ score }: { score?: "A" | "B" | "C" | "D" | "E" }) => 
   );
 };
 
-const RulerPicker = ({ value, onChange, min, max, step, unit, label }: any) => {
+const RulerPicker = ({ value, onChange, min, max, step, unit, label, theme }: any) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const isInternalUpdate = useRef(false);
@@ -197,9 +198,9 @@ const RulerPicker = ({ value, onChange, min, max, step, unit, label }: any) => {
   const stopDragging = () => setIsDragging(false);
 
   return (
-    <div className="space-y-2 bg-zinc-950/50 p-4 rounded-3xl border border-white/5 shadow-inner">
+    <div className={`space-y-2 p-4 rounded-3xl border shadow-inner ${theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-zinc-950/50 border-white/5'}`}>
       <div className="flex justify-between items-end px-1">
-        <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{label}</label>
+        <label className={`text-[10px] font-black uppercase tracking-widest ${theme === 'light' ? 'text-slate-500' : 'text-zinc-500'}`}>{label}</label>
         <div className="flex items-baseline gap-1">
           <input
             type="number"
@@ -218,15 +219,15 @@ const RulerPicker = ({ value, onChange, min, max, step, unit, label }: any) => {
                 onChange(val);
               }
             }}
-            className={`text-2xl font-display font-black text-lime-400 bg-transparent border-none focus:outline-none w-20 text-right appearance-none`}
+            className={`text-2xl font-display font-black bg-transparent border-none focus:outline-none w-20 text-right appearance-none ${theme === 'light' ? 'text-emerald-500' : 'text-lime-400'}`}
             style={{ MozAppearance: 'textfield' }}
           />
-          <span className="text-zinc-600 text-[10px] font-bold uppercase">{unit}</span>
+          <span className={`text-[10px] font-bold uppercase ${theme === 'light' ? 'text-slate-400' : 'text-zinc-600'}`}>{unit}</span>
         </div>
       </div>
       
-      <div className="relative h-14 flex items-center bg-zinc-900/50 rounded-2xl overflow-hidden border border-white/5">
-        <div className={`absolute left-1/2 top-0 bottom-0 w-0.5 bg-lime-400 z-10 shadow-[0_0_10px_rgba(163,230,53,0.5)]`} />
+      <div className={`relative h-14 flex items-center rounded-2xl overflow-hidden border ${theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-zinc-900/50 border-white/5'}`}>
+        <div className={`absolute left-1/2 top-0 bottom-0 w-0.5 z-10 ${theme === 'light' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-lime-400 shadow-[0_0_10px_rgba(163,230,53,0.5)]'}`} />
         
         <div 
           ref={scrollRef}
@@ -246,12 +247,12 @@ const RulerPicker = ({ value, onChange, min, max, step, unit, label }: any) => {
                 <div key={i} className="flex flex-col items-center gap-1">
                   <div 
                     className={`rounded-full transition-colors ${
-                      isMajor ? 'h-6 w-0.5 bg-zinc-500' : 
-                      isMid ? 'h-4 w-0.5 bg-zinc-700' : 'h-2 w-0.5 bg-zinc-800'
+                      isMajor ? `h-6 w-0.5 ${theme === 'light' ? 'bg-slate-400' : 'bg-zinc-500'}` : 
+                      isMid ? `h-4 w-0.5 ${theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700'}` : `h-2 w-0.5 ${theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'}`
                     }`}
                   />
                   {isMajor && (
-                    <span className="text-[8px] font-bold text-zinc-600 tabular-nums">{val}</span>
+                    <span className={`text-[8px] font-bold tabular-nums ${theme === 'light' ? 'text-slate-400' : 'text-zinc-600'}`}>{val}</span>
                   )}
                 </div>
               );
@@ -263,15 +264,15 @@ const RulerPicker = ({ value, onChange, min, max, step, unit, label }: any) => {
   );
 };
 
-const NumberInput = ({ value, onChange, label, step = 1, min = 0, max = 300, placeholder }: any) => {
+const NumberInput = ({ value, onChange, label, step = 1, min = 0, max = 300, placeholder, theme }: any) => {
   const unitMatch = label.match(/\(([^)]+)\)/);
   const unit = unitMatch ? unitMatch[1] : '';
   const cleanLabel = label.replace(/\s*\([^)]+\)/, '');
 
   return (
-    <div className="space-y-2 bg-zinc-950 p-3 rounded-xl border border-zinc-800">
+    <div className={`space-y-2 p-3 rounded-xl border ${theme === 'light' ? 'bg-white border-slate-200' : 'bg-zinc-950 border-zinc-800'}`}>
       <div className="flex justify-between items-center">
-        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{cleanLabel}</label>
+        <label className={`block text-[10px] font-bold uppercase tracking-widest ${theme === 'light' ? 'text-slate-500' : 'text-zinc-500'}`}>{cleanLabel}</label>
         <div className="flex items-baseline gap-1">
           <input 
             type="number" 
@@ -280,10 +281,10 @@ const NumberInput = ({ value, onChange, label, step = 1, min = 0, max = 300, pla
             max={max}
             value={value === 0 ? '' : value}
             onChange={(e) => onChange(e.target.value)}
-            className={`bg-transparent text-right text-lg font-display font-bold text-lime-400 focus:outline-none w-16`}
+            className={`bg-transparent text-right text-lg font-display font-bold ${theme === 'light' ? 'text-emerald-500' : 'text-lime-400'} focus:outline-none w-16`}
             placeholder={placeholder}
           />
-          {unit && <span className="text-zinc-600 text-[10px] font-medium">{unit}</span>}
+          {unit && <span className={`text-[10px] font-medium ${theme === 'light' ? 'text-slate-400' : 'text-zinc-600'}`}>{unit}</span>}
         </div>
       </div>
     </div>
@@ -334,6 +335,7 @@ export default function App() {
     freeMealDay: 'Sábado',
     freeMealType: 'cena',
     gymEnabled: false,
+    workoutType: 'gym',
     gymGoal: 'muscle',
     trainingDaysPerWeek: 3,
     theme: 'dark'
@@ -342,10 +344,11 @@ export default function App() {
   const [workoutPlan, setWorkoutPlan] = useState<string | null>(null);
   const [isGeneratingWorkout, setIsGeneratingWorkout] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'today' | 'plan' | 'restaurants' | 'gym'>('today');
-  const [todaySubTab, setTodaySubTab] = useState<'calories' | 'meals'>('calories');
+  const [activeTab, setActiveTab] = useState<'today' | 'plan' | 'restaurants' | 'gym' | 'meals'>('today');
+  const [mealsSubTab, setMealsSubTab] = useState<'daily' | 'plan'>('daily');
   const [evolutionPeriod, setEvolutionPeriod] = useState<'today' | 'weekly' | 'monthly' | 'quarterly' | 'semiannually' | 'annually'>('today');
-  const [gymSubTab, setGymSubTab] = useState<'intro' | 'exercises' | 'safety' | 'manual'>('exercises');
+  const [gymSubTab, setGymSubTab] = useState<'manual' | 'plan'>('plan');
+  const [planSubTab, setPlanSubTab] = useState<'info' | 'ejercicios' | 'tips'>('ejercicios');
   const [manualWorkoutCategory, setManualWorkoutCategory] = useState<'cardio'|'strength'|'mixed'|'other'>('mixed');
   const [manualWorkoutName, setManualWorkoutName] = useState('');
   const [manualWorkoutMinutes, setManualWorkoutMinutes] = useState('45');
@@ -353,6 +356,7 @@ export default function App() {
   const [manualWorkoutDate, setManualWorkoutDate] = useState(todayStr);
   const [manualWorkoutCaloriesEdit, setManualWorkoutCaloriesEdit] = useState('');
   const [gymDay, setGymDay] = useState<string>('Día 1');
+  const [gymRoutineDate, setGymRoutineDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     if (profile.theme === 'light') {
@@ -396,6 +400,7 @@ export default function App() {
     freeMealDay: 'Sábado',
     freeMealType: 'cena',
     gymEnabled: false,
+    workoutType: 'gym',
     gymGoal: 'muscle',
     trainingDaysPerWeek: 3,
     theme: 'dark'
@@ -629,10 +634,18 @@ export default function App() {
   }, [generatedMenu, user, isDataLoaded]);
 
   useEffect(() => {
-    if (isDataLoaded && shoppingList) {
-      localStorage.setItem('nutritivapp_shopping_list', JSON.stringify(shoppingList));
-      if (user) {
-        setDoc(doc(db, 'users', user.uid), { shoppingList }, { merge: true }).catch(error => handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`));
+    if (isDataLoaded) {
+      if (shoppingList) {
+        localStorage.setItem('nutritivapp_shopping_list', JSON.stringify(shoppingList));
+        if (user) {
+          setDoc(doc(db, 'users', user.uid), { shoppingList }, { merge: true }).catch(error => handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`));
+        }
+      } else {
+        localStorage.removeItem('nutritivapp_shopping_list');
+        if (user) {
+          // Setting the field to null or deleting the field using updateDoc and deleteField
+          setDoc(doc(db, 'users', user.uid), { shoppingList: null }, { merge: true }).catch(error => handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`));
+        }
       }
     }
   }, [shoppingList, user, isDataLoaded]);
@@ -720,7 +733,7 @@ export default function App() {
       burnedCalories += todayHabits.manualWorkout.calories;
     }
 
-    const totalTarget = goals.calories + (profile.gymEnabled ? burnedCalories : 0);
+    const totalTarget = goals.calories; // Las calorías base ya contemplan el factor de actividad (días de entrenamiento)
     const consumedCalories = totals.calories;
     const remainingCalories = totalTarget - consumedCalories;
     const remainingProtein = goals.protein - totals.protein;
@@ -943,7 +956,7 @@ export default function App() {
         calories: dayCals,
         burned: dayBurned,
         weight: dayWeight,
-        goal: goals.calories + dayBurned
+        goal: goals.calories
       };
     });
   }, [meals, weights, goals, habits, profile.gymGoal, profile.gymEnabled, evolutionPeriod]);
@@ -1473,6 +1486,39 @@ export default function App() {
     }
   };
 
+  const updateGoalsForProfile = (prof: UserProfile, currentWeight: number) => {
+    let bmr = 10 * currentWeight + 6.25 * prof.height - 5 * prof.age;
+    bmr += prof.gender === 'male' ? 5 : -161;
+
+    let derivedActivityLevel = 1.2;
+    if (prof.trainingDaysPerWeek >= 1 && prof.trainingDaysPerWeek <= 2) derivedActivityLevel = 1.375;
+    else if (prof.trainingDaysPerWeek >= 3 && prof.trainingDaysPerWeek <= 4) derivedActivityLevel = 1.55;
+    else if (prof.trainingDaysPerWeek >= 5) derivedActivityLevel = 1.725;
+
+    const tdee = bmr * derivedActivityLevel;
+
+    let targetCalories = Math.round(tdee);
+    if (prof.goal === 'lose') targetCalories -= 500;
+    else if (prof.goal === 'gain') targetCalories += 300;
+
+    let proteinRatio = 0.3, carbsRatio = 0.4, fatRatio = 0.3;
+    switch (prof.macroDistribution) {
+      case 'low_carb': proteinRatio = 0.4; carbsRatio = 0.2; fatRatio = 0.4; break;
+      case 'high_protein': proteinRatio = 0.4; carbsRatio = 0.3; fatRatio = 0.3; break;
+      case 'keto': proteinRatio = 0.25; carbsRatio = 0.05; fatRatio = 0.7; break;
+    }
+
+    const newGoals = {
+      calories: targetCalories,
+      protein: Math.round((targetCalories * proteinRatio) / 4),
+      carbs: Math.round((targetCalories * carbsRatio) / 4),
+      fat: Math.round((targetCalories * fatRatio) / 9),
+    };
+    
+    setGoals(newGoals);
+    return newGoals;
+  };
+
   const handleAddWeight = (e: React.FormEvent) => {
     e.preventDefault();
     const weightVal = parseFloat(newWeight);
@@ -1488,10 +1534,15 @@ export default function App() {
       }
       setIsWeightModalOpen(false);
       setNewWeight('');
+      
+      if (profile.age > 0 && profile.height > 0) {
+        const newGoals = updateGoalsForProfile(profile, weightVal);
+        handleGenerateMenu(profile, newGoals, weightVal);
+      }
     }
   };
 
-  const handleGenerateMenu = async (customProfile?: UserProfile, customGoals?: typeof goals) => {
+  const handleGenerateMenu = async (customProfile?: UserProfile, customGoals?: typeof goals, customWeight?: number) => {
     const activeProfile = customProfile || profile;
     const activeGoals = customGoals || goals;
     if (activeProfile.age === 0) return;
@@ -1499,27 +1550,12 @@ export default function App() {
     setShoppingList(null);
     setAppError(null);
     try {
-      const freeMealStr = activeProfile.freeMealEnabled 
-        ? `Comida/Cena libre: Habilitada para el ${activeProfile.freeMealDay} (${activeProfile.freeMealType}).` 
-        : 'Comida/Cena libre: Deshabilitada.';
+      const currentWeight = customWeight || (weights.length > 0 ? weights[weights.length - 1].weight : 70);
       
-      const profileStr = `Nombre/Alias: ${activeProfile.name || 'Usuario'}, Edad: ${activeProfile.age}, Peso: ${weights.length > 0 ? weights[weights.length - 1].weight : 'No especificado'}kg, Altura: ${activeProfile.height}cm, Género: ${activeProfile.gender}, Diabetes: ${activeProfile.diabetesType}, Días de entreno/sem: ${activeProfile.trainingDaysPerWeek}, Objetivo: ${activeProfile.goal}, Distribución de macros: ${activeProfile.macroDistribution}, Calorías objetivo: ${activeGoals.calories}kcal (${activeGoals.protein}g Proteína, ${activeGoals.carbs}g Carbohidratos, ${activeGoals.fat}g Grasas), Supermercado favorito: ${activeProfile.favoriteSupermarket}. ${freeMealStr}`;
-      const preferencesStr = `Tipo de dieta: ${activeProfile.dietType || 'Normal'}. Alergias: ${Array.isArray(activeProfile.allergies) ? activeProfile.allergies.join(', ') : 'Ninguna'}${activeProfile.otherAllergies ? ` (Otras: ${activeProfile.otherAllergies})` : ''}. Alimentos no deseados: ${activeProfile.dislikedFoods || 'Ninguno'}. Diabetes: ${activeProfile.diabetesType}.`;
-      
-      const menu = await generateWeeklyMenu(profileStr, preferencesStr);
+      const menu = await generateWeeklyMenu(activeProfile, currentWeight);
       setGeneratedMenu(menu);
       
-      // Automatically generate shopping list as well
-      setIsGeneratingShoppingList(true);
-      try {
-        const list = await generateShoppingList(menu, activeProfile.favoriteSupermarket);
-        setShoppingList(list);
-      } catch (err) {
-        console.error("Error generating initial shopping list:", err);
-      } finally {
-        setIsGeneratingShoppingList(false);
-      }
-      
+      // Removed auto shopping list generation to improve performance. The user will click generate intentionally.
     } catch (error: any) {
       console.error("Error generating menu:", error);
       setAppError(error.message || "Error al generar el plan. Inténtalo de nuevo.");
@@ -1541,7 +1577,8 @@ export default function App() {
     setShoppingList(null);
     setAppError(null);
     try {
-      const list = await generateShoppingList(generatedMenu, profile.favoriteSupermarket);
+      const ingredients = extractIngredients(generatedMenu);
+      const list = await generateShoppingList(ingredients, profile.favoriteSupermarket);
       setShoppingList(list);
     } catch (error) {
       console.error("Error generating shopping list:", error);
@@ -1596,6 +1633,9 @@ export default function App() {
         timestamp: Date.now(),
       };
       setWeights(prev => [...prev, newEntry].sort((a, b) => a.timestamp - b.timestamp));
+      if (user) {
+        setDoc(doc(db, 'users', user.uid, 'weights', newEntry.id), newEntry).catch(console.error);
+      }
     }
 
     // Compare key fields to decide on regeneration
@@ -1609,6 +1649,8 @@ export default function App() {
 
     const gymChanged = 
       editProfile.gymGoal !== profile.gymGoal || 
+      editProfile.workoutType !== profile.workoutType ||
+      editProfile.gymEnabled !== profile.gymEnabled ||
       editProfile.diabetesType !== profile.diabetesType ||
       editProfile.trainingDaysPerWeek !== profile.trainingDaysPerWeek ||
       editProfile.age !== profile.age ||
@@ -1627,43 +1669,11 @@ export default function App() {
       setActiveTab('today');
     }
 
-    // Calculate BMR (Mifflin-St Jeor)
-    let bmr = 10 * weightVal + 6.25 * editProfile.height - 5 * editProfile.age;
-    bmr += editProfile.gender === 'male' ? 5 : -161;
-
-    // Calculate TDEE using derived activity level from training days
-    let derivedActivityLevel = 1.2;
-    if (editProfile.trainingDaysPerWeek >= 1 && editProfile.trainingDaysPerWeek <= 2) derivedActivityLevel = 1.375;
-    else if (editProfile.trainingDaysPerWeek >= 3 && editProfile.trainingDaysPerWeek <= 4) derivedActivityLevel = 1.55;
-    else if (editProfile.trainingDaysPerWeek >= 5) derivedActivityLevel = 1.725;
-
-    const tdee = bmr * derivedActivityLevel;
-
-    // Adjust calories based on goal
-    let targetCalories = Math.round(tdee);
-    if (editProfile.goal === 'lose') targetCalories -= 500;
-    else if (editProfile.goal === 'gain') targetCalories += 300;
-
-    // Adjust macros based on distribution
-    let proteinRatio = 0.3, carbsRatio = 0.4, fatRatio = 0.3;
-    switch (editProfile.macroDistribution) {
-      case 'low_carb': proteinRatio = 0.4; carbsRatio = 0.2; fatRatio = 0.4; break;
-      case 'high_protein': proteinRatio = 0.4; carbsRatio = 0.3; fatRatio = 0.3; break;
-      case 'keto': proteinRatio = 0.25; carbsRatio = 0.05; fatRatio = 0.7; break;
-    }
-
-    const newGoals = {
-      calories: targetCalories,
-      protein: Math.round((targetCalories * proteinRatio) / 4),
-      carbs: Math.round((targetCalories * carbsRatio) / 4),
-      fat: Math.round((targetCalories * fatRatio) / 9),
-    };
-
-    setGoals(newGoals);
+    const newGoals = updateGoalsForProfile(editProfile, weightVal);
 
     // Auto-regenerate menu if diet relevant fields changed
     if (dietChanged) {
-      handleGenerateMenu(editProfile, newGoals);
+      handleGenerateMenu(editProfile, newGoals, weightVal);
     }
 
     // Auto-regenerate workout plan if gym relevant fields changed
@@ -1675,27 +1685,7 @@ export default function App() {
     setIsGoalModalOpen(false);
   };
 
-  const handleToggleExercise = async (id: string, routineDay?: string) => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todayWeekday = new Date().toLocaleDateString('es-ES', { weekday: 'long' });
-    
-    // Determine which date to impact
-    let impactDate = todayStr;
-    const isTodayRoutine = routineDay && routineDay.toLowerCase() === todayWeekday.toLowerCase();
-    
-    if (routineDay && !isTodayRoutine) {
-      const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-      const targetIdx = days.indexOf(routineDay.toLowerCase());
-      if (targetIdx !== -1) {
-        const now = new Date();
-        const currentIdx = now.getDay();
-        const diff = targetIdx - currentIdx;
-        const targetDate = new Date(now);
-        targetDate.setDate(now.getDate() + diff);
-        impactDate = targetDate.toISOString().split('T')[0];
-      }
-    }
-
+  const handleToggleExercise = async (id: string, impactDate: string) => {
     const currentCompleted = habits[impactDate]?.completedExercises || [];
     const isDone = currentCompleted.includes(id);
     
@@ -2005,6 +1995,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         freeMealDay: 'Sábado',
         freeMealType: 'cena',
         gymEnabled: false,
+        workoutType: 'gym',
         gymGoal: 'maintenance',
         trainingDaysPerWeek: 3,
         theme: 'dark'
@@ -2240,33 +2231,28 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
       <main className="px-6 pt-6 max-w-md mx-auto space-y-8">
         {/* Tabs */}
-        <div className={`grid grid-flow-col auto-cols-fr ${profile.theme === 'light' ? 'bg-slate-200/50' : 'bg-zinc-950/80'} backdrop-blur-md p-1 rounded-2xl border ${profile.theme === 'light' ? 'border-slate-300/50' : 'border-white/5'} mb-8 shadow-2xl`}>
-            <button 
+        <div className={`flex flex-nowrap overflow-x-auto hide-scrollbar ${profile.theme === 'light' ? 'bg-slate-200/50' : 'bg-zinc-950/80'} backdrop-blur-md p-1.5 rounded-2xl border ${profile.theme === 'light' ? 'border-slate-300/50' : 'border-white/5'} mb-8 shadow-2xl gap-1`}>
+          <button 
             onClick={() => setActiveTab('today')}
-            className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${activeTab === 'today' ? `${themeStyles.accentBg} text-zinc-950 shadow-lg shadow-lime-400/20` : `${themeStyles.textMuted} hover:text-current`}`}
+            className={`flex-1 shrink-0 px-4 py-2.5 text-[10px] flex items-center justify-center gap-1.5 font-black uppercase tracking-wider rounded-xl transition-all whitespace-nowrap ${activeTab === 'today' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white shadow-emerald-500/20' : 'text-zinc-950 shadow-lime-400/20'} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
           >
-            Calorías
+            <Activity className="w-3.5 h-3.5" />
+            Resumen
           </button>
           <button 
-            onClick={() => setActiveTab('plan')}
-            className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${activeTab === 'plan' ? `${themeStyles.accentBg} text-zinc-950 shadow-lg shadow-lime-400/20` : `${themeStyles.textMuted} hover:text-current`}`}
+            onClick={() => setActiveTab('meals')}
+            className={`flex-[1.2] shrink-0 px-4 py-2.5 text-[10px] flex items-center justify-center gap-1.5 font-black uppercase tracking-wider rounded-xl transition-all whitespace-nowrap ${activeTab === 'meals' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white shadow-emerald-500/20' : 'text-zinc-950 shadow-lime-400/20'} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
           >
-            Plan
+            <Utensils className="w-3.5 h-3.5" />
+            Consumir Calorías
           </button>
-          {profile.freeMealEnabled && (
-            <button 
-              onClick={() => setActiveTab('restaurants')}
-              className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${activeTab === 'restaurants' ? `${themeStyles.accentBg} text-zinc-950 shadow-lg shadow-lime-400/20` : `${themeStyles.textMuted} hover:text-current`}`}
-            >
-              Libre
-            </button>
-          )}
           {profile.gymEnabled && (
             <button 
               onClick={() => setActiveTab('gym')}
-              className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all ${activeTab === 'gym' ? `${themeStyles.accentBg} text-zinc-950 shadow-lg shadow-lime-400/20` : `${themeStyles.textMuted} hover:text-current`}`}
+              className={`flex-[1.2] shrink-0 px-4 py-2.5 text-[10px] flex items-center justify-center gap-1.5 font-black uppercase tracking-wider rounded-xl transition-all whitespace-nowrap ${activeTab === 'gym' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white shadow-emerald-500/20' : 'text-zinc-950 shadow-lime-400/20'} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
             >
-              Gym
+              <Flame className="w-3.5 h-3.5" />
+              Quemar Calorías
             </button>
           )}
         </div>
@@ -2298,27 +2284,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <ChevronDown className={`absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 ${themeStyles.accent} pointer-events-none`} />
                 </div>
 
-                {/* Sub-tabs only for Today */}
                 {evolutionPeriod === 'today' ? (
                   <div className="space-y-6">
-                    <div className={`flex ${profile.theme === 'light' ? 'bg-slate-200/50' : 'bg-zinc-950'} p-1 rounded-xl border ${profile.theme === 'light' ? 'border-slate-300/50' : 'border-white/5'}`}>
-                      <button 
-                        onClick={() => setTodaySubTab('calories')}
-                        className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${todaySubTab === 'calories' ? `${themeStyles.accentBg} text-zinc-950 shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
-                      >
-                        Calorías Diarias
-                      </button>
-                      <button 
-                        onClick={() => setTodaySubTab('meals')}
-                        className={`flex-1 py-3 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all ${todaySubTab === 'meals' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
-                      >
-                        Comidas del día
-                      </button>
-                    </div>
-
-                    {todaySubTab === 'calories' ? (
-                      <div className="space-y-6">
-                        {/* 1. Assistant Header (Calories) - Reordered Top */}
+                    <div className="space-y-6">
+                      {/* 1. Assistant Header (Calories) - Reordered Top */}
                         <div className={`${themeStyles.bento} p-8 relative overflow-hidden group border-b-4 ${assistant.stateType === 'over' ? 'border-amber-500' : (profile.theme === 'light' ? 'border-emerald-500' : themeStyles.accentBorder)} shadow-2xl`}>
                           <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-3xl`} />
                           <div className="relative z-10">
@@ -2367,16 +2336,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                   </div>
                                </div>
                                <div className={`h-4 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'} rounded-full overflow-hidden border ${themeStyles.border} shadow-inner p-1 relative`}>
-                                  {/* Burned calories extra zone background */}
-                                  {assistant.burnedCalories > 0 && (
-                                    <div 
-                                      className="absolute right-0 top-0 bottom-0 bg-orange-500/10 border-l border-orange-500/20" 
-                                      style={{ width: `${(assistant.burnedCalories / (assistant.totalTarget + assistant.burnedCalories)) * 100}%` }}
-                                    />
-                                  )}
                                   <motion.div
                                     initial={{ width: 0 }}
-                                    animate={{ width: `${Math.min(100, (assistant.consumedCalories / (assistant.totalTarget + assistant.burnedCalories)) * 100)}%` }}
+                                    animate={{ width: `${Math.min(100, (assistant.consumedCalories / assistant.totalTarget) * 100)}%` }}
                                     className={`h-full rounded-full relative z-10 ${
                                        assistant.remainingCalories < 0 ? 'bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]' :
                                        assistant.consumedCalories > 0 ? (profile.theme === 'light' ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-lime-400 shadow-[0_0_20px_rgba(163,230,53,0.6)]') :
@@ -2447,112 +2409,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                            </div>
                         </div>
                       </div>
-                    ) : (
-                      <div className="space-y-8">
-                        {/* Primary Food Entry */}
-                    <div className={`${themeStyles.bento} p-6 relative overflow-hidden`}>
-                      <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-2xl`}></div>
-                      <h3 className={`text-lg font-display font-bold ${themeStyles.textMain} tracking-tight uppercase mb-4 relative z-10 flex items-center gap-2`}>
-                        <Plus className={`w-5 h-5 ${themeStyles.accent}`} />
-                        Añadir Comida
-                      </h3>
-                      <div className="relative mb-4 z-10">
-                        <input
-                          type="text"
-                          placeholder="Ej: He comido arroz con pollo..."
-                          className={`w-full ${themeStyles.input} rounded-2xl pl-5 pr-14 py-5 transition-all text-base shadow-inner`}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              handleTextFoodSubmit(e.currentTarget.value);
-                              e.currentTarget.value = '';
-                            }
-                          }}
-                        />
-                        <button 
-                          className={`absolute right-2.5 top-2.5 bottom-2.5 ${themeStyles.buttonPrimary} px-5 rounded-xl transition-colors flex items-center justify-center shadow-lg`}
-                          onClick={() => {
-                            const input = document.querySelector('input[placeholder="Ej: He comido arroz con pollo..."]') as HTMLInputElement;
-                            if (input && input.value) {
-                              handleTextFoodSubmit(input.value);
-                              input.value = '';
-                            }
-                          }}
-                        >
-                          <Send className="w-5 h-5" />
-                        </button>
-                      </div>
-                      <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`w-full flex items-center justify-center gap-3 ${themeStyles.buttonSecondary} p-5 rounded-2xl transition-all border group relative z-10`}
-                      >
-                        <Camera className={`w-5 h-5 ${themeStyles.accent} group-hover:scale-110 transition-transform`} />
-                        <span className="text-sm font-black uppercase tracking-widest">Escanear comida</span>
-                      </button>
                     </div>
-
-                    {/* Meal List */}
-                    <section>
-                      <div className="flex items-center justify-between mb-6 px-2">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 ${themeStyles.accentMuted} rounded-xl border ${themeStyles.accentBorder}`}>
-                            <Utensils className={`w-5 h-5 ${themeStyles.accent}`} />
-                          </div>
-                          <h2 className={`text-lg font-display font-bold ${themeStyles.textMain} tracking-tight uppercase`}>Registros de hoy</h2>
-                        </div>
-                        <span className={`text-[10px] font-black ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} px-3 py-1 rounded-full shadow-lg uppercase tracking-widest`}>
-                          {todaysMeals.length} ítems
-                        </span>
-                      </div>
-                      
-                      <div className="space-y-4">
-                        <AnimatePresence mode="popLayout">
-                          {todaysMeals.length === 0 ? (
-                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`text-center py-16 ${themeStyles.iconBg} rounded-[2.5rem] border ${themeStyles.border} border-dashed`}>
-                              <Utensils className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-3 opacity-20`} />
-                              <p className={`${themeStyles.textMuted} font-bold uppercase tracking-widest text-xs`}>No hay registros hoy</p>
-                              <p className={`${themeStyles.textMuted} text-[10px] mt-1 opacity-60`}>Usa el buscador o la cámara para empezar</p>
-                            </motion.div>
-                          ) : (
-                            todaysMeals.map((meal) => (
-                              <motion.div
-                                key={meal.id} layout
-                                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                                className={`${themeStyles.card} rounded-3xl p-5 flex gap-5 group transition-all`}
-                              >
-                                <div className={`w-16 h-16 rounded-2xl overflow-hidden ${themeStyles.iconBg} shrink-0 shadow-xl border ${themeStyles.border}`}>
-                                  <img src={meal.imageUrl} alt={meal.foodName} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-start justify-between mb-1">
-                                    <h3 className={`font-bold ${themeStyles.textMain} truncate text-base tracking-tight`}>{meal.foodName}</h3>
-                                    <button onClick={() => removeMeal(meal.id)} className={`${themeStyles.textMuted} hover:text-rose-500 p-1 rounded-lg hover:bg-rose-500/10 transition-all`}>
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
-                                    <span className={`${themeStyles.accent} font-black text-xs tracking-tight`}>{Math.round(meal.calories)} Kcal</span>
-                                    <div className={`flex items-center gap-3 text-[10px] font-black uppercase ${themeStyles.textMuted} tracking-wider`}>
-                                      <span className={themeStyles.textMain}>P:{Math.round(meal.protein)}g</span>
-                                      <span className={themeStyles.textMain}>H:{Math.round(meal.carbs)}g</span>
-                                      <span className={themeStyles.textMain}>G:{Math.round(meal.fat)}g</span>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <NutriScoreBadge score={meal.nutriScore} />
-                                    {meal.isHealthy && (
-                                      <span className={`px-2 py-0.5 rounded-full ${themeStyles.accentMuted} ${themeStyles.accent} text-[9px] font-black uppercase tracking-widest border ${themeStyles.accentBorder}`}>Saludable</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </motion.div>
-                            ))
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </section>
-                  </div>
-                )}
-              </div>
             ) : (
               <section>
                   <div className={`${themeStyles.bento} p-8 relative overflow-hidden`}>
@@ -2633,14 +2490,141 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             </div>
           </motion.div>
         )}
-          {activeTab === 'plan' && (
+          {activeTab === 'meals' && (
             <motion.div
-              key="plan"
-              initial={{ opacity: 0, x: 20 }}
+              key="meals"
+              initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
+              exit={{ opacity: 0, x: 20 }}
               className="space-y-6 pb-32"
             >
+              {/* Meals Sub Tabs */}
+              <div className={`grid grid-flow-col auto-cols-fr ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border} shadow-lg mb-6`}>
+                <button
+                  onClick={() => setMealsSubTab('daily')}
+                  className={`py-3 text-[10px] flex items-center justify-center gap-2 font-black uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'daily' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                >
+                  <Utensils className="w-3.5 h-3.5" />
+                  Comidas del día
+                </button>
+                <button
+                  onClick={() => setMealsSubTab('plan')}
+                  className={`py-3 text-[10px] flex items-center justify-center gap-2 font-black uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'plan' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                >
+                  <ClipboardList className="w-3.5 h-3.5" />
+                  Plan
+                </button>
+              </div>
+
+              {mealsSubTab === 'daily' ? (
+                <div className="space-y-8">
+                {/* Primary Food Entry */}
+                <div className={`${themeStyles.bento} p-6 relative overflow-hidden`}>
+                  <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-2xl`}></div>
+                  <h3 className={`text-lg font-display font-bold ${themeStyles.textMain} tracking-tight uppercase mb-4 relative z-10 flex items-center gap-2`}>
+                    <Plus className={`w-5 h-5 ${themeStyles.accent}`} />
+                    Añadir Comida
+                  </h3>
+                  <div className="relative mb-4 z-10">
+                    <input
+                      type="text"
+                      placeholder="Ej: He comido arroz con pollo..."
+                      className={`w-full ${themeStyles.input} rounded-2xl pl-5 pr-14 py-5 transition-all text-base shadow-inner`}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleTextFoodSubmit(e.currentTarget.value);
+                          e.currentTarget.value = '';
+                        }
+                      }}
+                    />
+                    <button 
+                      className={`absolute right-2.5 top-2.5 bottom-2.5 ${themeStyles.buttonPrimary} px-5 rounded-xl transition-colors flex items-center justify-center shadow-lg`}
+                      onClick={() => {
+                        const input = document.querySelector('input[placeholder="Ej: He comido arroz con pollo..."]') as HTMLInputElement;
+                        if (input && input.value) {
+                          handleTextFoodSubmit(input.value);
+                          input.value = '';
+                        }
+                      }}
+                    >
+                      <Send className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`w-full flex items-center justify-center gap-3 ${themeStyles.buttonSecondary} p-5 rounded-2xl transition-all border group relative z-10`}
+                  >
+                    <Camera className={`w-5 h-5 ${themeStyles.accent} group-hover:scale-110 transition-transform`} />
+                    <span className="text-sm font-black uppercase tracking-widest">Escanear comida</span>
+                  </button>
+                </div>
+
+                {/* Meal List */}
+                <section>
+                  <div className="flex items-center justify-between mb-6 px-2">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 ${themeStyles.accentMuted} rounded-xl border ${themeStyles.accentBorder}`}>
+                        <Utensils className={`w-5 h-5 ${themeStyles.accent}`} />
+                      </div>
+                      <h2 className={`text-lg font-display font-bold ${themeStyles.textMain} tracking-tight uppercase`}>Registros de hoy</h2>
+                    </div>
+                    <span className={`text-[10px] font-black ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} px-3 py-1 rounded-full shadow-lg uppercase tracking-widest`}>
+                      {todaysMeals.length} ítems
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <AnimatePresence mode="popLayout">
+                      {todaysMeals.length === 0 ? (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`text-center py-16 ${themeStyles.iconBg} rounded-[2.5rem] border ${themeStyles.border} border-dashed`}>
+                          <Utensils className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-3 opacity-20`} />
+                          <p className={`${themeStyles.textMuted} font-bold uppercase tracking-widest text-xs`}>No hay registros hoy</p>
+                          <p className={`${themeStyles.textMuted} text-[10px] mt-1 opacity-60`}>Usa el buscador o la cámara para empezar</p>
+                        </motion.div>
+                      ) : (
+                        todaysMeals.map((meal) => (
+                          <motion.div
+                            key={meal.id} layout
+                            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
+                            className={`${themeStyles.card} rounded-3xl p-5 flex gap-5 group transition-all`}
+                          >
+                            <div className={`w-16 h-16 rounded-2xl overflow-hidden ${themeStyles.iconBg} shrink-0 shadow-xl border ${themeStyles.border}`}>
+                              <img src={meal.imageUrl} alt={meal.foodName} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between mb-1">
+                                <h3 className={`font-bold ${themeStyles.textMain} truncate text-base tracking-tight`}>{meal.foodName}</h3>
+                                <button onClick={() => removeMeal(meal.id)} className={`${themeStyles.textMuted} hover:text-rose-500 p-1 rounded-lg hover:bg-rose-500/10 transition-all`}>
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
+                                <span className={`${themeStyles.accent} font-black text-xs tracking-tight`}>{Math.round(meal.calories)} Kcal</span>
+                                <div className={`flex items-center gap-3 text-[10px] font-black uppercase ${themeStyles.textMuted} tracking-wider`}>
+                                  <span className={themeStyles.textMain}>P:{Math.round(meal.protein)}g</span>
+                                  <span className={themeStyles.textMain}>H:{Math.round(meal.carbs)}g</span>
+                                  <span className={themeStyles.textMain}>G:{Math.round(meal.fat)}g</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <NutriScoreBadge score={meal.nutriScore} />
+                                {meal.isHealthy && (
+                                  <span className={`px-2 py-0.5 rounded-full ${themeStyles.accentMuted} ${themeStyles.accent} text-[9px] font-black uppercase tracking-widest border ${themeStyles.accentBorder}`}>Saludable</span>
+                                )}
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </section>
+              </div>
+              ) : (
+                <div className="space-y-6">
+                <p className={`${themeStyles.textMain} text-sm font-medium mb-4`}>
+                    Esta es una propuesta de plan nutricional para ayudarte a cumplir con tus objetivos de calorías y macronutrientes.
+                </p>
               {profile.age === 0 ? (
                 <div className={`${themeStyles.bento} text-center`}>
                   <UserIcon className={`w-12 h-12 ${themeStyles.accent} mx-auto mb-4 opacity-50`} />
@@ -2747,7 +2731,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             </div>
                           </div>
 
-                          {!shoppingList || isGeneratingShoppingList ? (
+                          {isGeneratingShoppingList ? (
                             <div className="text-center py-12">
                               <div className="relative w-20 h-20 mx-auto mb-6">
                                 <motion.div
@@ -2761,16 +2745,32 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               </div>
                               <div className="space-y-2">
                                 <p className={`${themeStyles.textMain} font-bold`}>
-                                  {isGeneratingShoppingList ? 'Analizando tu menú...' : 'Cargando lista...'}
+                                  Analizando tu menú...
                                 </p>
                                 <motion.div 
                                   className={`${themeStyles.textMuted} text-xs font-mono h-4`}
                                   animate={{ opacity: [0, 1, 0] }}
                                   transition={{ repeat: Infinity, duration: 1.5 }}
                                 >
-                                  {isGeneratingShoppingList ? `> Buscando productos en ${profile.favoriteSupermarket}...` : '> Preparando pasillos...'}
+                                  {`> Buscando productos en ${profile.favoriteSupermarket}...`}
                                 </motion.div>
                               </div>
+                            </div>
+                          ) : !shoppingList ? (
+                            <div className={`text-center py-8 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border}`}>
+                              <ShoppingCart className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-4`} />
+                              <p className={`${themeStyles.textMain} font-bold mb-2`}>Sin Lista de la Compra</p>
+                              <p className={`${themeStyles.textMuted} text-[10px] uppercase font-bold tracking-widest px-4 mb-6`}>
+                                Extrae los ingredientes del menú y crea tu lista para <span className={`${themeStyles.accent}`}>{profile.favoriteSupermarket}</span>
+                              </p>
+                              <button 
+                                onClick={handleGenerateShoppingList}
+                                disabled={!generatedMenu}
+                                className={`${themeStyles.buttonPrimary} px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-[10px] mx-auto flex items-center gap-2`}
+                              >
+                                <ShoppingCart className="w-4 h-4" />
+                                Generar Lista
+                              </button>
                             </div>
                           ) : shoppingList.categories.length === 0 ? (
                             <div className={`text-center py-8 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border}`}>
@@ -2788,28 +2788,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                   <p className={`${themeStyles.textMuted} text-[10px] uppercase font-bold tracking-widest text-center`}>
                                     Puedes ir marcando los productos mientras compras en el supermercado
                                   </p>
-                                  <div className="grid grid-cols-2 gap-3">
+                                  <div className="flex flex-col gap-3">
                                     <button
                                       type="button"
                                       onClick={(e) => {
                                         e.preventDefault();
                                         downloadShoppingListHTML();
                                       }}
-                                      className={`flex items-center justify-center gap-2 p-3 rounded-xl ${themeStyles.buttonPrimary} font-bold text-[10px] uppercase tracking-widest`}
+                                      className={`w-full flex items-center justify-center gap-2 p-4 rounded-xl ${themeStyles.buttonPrimary} font-bold text-[10px] uppercase tracking-widest`}
                                     >
                                       <CheckSquare className="w-4 h-4" />
-                                      Lista Web
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        downloadShoppingListPDF();
-                                      }}
-                                      className={`flex items-center justify-center gap-2 p-3 rounded-xl ${themeStyles.buttonSecondary} font-bold text-[10px] uppercase tracking-widest`}
-                                    >
-                                      <Download className="w-4 h-4" />
-                                      PDF
+                                      Ver Lista
                                     </button>
                                   </div>
                                 </div>
@@ -2833,6 +2822,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   </div>
                 </>
               )}
+            </div>
+            )}
             </motion.div>
           )}
 
@@ -3083,51 +3074,44 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               exit={{ opacity: 0, x: -20 }}
               className="space-y-8 pb-32"
             >
-              {/* Premium Gym Header */}
-              <div className={`${themeStyles.bento} p-8 relative overflow-hidden`}>
-                <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-3xl`}></div>
-                
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 text-left">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl ${themeStyles.accentMuted} flex items-center justify-center border ${themeStyles.accentBorder}`}>
-                        <Dumbbell className={`w-5 h-5 ${themeStyles.accent}`} />
-                      </div>
-                      <div>
-                        <h2 className={`text-xl font-display font-black ${themeStyles.textMain} uppercase tracking-tight leading-none`}>Tu Rutina GYM</h2>
-                        <p className={`${themeStyles.textMuted} text-[9px] font-bold uppercase tracking-widest mt-1`}>
-                          {profile.trainingDaysPerWeek} Días • {translateGymGoal(profile.gymGoal)}
-                        </p>
-                      </div>
-                    </div>
-                    <p className={`${themeStyles.textMuted} text-xs max-w-sm leading-relaxed`}>
-                      Rutina profesional para <span className={`${themeStyles.textMain} font-bold`}>{profile.age} años</span> y objetivo de <span className={`${themeStyles.accent} font-bold`}>{translateGymGoal(profile.gymGoal).toLowerCase()}</span>.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
               {/* Workout Content */}
               <div className="space-y-6">
+                {/* General Coach Message */}
+                <div className={`${themeStyles.card} p-5 rounded-[2rem] border-l-4 ${profile.theme === 'light' ? 'border-emerald-500' : themeStyles.accentBorder}`}>
+                  <div className="flex gap-4">
+                    <div className={`w-12 h-12 rounded-2xl ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center shrink-0`}>
+                      <Bot className={`w-6 h-6 ${themeStyles.accent}`} />
+                    </div>
+                    <div className="text-left">
+                      <span className={`text-[10px] font-black ${themeStyles.accent} uppercase tracking-widest`}>AI Coach Gym</span>
+                      <p className={`${themeStyles.textMain} text-sm font-medium mt-1 leading-relaxed`}>
+                        {habits[todayStr]?.completedExercises && habits[todayStr].completedExercises.length >= 3 
+                          ? "¡Rutina casi fulminada! Has hecho un trabajo excelente." 
+                          : (habits[todayStr]?.completedExercises && habits[todayStr].completedExercises.length > 0)
+                          ? "¡Genial, sigue así! Ya has completado parte de tu rutina, a terminarla campeón."
+                          : "El momento es ahora. Ponte las zapatillas y revisa tu rutina."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {workoutPlan && !isGeneratingWorkout && (
                   <div className="flex flex-col gap-4">
-                    <div className={`grid grid-cols-4 gap-1.5 ${themeStyles.iconBg} p-1 rounded-xl border ${themeStyles.border} w-full`}>
+                    <div className={`grid grid-cols-2 gap-1.5 ${themeStyles.iconBg} p-1 rounded-xl border ${themeStyles.border} w-full`}>
                       {[
-                        { id: 'intro', label: 'Info', icon: Info },
-                        { id: 'exercises', label: 'Rutina', icon: Activity },
-                        { id: 'manual', label: 'Libre', icon: Plus },
-                        { id: 'safety', label: 'Tips', icon: AlertTriangle }
+                        { id: 'manual', label: 'Manual', icon: Plus },
+                        { id: 'plan', label: 'Plan', icon: Activity }
                       ].map((st) => (
                         <button
                           key={st.id}
                           onClick={() => setGymSubTab(st.id as any)}
-                          className={`py-2 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all flex flex-col items-center gap-1 ${
+                          className={`py-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${
                             gymSubTab === st.id 
                               ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` 
                               : `${themeStyles.textMuted} hover:text-current`
                           }`}
                         >
-                          <st.icon className="w-3.5 h-3.5" />
+                          <st.icon className="w-4 h-4" />
                           {st.label}
                         </button>
                       ))}
@@ -3167,16 +3151,85 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     </div>
                   </div>
                 ) : workoutPlan ? (
-                  <motion.div
-                    key={gymSubTab}
+                  <>
+                    <motion.div
+                      key={gymSubTab}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="space-y-6"
                   >
-                    {gymSubTab === 'exercises' ? (
+                    {gymSubTab === 'plan' ? (
                       <div className="space-y-6">
+                        {/* Premium Gym Header */}
+                        <div className={`${themeStyles.bento} p-8 relative overflow-hidden`}>
+                          <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-3xl`}></div>
+                          
+                          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 text-left">
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-xl ${themeStyles.accentMuted} flex items-center justify-center border ${themeStyles.accentBorder}`}>
+                                  <Dumbbell className={`w-5 h-5 ${themeStyles.accent}`} />
+                                </div>
+                                <div>
+                                  <h2 className={`text-xl font-display font-black ${themeStyles.textMain} uppercase tracking-tight leading-none`}>Tu Rutina</h2>
+                                  <p className={`${themeStyles.textMuted} text-[9px] font-bold uppercase tracking-widest mt-1`}>
+                                    {profile.trainingDaysPerWeek} Días • {translateGymGoal(profile.gymGoal)}
+                                  </p>
+                                </div>
+                              </div>
+                              <p className={`${themeStyles.textMuted} text-xs max-w-sm leading-relaxed`}>
+                                Rutina profesional para <span className={`${themeStyles.textMain} font-bold`}>{profile.age} años</span> y objetivo de <span className={`${themeStyles.accent} font-bold`}>{translateGymGoal(profile.gymGoal).toLowerCase()}</span>. Esta rutina está diseñada para realizarse <span className={`${themeStyles.textMain} font-bold`}>{profile.workoutType === 'home' ? 'en casa' : 'en el gimnasio'}</span>.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Subtabs for Plan */}
+                        <div className={`grid grid-flow-col auto-cols-fr ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border} shadow-lg mb-6`}>
+                          <button
+                            onClick={() => setPlanSubTab('info')}
+                            className={`py-3 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${planSubTab === 'info' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                          >
+                            <Info className="w-3.5 h-3.5" />
+                            Info
+                          </button>
+                          <button
+                            onClick={() => setPlanSubTab('ejercicios')}
+                            className={`py-3 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${planSubTab === 'ejercicios' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                          >
+                            <Dumbbell className="w-3.5 h-3.5" />
+                            Ejercicios
+                          </button>
+                          <button
+                            onClick={() => setPlanSubTab('tips')}
+                            className={`py-3 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${planSubTab === 'tips' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                          >
+                            <Zap className="w-3.5 h-3.5" />
+                            Tips
+                          </button>
+                        </div>
+
+                        {/* Info / Intro Section */}
+                        {planSubTab === 'info' && (
+                        <motion.div initial={{opacity:0}} animate={{opacity:1}} layout className="space-y-6">
+                          <div className={`${themeStyles.card} rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border}`}>
+                            <div className={`prose ${profile.theme === 'light' ? 'prose-slate' : 'prose-invert prose-zinc'} max-w-none
+                              prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
+                              prose-h2:text-2xl prose-h2:${themeStyles.accent} prose-h2:border-b prose-h2:border-white/10 prose-h2:pb-4 prose-h2:mb-6
+                              prose-strong:text-orange-500 prose-strong:font-black
+                              prose-p:text-zinc-400 prose-p:leading-relaxed prose-p:text-sm
+                              prose-li:text-zinc-300 prose-li:my-1 prose-li:text-sm
+                            `}>
+                              <Markdown remarkPlugins={[remarkGfm]}>
+                                {getWorkoutSection(workoutPlan, 'intro' as any)}
+                              </Markdown>
+                            </div>
+                          </div>
+                        </motion.div>
+                        )}
+
                         {/* Daily routines logic */}
-                        {(() => {
+                        {planSubTab === 'ejercicios' && (() => {
                           const normalized = workoutPlan.replace(/\r\n/g, '\n');
                           const h2Tags = ['EJERCICIOS', 'RUTINA', 'DETALLE', 'TABLAS', 'CONTENIDO', 'RUTINAS', 'PROGRAMA', 'WORKOUT'];
                           let exercisesContent = '';
@@ -3230,7 +3283,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                 ))}
                               </div>
 
-                              {/* Day Detail Content */}
+                                {/* Day Detail Content */}
                               <motion.div
                                 key={gymDay}
                                 initial={{ opacity: 0, scale: 0.98 }}
@@ -3240,46 +3293,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                 <div className={`absolute top-0 right-0 w-32 h-32 ${themeStyles.accentMuted} opacity-20 rounded-full blur-2xl mr-[-10%] mt-[-10%]`} />
                                 
                                 <div className="relative z-10 space-y-6">
-                                  {/* Coach Message */}
-                                  {(() => {
-                                    let checkDate = todayStr;
-                                    if (activeDayData.dayName) {
-                                      const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-                                      const targetIdx = days.indexOf(activeDayData.dayName.toLowerCase());
-                                      if (targetIdx !== -1) {
-                                        const now = new Date();
-                                        const currentIdx = now.getDay();
-                                        const diff = targetIdx - currentIdx;
-                                        const targetDate = new Date(now);
-                                        targetDate.setDate(now.getDate() + diff);
-                                        checkDate = targetDate.toISOString().split('T')[0];
-                                      }
-                                    }
-                                    const completedCount = habits[checkDate]?.completedExercises?.length || 0;
-                                    
-                                    let coachMsg = "El momento es ahora. Ponte las zapatillas y vamos a darle duro a esa sesión.";
-                                    if (completedCount > 0) {
-                                      coachMsg = "¡Genial, sigue así! Ya has completado parte de tu rutina, a terminarla campeón.";
-                                    }
-                                    if (completedCount >= 3) {
-                                      coachMsg = "¡Rutina casi fulminada! Has hecho un trabajo excelente hoy.";
-                                    }
-
-                                    return (
-                                      <div className={`${themeStyles.card} p-5 rounded-[2rem] border-l-4 ${profile.theme === 'light' ? 'border-emerald-500' : themeStyles.accentBorder}`}>
-                                        <div className="flex gap-4">
-                                          <div className={`w-12 h-12 rounded-2xl ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center shrink-0`}>
-                                            <Bot className={`w-6 h-6 ${themeStyles.accent}`} />
-                                          </div>
-                                          <div>
-                                            <span className={`text-[10px] font-black ${themeStyles.accent} uppercase tracking-widest`}>AI Coach Gym</span>
-                                            <p className={`${themeStyles.textMain} text-sm font-medium mt-1 leading-relaxed`}>"{coachMsg}"</p>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    );
-                                  })()}
-
                                   <div className="flex flex-col gap-1">
                                     <div className={`flex items-center gap-1.5 text-[8px] font-black ${themeStyles.accent} uppercase tracking-[0.2em] mb-1`}>
 
@@ -3291,23 +3304,13 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                       <div className={`flex items-center gap-2 ${themeStyles.textMain} font-display font-black text-lg uppercase tracking-tighter`}>
                                         <span className={themeStyles.accent}>{activeDayData.label}</span>
                                         <span className="opacity-20">/</span>
-                                        <div className="relative inline-block border-b-2 border-dotted border-current opacity-50 hover:opacity-100 transition-opacity">
-                                          <select
-                                            value={activeDayData.dayName.charAt(0).toUpperCase() + activeDayData.dayName.slice(1).toLowerCase()}
-                                            onChange={(e) => {
-                                               const newDay = e.target.value;
-                                               if (workoutPlan) {
-                                                  const updatedPlan = workoutPlan.replace(activeDayData.dayName, newDay);
-                                                  setWorkoutPlan(updatedPlan);
-                                               }
-                                            }}
-                                            className="bg-transparent text-current border-none focus:ring-0 p-0 cursor-pointer appearance-none pr-4 uppercase text-sm font-black"
-                                          >
-                                            {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(d => (
-                                               <option key={d} value={d} className={profile.theme === 'light' ? 'bg-white text-slate-900' : 'bg-zinc-900 text-white'}>{d}</option>
-                                            ))}
-                                          </select>
-                                          <ChevronDown className={`w-2.5 h-2.5 ${themeStyles.accent} absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-40`} />
+                                        <div className="relative inline-block border-b-2 border-dotted border-current opacity-70 hover:opacity-100 transition-opacity">
+                                          <input
+                                            type="date"
+                                            value={gymRoutineDate}
+                                            onChange={(e) => setGymRoutineDate(e.target.value)}
+                                            className="bg-transparent text-current border-none focus:ring-0 p-0 cursor-pointer appearance-none text-sm font-black"
+                                          />
                                         </div>
                                       </div>
                                     </div>
@@ -3346,21 +3349,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                         else if (sectionTitleRaw.toLowerCase().includes('principal')) sectionTitle = 'Parte Principal';
                                         else if (sectionTitleRaw.toLowerCase().includes('calma')) sectionTitle = 'Vuelta a la calma';
 
-                                        let checkDate = todayStr;
-                                        if (activeDayData.dayName) {
-                                          const days = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-                                          const targetIdx = days.indexOf(activeDayData.dayName.toLowerCase());
-                                          if (targetIdx !== -1) {
-                                            const now = new Date();
-                                            const currentIdx = now.getDay();
-                                            const diff = targetIdx - currentIdx;
-                                            const targetDate = new Date(now);
-                                            targetDate.setDate(now.getDate() + diff);
-                                            checkDate = targetDate.toISOString().split('T')[0];
-                                          }
-                                        }
-                                        
-                                        const isCompleted = habits[checkDate]?.completedExercises?.includes(tableId);
+                                        const isCompleted = habits[gymRoutineDate]?.completedExercises?.includes(tableId);
 
                                         return (
                                           <div className="my-8 relative group">
@@ -3372,10 +3361,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                               
                                               <div className="flex items-center gap-2 pr-2">
                                                 <button
-                                                  onClick={() => handleToggleExercise(tableId, activeDayData.dayName)}
+                                                  onClick={() => handleToggleExercise(tableId, gymRoutineDate)}
                                                   className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border font-black uppercase tracking-widest text-[9px] transition-all ${
                                                     isCompleted 
-                                                      ? `${themeStyles.accentBg} text-white border-transparent shadow-[0_0_15px_rgba(0,0,0,0.1)]` 
+                                                      ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} border-transparent shadow-[0_0_15px_rgba(0,0,0,0.1)]` 
                                                       : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent}`
                                                   }`}
                                                 >
@@ -3470,6 +3459,24 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             </div>
                           );
                         })()}
+
+                        {/* Safety / Tips Section */}
+                        {planSubTab === 'tips' && (
+                        <motion.div initial={{opacity:0}} animate={{opacity:1}} layout className={`${themeStyles.card} rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border}`}>
+                          <div className={`prose ${profile.theme === 'light' ? 'prose-slate' : 'prose-invert prose-zinc'} max-w-none
+                            prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
+                            prose-h2:text-2xl prose-h2:${themeStyles.accent} prose-h2:border-b prose-h2:border-white/10 prose-h2:pb-4 prose-h2:mb-6
+                            prose-strong:text-orange-500 prose-strong:font-black
+                            prose-p:text-zinc-400 prose-p:leading-relaxed prose-p:text-sm
+                            prose-li:text-zinc-300 prose-li:my-1 prose-li:text-sm
+                          `}>
+                            <Markdown remarkPlugins={[remarkGfm]}>
+                              {getWorkoutSection(workoutPlan, 'safety' as any)}
+                            </Markdown>
+                          </div>
+                        </motion.div>
+                        )}
+
                       </div>
                     ) : gymSubTab === 'manual' ? (
                       <div className={`${themeStyles.card} rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border} space-y-6`}>
@@ -3605,23 +3612,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <div className={`${themeStyles.card} rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border}`}>
-                        <div className={`prose ${profile.theme === 'light' ? 'prose-slate' : 'prose-invert prose-zinc'} max-w-none
-                          prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
-                          prose-h2:text-2xl prose-h2:${themeStyles.accent} prose-h2:border-b prose-h2:border-white/10 prose-h2:pb-4 prose-h2:mb-6
-                          prose-h3:text-lg prose-h3:text-white prose-h3:mt-8 prose-h3:mb-4
-                          prose-strong:text-orange-500 prose-strong:font-black
-                          prose-p:text-zinc-400 prose-p:leading-relaxed prose-p:text-sm
-                          prose-li:text-zinc-300 prose-li:my-1 prose-li:text-sm
-                        `}>
-                          <Markdown remarkPlugins={[remarkGfm]}>
-                            {getWorkoutSection(workoutPlan, gymSubTab)}
-                          </Markdown>
-                        </div>
-                      </div>
-                    )}
+                    ) : null}
                   </motion.div>
+                  </>
                 ) : (
                   <div className="bg-zinc-950/30 rounded-[3rem] border border-white/5 p-20 text-center">
                     <div className="w-20 h-20 bg-zinc-900 rounded-3xl flex items-center justify-center mx-auto mb-8 border border-white/5">
@@ -3703,17 +3696,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center p-6"
+            className={`fixed inset-0 z-50 flex items-center justify-center p-6 ${profile.theme === 'light' ? 'bg-slate-900/60' : 'bg-zinc-950/90'} backdrop-blur-sm`}
           >
             <motion.div 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 w-full max-w-sm"
+              className={`rounded-3xl p-6 w-full max-w-sm ${themeStyles.card} ${themeStyles.border} shadow-2xl`}
             >
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-display font-bold text-white">Registrar Peso</h3>
-                <button onClick={() => setIsWeightModalOpen(false)} className="text-zinc-500 hover:text-white transition-colors">
+                <h3 className={`text-xl font-display font-bold ${themeStyles.textMain}`}>Registrar Peso</h3>
+                <button onClick={() => setIsWeightModalOpen(false)} className={`${themeStyles.textMuted} hover:${themeStyles.accent} transition-colors`}>
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -3726,11 +3719,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   min={30}
                   max={300}
                   placeholder="Ej. 75.5"
+                  theme={profile.theme}
                 />
                 <button 
                   type="submit"
                   disabled={!newWeight}
-                  className="w-full bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
+                  className={`w-full ${themeStyles.buttonPrimary} font-semibold py-3 rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   Guardar
                 </button>
@@ -3769,22 +3763,23 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 </button>
               </div>
 
-              <div className={`grid grid-cols-3 gap-1.5 mb-6 shrink-0 px-1 relative z-10 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-950'} p-1 rounded-xl`}>
+              <div className={`flex flex-nowrap overflow-x-auto hide-scrollbar sm:flex-wrap gap-1.5 mb-6 shrink-0 px-1 relative z-10 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-950'} p-1.5 rounded-xl`}>
                 {[
-                  { id: 'user', label: 'Personal' },
-                  { id: 'diet', label: 'Dieta' },
-                  { id: 'exercise', label: 'Gym' }
+                  { id: 'user', label: 'Personal', icon: UserIcon },
+                  { id: 'diet', label: 'Dieta', icon: ChefHat },
+                  { id: 'exercise', label: 'Entrenamiento', icon: Dumbbell }
                 ].map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
                     onClick={() => setProfileTab(tab.id as any)}
-                    className={`flex items-center justify-center py-2.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                    className={`flex-1 shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-[9px] whitespace-nowrap font-black uppercase tracking-wider transition-all ${
                       profileTab === tab.id 
                         ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` 
                         : `${themeStyles.textMuted} hover:text-current`
                     }`}
                   >
+                    <tab.icon className="w-3.5 h-3.5 shrink-0" />
                     {tab.label}
                   </button>
                 ))}
@@ -3812,6 +3807,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className="space-y-4">
                         <RulerPicker
                           label="Edad"
+                          theme={profile.theme}
                           value={editProfile.age}
                           onChange={(val: string) => setEditProfile({...editProfile, age: parseInt(val) || 0})}
                           min={15}
@@ -3824,6 +3820,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className="space-y-4">
                         <RulerPicker
                           label="Altura"
+                          theme={profile.theme}
                           value={editProfile.height}
                           onChange={(val: string) => setEditProfile({...editProfile, height: parseInt(val) || 0})}
                           min={120}
@@ -3836,6 +3833,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className="space-y-4">
                         <RulerPicker
                           label="Peso Actual"
+                          theme={profile.theme}
                           value={editWeight}
                           onChange={setEditWeight}
                           min={40}
@@ -3845,22 +3843,22 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         />
                       </div>
                       <div className="space-y-1.5 px-2">
-                        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Género</label>
+                        <label className={`block text-[10px] font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>Género</label>
                         <select 
                           value={editProfile.gender}
                           onChange={(e) => setEditProfile({...editProfile, gender: e.target.value as 'male' | 'female'})}
-                          className={`w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:${themeStyles.accentBorder} transition-colors appearance-none shadow-sm`}
+                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-colors appearance-none shadow-sm`}
                         >
                           <option value="male">Hombre</option>
                           <option value="female">Mujer</option>
                         </select>
                       </div>
 
-                    <div className="bg-indigo-500/5 p-4 rounded-2xl border border-indigo-500/10 space-y-4">
+                    <div className={`${profile.theme === 'light' ? 'bg-indigo-50/80 border-indigo-200' : 'bg-indigo-500/5 border-indigo-500/10'} p-4 rounded-2xl border space-y-4`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Activity className="w-3.5 h-3.5 text-indigo-400" />
-                          <label className="block text-[10px] font-bold text-indigo-200/60 uppercase tracking-widest">¿Tienes Diabetes?</label>
+                          <Activity className={`w-3.5 h-3.5 ${profile.theme === 'light' ? 'text-indigo-500' : 'text-indigo-400'}`} />
+                          <label className={`block text-[10px] font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-200/60'}`}>¿Tienes Diabetes?</label>
                         </div>
                         <button 
                           type="button"
@@ -3868,7 +3866,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             ...editProfile, 
                             diabetesType: editProfile.diabetesType !== 'none' ? 'none' : 'type2'
                           })}
-                          className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.diabetesType !== 'none' ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                          className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.diabetesType !== 'none' ? 'bg-indigo-500' : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
                         >
                           <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.diabetesType !== 'none' ? 'left-6' : 'left-0'}`} />
                         </button>
@@ -3876,11 +3874,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                       {editProfile.diabetesType !== 'none' && (
                         <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
-                          <label className="block text-[10px] font-bold text-indigo-200/40 uppercase tracking-widest">Tipo de Diabetes</label>
+                          <label className={`block text-[10px] font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-indigo-900/60' : 'text-indigo-200/40'}`}>Tipo de Diabetes</label>
                           <select 
                             value={editProfile.diabetesType}
                             onChange={(e) => setEditProfile({...editProfile, diabetesType: e.target.value as any})}
-                            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500/50 transition-colors appearance-none shadow-sm"
+                            className={`w-full ${profile.theme === 'light' ? 'bg-white border-indigo-200 text-indigo-900 focus:border-indigo-400' : 'bg-zinc-900 border-zinc-800 text-white focus:border-indigo-500/50'} rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-colors appearance-none shadow-sm`}
                           >
                             <option value="type1">Diabetes Tipo 1</option>
                             <option value="type2">Diabetes Tipo 2</option>
@@ -3928,7 +3926,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     </div>
 
                     <div className="space-y-3">
-                      <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Alergias e Intolerancias</label>
+                      <label className={`block text-[10px] font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>Alergias e Intolerancias</label>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {['Gluten', 'Lactosa', 'Frutos Secos', 'Marisco', 'Huevo', 'Otros'].map(id => (
                           <button
@@ -3947,10 +3945,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             className={`flex items-center gap-2 p-2.5 rounded-xl border text-[10px] font-bold transition-all ${
                               editProfile.allergies.includes(id.toLowerCase().replace(' ', '_'))
                                 ? `${themeStyles.accentMuted} ${themeStyles.accentBorder} ${themeStyles.accent}`
-                                : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:border-zinc-700'
+                                : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accentBorder}`
                             }`}
                           >
-                            <div className={`w-3 h-3 rounded-sm border ${editProfile.allergies.includes(id.toLowerCase().replace(' ', '_')) ? `${themeStyles.accentBg} ${themeStyles.accentBorder}` : 'border-zinc-700'}`} />
+                            <div className={`w-3 h-3 rounded-sm border ${editProfile.allergies.includes(id.toLowerCase().replace(' ', '_')) ? `${themeStyles.accentBg} ${themeStyles.accentBorder}` : (profile.theme === 'light' ? 'border-slate-300' : 'border-zinc-700')}`} />
                             {id}
                           </button>
                         ))}
@@ -3961,7 +3959,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           type="text" 
                           value={editProfile.otherAllergies}
                           onChange={(e) => setEditProfile({...editProfile, otherAllergies: e.target.value})}
-                          className={`w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:${themeStyles.accentBorder} transition-colors animate-in fade-in`}
+                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2 text-xs focus:outline-none transition-colors animate-in fade-in`}
                           placeholder="Especifica (ej. Melocotón, Fresas...)"
                         />
                       )}
@@ -3969,11 +3967,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                     <div className="space-y-4 mt-2">
                       <div className="space-y-1.5">
-                        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest text-left">Distribución Macros</label>
+                        <label className={`block text-[10px] font-bold uppercase tracking-widest text-left ${themeStyles.textMuted}`}>Distribución Macros</label>
                         <select 
                           value={editProfile.macroDistribution}
                           onChange={(e) => setEditProfile({...editProfile, macroDistribution: e.target.value as any})}
-                          className={`w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:${themeStyles.accentBorder} transition-colors appearance-none`}
+                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-xs focus:outline-none transition-colors appearance-none`}
                         >
                           <option value="balanced">Equilibrada</option>
                           <option value="low_carb">Baja en Carbohidratos</option>
@@ -3982,11 +3980,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </select>
                       </div>
                       <div className="space-y-1.5">
-                        <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest text-left">Supermercado Preferido</label>
+                        <label className={`block text-[10px] font-bold uppercase tracking-widest text-left ${themeStyles.textMuted}`}>Supermercado Preferido</label>
                         <select 
                           value={editProfile.favoriteSupermarket}
                           onChange={(e) => setEditProfile({...editProfile, favoriteSupermarket: e.target.value})}
-                          className={`w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:${themeStyles.accentBorder} transition-colors appearance-none`}
+                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-xs focus:outline-none transition-colors appearance-none`}
                         >
                           <option value="Mercadona">Mercadona</option>
                           <option value="Carrefour">Carrefour</option>
@@ -3998,16 +3996,16 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       </div>
                     </div>
 
-                    <div className="p-4 bg-zinc-950 rounded-2xl border border-white/5 space-y-4 shadow-inner">
+                    <div className={`p-4 rounded-2xl border space-y-4 shadow-inner ${profile.theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-zinc-950 border-white/5'}`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Pizza className="w-3.5 h-3.5 text-amber-400" />
-                          <label className="text-[10px] font-bold text-zinc-200 uppercase tracking-widest">Momento Libre Semanal</label>
+                          <label className={`text-[10px] font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-slate-700' : 'text-zinc-200'}`}>Momento Libre Semanal</label>
                         </div>
                         <button 
                           type="button"
                           onClick={() => setEditProfile({...editProfile, freeMealEnabled: !editProfile.freeMealEnabled})}
-                          className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.freeMealEnabled ? themeStyles.accentBg : 'bg-zinc-700'}`}
+                          className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.freeMealEnabled ? themeStyles.accentBg : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
                         >
                           <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.freeMealEnabled ? 'left-6' : 'left-0'}`} />
                         </button>
@@ -4042,7 +4040,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Dumbbell className={`w-4 h-4 ${themeStyles.accent}`} />
-                          <label className={`text-[10px] font-black ${themeStyles.textMain} uppercase tracking-widest`}>Plan de Entrenamiento AI (GYM)</label>
+                          <label className={`text-[10px] font-black ${themeStyles.textMain} uppercase tracking-widest`}>Plan de Entrenamiento (Act. Física)</label>
                         </div>
                         <button 
                           type="button"
@@ -4056,7 +4054,41 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       {editProfile.gymEnabled ? (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                           <div className="space-y-1.5 text-left">
-                            <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Objetivo Gym</label>
+                            <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Ubicación</label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setEditProfile({...editProfile, workoutType: 'gym'})}
+                                className={`py-4 rounded-xl text-center border transition-all ${
+                                  editProfile.workoutType === 'gym' 
+                                    ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` 
+                                    : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.textMain}`
+                                }`}
+                              >
+                                <div className="flex flex-col items-center gap-1">
+                                  <Dumbbell className="w-5 h-5" />
+                                  <span className="text-[10px] uppercase tracking-widest font-black">Gimnasio</span>
+                                </div>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditProfile({...editProfile, workoutType: 'home'})}
+                                className={`py-4 rounded-xl text-center border transition-all ${
+                                  editProfile.workoutType === 'home' 
+                                    ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` 
+                                    : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.textMain}`
+                                }`}
+                              >
+                                <div className="flex flex-col items-center gap-1">
+                                  <Home className="w-5 h-5" />
+                                  <span className="text-[10px] uppercase tracking-widest font-black">En Casa</span>
+                                </div>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5 text-left">
+                            <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Objetivo</label>
                             <select 
                               value={editProfile.gymGoal}
                               onChange={(e) => setEditProfile({...editProfile, gymGoal: e.target.value as any})}
@@ -4085,8 +4117,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                 step="1"
                                 value={editProfile.trainingDaysPerWeek}
                                 onChange={(e) => setEditProfile({...editProfile, trainingDaysPerWeek: parseInt(e.target.value)})}
-                                className={`w-full ${profile.theme === 'light' ? 'accent-emerald-500' : 'accent-lime-400'} h-1 bg-current opacity-10 rounded-lg appearance-none cursor-pointer`}
+                                className={`w-full ${profile.theme === 'light' ? 'accent-emerald-500 bg-slate-200' : 'accent-lime-400 bg-zinc-800'} h-2 rounded-lg appearance-none cursor-pointer`}
                               />
+                              <div className="flex justify-between text-[8px] font-bold text-zinc-500 uppercase">
+                                <span>0</span>
+                                <span>7</span>
+                              </div>
                             </div>
                           </div>
 
@@ -4109,6 +4145,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 )}
 
                 <div className="pt-4 border-t border-zinc-800 shrink-0">
+                  {(!editWeight || !editProfile.name || !editProfile.age || !editProfile.height) && profileTab !== 'user' && (
+                    <p className="text-[10px] text-rose-500 text-center font-bold mb-3 uppercase tracking-widest bg-rose-500/10 py-2 rounded-xl">Falta información en pestaña Personal</p>
+                  )}
                   <button 
                     type="submit"
                     disabled={!editWeight || !editProfile.name || !editProfile.age || !editProfile.height}

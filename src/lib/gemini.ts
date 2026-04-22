@@ -92,6 +92,14 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
     const response = await Promise.race([requestPromise, timeoutPromise]) as any;
 
     console.log("Response received from Gemini");
+    if (response.error) {
+      console.error("Backend error:", response.error);
+      let errorMsg = response.error;
+      if (typeof errorMsg === 'string' && errorMsg.includes("API key not valid")) {
+        throw new Error("La clave de API de Gemini no es válida. Por favor, revísala en los secretos.");
+      }
+      throw new Error(errorMsg);
+    }
     const text = response.text;
     if (!text) {
       console.error("Empty response from Gemini");
@@ -176,6 +184,9 @@ export async function analyzeFoodText(foodDescription: string, contextStr?: stri
     })
   }).then(r => r.json());
 
+    if (response.error) {
+      throw new Error(response.error);
+    }
     const text = response.text;
     if (!text) throw new Error("No se recibió respuesta del modelo.");
     
@@ -226,6 +237,9 @@ export async function recalculateFoodMacros(foodDescription: string, contextStr?
     })
   }).then(r => r.json());
 
+    if (response.error) {
+      throw new Error(response.error);
+    }
     const text = response.text;
     if (!text) throw new Error("No se recibió respuesta del modelo.");
     
@@ -249,68 +263,183 @@ export async function recalculateFoodMacros(foodDescription: string, contextStr?
   }
 }
 
-export type WeeklyMenu = {
-  days: {
-    day: string;
-    meals: {
-      type: "Desayuno" | "Almuerzo" | "Cena" | "Snacks";
-      description: string;
-      calories?: number;
-    }[];
-  }[];
-  recommendations: string;
-};
+export interface NutritionTargets {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
 
-export async function generateWeeklyMenu(profileStr: string, preferencesStr: string): Promise<WeeklyMenu> {
+export function calculateDailyCalories(profile: any, currentWeight: number): NutritionTargets {
+  // Mifflin-St Jeor 
+  const bmr = profile.gender === 'male'
+    ? 10 * currentWeight + 6.25 * profile.height - 5 * profile.age + 5
+    : 10 * currentWeight + 6.25 * profile.height - 5 * profile.age - 161;
+
+  // Factor de actividad según días de gym
+  const activityFactor =
+    profile.trainingDaysPerWeek === 0 ? 1.2  :
+    profile.trainingDaysPerWeek <= 2  ? 1.375:
+    profile.trainingDaysPerWeek <= 4  ? 1.55 :
+    profile.trainingDaysPerWeek <= 6  ? 1.725: 1.9;
+
+  const tdee = Math.round(bmr * activityFactor);
+
+  // Ajuste según objetivo
+  const calories =
+    profile.goal === 'lose'     ? tdee - 400 :
+    profile.goal === 'gain'     ? tdee + 300 : tdee;
+
+  // Macros por objetivo
+  const proteinPct = profile.goal === 'gain' ? 0.30 : 0.25;
+  const fatPct     = 0.25;
+  const carbsPct   = 1 - proteinPct - fatPct;
+
+  return {
+    calories,
+    protein: Math.round((calories * proteinPct) / 4),
+    carbs:   Math.round((calories * carbsPct)   / 4),
+    fat:     Math.round((calories * fatPct)      / 9),
+  };
+}
+
+export function extractIngredients(weeklyPlan: any): any[] {
+  const allIngredients: any[] = [];
+  if (!weeklyPlan || !weeklyPlan.weeklyPlan) return allIngredients;
+  for (const dayKey of Object.keys(weeklyPlan.weeklyPlan)) {
+    const day = weeklyPlan.weeklyPlan[dayKey];
+    if (day && day.meals) {
+      for (const mealKey of Object.keys(day.meals)) {
+        const meal = day.meals[mealKey];
+        if (meal && Array.isArray(meal.ingredients)) {
+          allIngredients.push(...meal.ingredients);
+        }
+      }
+    }
+  }
+  return allIngredients;
+}
+
+export type WeeklyMenu = any;
+
+export async function generateWeeklyMenu(profile: any, currentWeight: number): Promise<WeeklyMenu> {
   try {
+    const targets = calculateDailyCalories(profile, currentWeight);
+    const allergiesStr = Array.isArray(profile.allergies) && profile.allergies.length > 0 ? profile.allergies.join(', ') : 'Ninguna';
+    
+    const userPrompt = `Genera un menú semanal completo con estos datos:
+
+PERFIL CALCULADO (no recalcules esto, úsalo tal cual):
+- Calorías diarias objetivo: ${targets.calories} kcal
+- Proteína diaria: ${targets.protein}g
+- Carbohidratos diarios: ${targets.carbs}g
+- Grasa diaria: ${targets.fat}g
+
+DATOS DEL USUARIO:
+- Edad: ${profile.age} | Sexo: ${profile.gender} | Peso: ${currentWeight}kg | Altura: ${profile.height}cm
+- Objetivo: ${profile.goal}
+- Días de gimnasio esta semana: ${profile.trainingDaysPerWeek} (distribúyelos a tu criterio)
+- Condiciones médicas: ${profile.diabetesType !== 'none' ? `Diabetes tipo ${profile.diabetesType}` : 'Ninguna'}
+- Alergias absolutas: ${allergiesStr}
+- Alimentos que no le gustan: ${profile.dislikedFoods || 'Ninguno'}
+- Supermercado de referencia: ${profile.favoriteSupermarket || 'Cualquiera'}
+
+COMIDA LIBRE:
+- Habilitada: ${profile.freeMealEnabled ? 'Sí' : 'No'}
+- Día: ${profile.freeMealDay || ''}
+- Tipo: ${profile.freeMealType || ''}`;
+
     const requestPromise = fetch('/api/gemini/generateContent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: "gemini-3-flash-preview",
-        contents: `Genera un menú semanal personalizado basado en este perfil: ${profileStr}. Ten en cuenta estas preferencias y restricciones: ${preferencesStr}. Devuelve un objeto JSON estructurado.`,
+        contents: userPrompt,
         config: {
-        systemInstruction: "Eres un experto nutricionista deportivo de élite. Tu tarea es diseñar un menú semanal de calidad premium, extremadamente detallado y profesional. Cada comida (Desayuno, Almuerzo, Cena, Snacks) debe tener una descripción exhaustiva que incluya ingredientes principales y el método de preparación sugerido. El objetivo es que el usuario sepa exactamente qué comer y cómo prepararlo. Si el perfil indica que hay una 'comida o cena libre' habilitada, debes incluirla en el día y tipo especificado. En esa ingesta libre, permite un exceso calórico (sin especificar calorías exactas, pero que sea una comida de disfrute) y compensa reduciendo ligeramente las calorías de las otras comidas de ese mismo día y del día anterior/posterior para que el balance semanal sea coherente con el objetivo del usuario. Si el nombre del usuario está en el perfil, úsalo en las recomendaciones para que sean personales. Devuelve un objeto JSON con la estructura: { days: [{ day: 'Lunes', meals: [{ type: 'Desayuno', description: '...', calories: 400 }] }], recommendations: '...' }. Asegúrate de incluir de Lunes a Domingo y que las recomendaciones sean consejos nutricionales avanzados basados en el perfil del usuario.",
+        systemInstruction: `Eres un sistema de planificación nutricional clínica. 
+Tu única función es generar planes de alimentación semanales estructurados en JSON válido, sin texto adicional, sin explicaciones, sin markdown. Solo JSON. Si no puedes cumplir alguna restricción, indícalo dentro del JSON en el campo "warnings", nunca fuera de él.
+
+Reglas no negociables:
+- Respetar estrictamente las alergias declaradas. Una alergia es una exclusión absoluta, no una preferencia.
+- Si el usuario tiene diabetes, ninguna comida supera 60g de carbohidratos por ingesta. Los índices glucémicos altos están prohibidos.
+- El total calórico diario debe estar entre el 97% y el 103% del objetivo indicado. No hay margen más amplio.
+- Los macros (proteína, carbohidratos, grasa) deben respetar los porcentajes indicados con ±5% de tolerancia.
+- En días de gimnasio, la ingesta de proteína aumenta un 15% respecto a días de descanso, compensando con una reducción equivalente en carbohidratos.
+- Si hay una comida libre declarada, el exceso calórico máximo permitido es de 400 kcal sobre el objetivo diario. El resto de ingestas de ese día se reducen proporcionalmente para absorber ese exceso.
+
+IMPORTANTE PARA FORMATO: Dentro de "meals" de cada día (ej: "Desayuno", "Almuerzo", "Cena", "Snack"), debes incluir "name", "calories" (number) y un array "ingredients" donde cada elemento tenga "item" y "grams".`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            days: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  day: { type: Type.STRING },
-                  meals: {
-                    type: Type.ARRAY,
-                    items: {
+            weeklyPlan: {
+              type: Type.OBJECT,
+              properties: {
+                monday: { 
+                  type: Type.OBJECT,
+                  properties: {
+                    meals: {
                       type: Type.OBJECT,
-                      properties: {
-                        type: { type: Type.STRING, enum: ["Desayuno", "Almuerzo", "Cena", "Snacks"] },
-                        description: { type: Type.STRING },
-                        calories: { type: Type.NUMBER }
-                      },
-                      required: ["type", "description"]
+                      description: "E.g. {'Desayuno': { name: 'Huevos', ingredients: [{item: 'huevo', grams: 100}], calories: 150 }}",
                     }
                   }
                 },
-                required: ["day", "meals"]
+                tuesday: { 
+                  type: Type.OBJECT,
+                  properties: {
+                    meals: { type: Type.OBJECT }
+                  }
+                },
+                wednesday: { 
+                  type: Type.OBJECT,
+                  properties: {
+                    meals: { type: Type.OBJECT }
+                  }
+                },
+                thursday: { 
+                  type: Type.OBJECT,
+                  properties: {
+                    meals: { type: Type.OBJECT }
+                  }
+                },
+                friday: { 
+                  type: Type.OBJECT,
+                  properties: {
+                    meals: { type: Type.OBJECT }
+                  }
+                },
+                saturday: { 
+                  type: Type.OBJECT,
+                  properties: {
+                    meals: { type: Type.OBJECT }
+                  }
+                },
+                sunday: { 
+                  type: Type.OBJECT,
+                  properties: {
+                    meals: { type: Type.OBJECT }
+                  }
+                }
               }
             },
-            recommendations: { type: Type.STRING }
+            nutritionistNotes: { type: Type.STRING },
+            warnings: { type: Type.ARRAY, items: { type: Type.STRING } }
           },
-          required: ["days", "recommendations"]
+          required: ["weeklyPlan"]
         }
       }
     })
   }).then(r => r.json());
 
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("La generación del menú está tardando demasiado. Por favor, inténtalo de nuevo.")), 60000);
+      setTimeout(() => reject(new Error("La generación del menú está tardando demasiado. Por favor, inténtalo de nuevo.")), 120000);
     });
 
     const response = await Promise.race([requestPromise, timeoutPromise]) as any;
     
+    if (response.error) {
+      throw new Error(response.error);
+    }
     const text = response.text;
     if (!text) throw new Error("No response from model");
     
@@ -322,7 +451,42 @@ export async function generateWeeklyMenu(profileStr: string, preferencesStr: str
       cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
     }
     
-    return JSON.parse(cleanText);
+    const parsed = JSON.parse(cleanText);
+
+    // Map to legacy format for UI compatibility
+    const legacyDays: any[] = [];
+    const dayNames: Record<string, string> = {
+      monday: "Lunes", tuesday: "Martes", wednesday: "Miércoles",
+      thursday: "Jueves", friday: "Viernes", saturday: "Sábado", sunday: "Domingo"
+    };
+
+    if (parsed.weeklyPlan) {
+      for (const [dayKey, dayData] of Object.entries(parsed.weeklyPlan) as any) {
+        const mealList: any[] = [];
+        if (dayData && dayData.meals) {
+          for (const [mealKey, meal] of Object.entries(dayData.meals) as any) {
+            let desc = meal.name || mealKey;
+            if (meal.ingredients && Array.isArray(meal.ingredients)) {
+              desc += " - " + meal.ingredients.map((i: any) => `${i.grams}g ${i.item}`).join(", ");
+            }
+            mealList.push({
+              type: mealKey,
+              description: desc,
+              calories: meal.calories
+            });
+          }
+        }
+        legacyDays.push({
+          day: dayNames[dayKey.toLowerCase()] || dayKey,
+          meals: mealList
+        });
+      }
+    }
+
+    parsed.days = legacyDays;
+    parsed.recommendations = parsed.nutritionistNotes || "Disfruta de tu plan de comidas.";
+
+    return parsed;
   } catch (error: any) {
     console.error("Error generating menu:", error);
     if (error.message?.includes("Quota exceeded")) {
@@ -344,65 +508,63 @@ export type ShoppingList = {
   }[];
 };
 
-export async function generateShoppingList(menu: WeeklyMenu, supermarket: string = 'Mercadona'): Promise<ShoppingList> {
+export async function generateShoppingList(ingredients: any[], supermarket: string = 'Mercadona'): Promise<ShoppingList> {
   try {
+    const userPrompt = `Supermercado de referencia: ${supermarket}
+Número de personas: 1
+Presupuesto semanal aproximado: null
+
+Lista de ingredientes extraída del menú semanal:
+${JSON.stringify(ingredients, null, 2)}`;
+
     const requestPromise = fetch('/api/gemini/generateContent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: "gemini-3-flash-preview",
-        contents: `Genera la lista de la compra para este menú semanal. Prioriza productos que se puedan encontrar en ${supermarket} (España).
-      
-      INSTRUCCIONES PARA CADA INGREDIENTE:
-      1. Agrupa la cantidad total semanal necesaria.
-      2. CÁLCULO DE UNIDADES: Compara la cantidad que necesitas con tamaños de envase estándar (especialmente los de ${supermarket}). Calcula cuántas unidades necesitas comprar para que CUBRA AL MENOS la cantidad necesaria.
-      
-      Menú:\n\n${JSON.stringify(menu)}`,
+        contents: userPrompt,
       config: {
-        systemInstruction: `Eres un asistente de compras experto en supermercados españoles, especialmente ${supermarket}. Tu objetivo es crear una lista de la compra organizada por categorías.
-        
-        REGLAS CRÍTICAS:
-        1. PRODUCTOS ${supermarket.toUpperCase()}: Intenta sugerir nombres de productos específicos de ${supermarket} o su marca blanca cuando sea posible.
-        2. CANTIDADES: Asegúrate de calcular cuántos envases/unidades se necesitan basándote en los formatos habituales de ${supermarket}. En 'amount' indica la cantidad total a comprar (ej: "2 packs (6 uds)", "1 bote 500g").
-        3. Procesa TODOS los ingredientes del menú.`,
+        systemInstruction: `Eres un sistema de organización de compras para supermercado.
+Tu única función es recibir una lista de ingredientes en bruto y devolver un JSON organizado, consolidado y listo para comprar.
+Solo JSON. Sin texto adicional. Sin explicaciones.
+
+Reglas:
+- Consolida duplicados: si el menú usa pechuga de pollo el lunes y el jueves, aparece una sola vez con la cantidad total sumada.
+- Redondea cantidades a unidades comerciales reales: no "137g de arroz" sino "200g de arroz (1 bolsa pequeña)".
+- Agrupa por sección del supermercado indicado.
+- Si un ingrediente puede comprarse ya preparado para ahorrar tiempo (caldo de pollo, tomate triturado) indícalo en el campo "tip".
+- Marca con "essential: true" los ingredientes que aparecen en 3 o más días — son los que nunca deben faltar.
+- Estima el coste aproximado por sección si el supermercado es Mercadona, Lidl, Carrefour o Alcampo. Si es otro, omite el coste.`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            categories: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  items: { 
-                    type: Type.ARRAY, 
-                    items: { 
-                      type: Type.OBJECT,
-                      properties: {
-                        name: { type: Type.STRING },
-                        amount: { type: Type.STRING }
-                      },
-                      required: ["name", "amount"]
-                    } 
-                  }
-                },
-                required: ["name", "items"]
+            shoppingList: { type: Type.OBJECT },
+            summary: {
+              type: Type.OBJECT,
+              properties: {
+                totalItems: { type: Type.NUMBER },
+                estimatedTotalCost: { type: Type.NUMBER },
+                budgetFeedback: { type: Type.STRING },
+                quickWins: { type: Type.ARRAY, items: { type: Type.STRING } }
               }
             }
           },
-          required: ["categories"]
+          required: ["shoppingList"]
         }
       }
     })
   }).then(r => r.json());
 
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("La generación de la lista de la compra está tardando demasiado.")), 45000);
+      setTimeout(() => reject(new Error("La generación de la lista de la compra está tardando demasiado.")), 90000);
     });
 
     const response = await Promise.race([requestPromise, timeoutPromise]) as any;
     
+    if (response.error) {
+      throw new Error(response.error);
+    }
     const text = response.text;
     if (!text) throw new Error("No response from model");
 
@@ -414,7 +576,25 @@ export async function generateShoppingList(menu: WeeklyMenu, supermarket: string
       cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
     }
 
-    return JSON.parse(cleanText);
+    const parsed = JSON.parse(cleanText);
+    
+    // Transform the new prompt format into the format expected by the UI
+    const categories: any[] = [];
+    if (parsed && parsed.shoppingList) {
+      for (const [key, section] of Object.entries(parsed.shoppingList) as any) {
+        if (section && Array.isArray(section.items) && section.items.length > 0) {
+          categories.push({
+            name: key,
+            items: section.items.map((it: any) => ({
+              name: it.name,
+              amount: it.totalAmount + (it.commercialUnit ? ` (${it.commercialUnit})` : '') + (it.essential ? ' ⭐' : '')
+            }))
+          });
+        }
+      }
+    }
+
+    return { categories };
   } catch (error: any) {
     console.error("Error generating shopping list:", error);
     throw new Error(error.message || "No se pudo generar la lista de la compra.");
@@ -431,23 +611,30 @@ export async function generateWorkoutPlan(profileStr: string): Promise<string> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: "gemini-3-flash-preview",
-        contents: `Genera una rutina de entrenamiento para GYM semanal personalizada para este perfil: ${profileStr}.
+        contents: `Genera una rutina de entrenamiento semanal personalizada para este perfil: ${profileStr}. 
+      TIPO DE ENTRENAMIENTO: ${data.workoutType === 'home' ? 'En casa sin equipamiento (entrenamiento con peso corporal)' : 'En el Gimnasio (GYM) usando pesas y máquinas'}.
       REQUISITOS OBLIGATORIOS:
       1. Genera exactamente ${trainingDays} días de entrenamiento DIFERENTES.
       2. Usa encabezados ## PRESENTACIÓN, ## PLANIFICACIÓN, ## EJERCICIOS y ## SEGURIDAD.
-      3. DENTRO de la sección ## EJERCICIOS, cada día DEBE empezar con un encabezado ### (ej: ### Día 1: Fuerza). Es vital que cada día tenga su propio encabezado ### y siga el formato "Día X: Nombre".
+      3. DENTRO de la sección ## EJERCICIOS, cada día DEBE empezar con un encabezado ### (ej: ### Día 1: Piernas). Es vital que cada día tenga su propio encabezado ### y siga el formato "Día X: Nombre".
       4. Para cada uno de los ${trainingDays} días, genera 3 TABLAS con sus respectivos títulos: Calentamiento, Ejercicios y Vuelta a la calma.
       5. Las tablas deben tener: | Ejercicio | Series | Reps | RPE | Descanso |.
       Devuelve la respuesta en formato Markdown estructurado.`,
       config: {
         systemInstruction: `Eres un experto entrenador personal de alto rendimiento.
         Diseña una rutina semanal completa con exactamente el número de días indicados (${trainingDays} días).
+        Si el usuario entrena EN CASA, recomienda ejercicios eficaces de calistenia, peso corporal, o movilidad que no requieran equipamiento más allá de material doméstico.
+        Si el usuario entrena en el GIMNASIO, recomienda ejercicios con máquinas, poleas, y peso libre.
+        Asegúrate de enfatizar la técnica correcta para la ubicación seleccionada.
         Estructura el contenido con secciones claras usando ## y subsecciones por día usando ###.
         Es fundamental que todos los días de entrenamiento estén incluidos bajo la sección ## EJERCICIOS.
         Añade enlaces de imagen en los nombres de ejercicio: [Nombre](https://www.google.com/search?q=gym+exercise+Nombre&tbm=isch).`,
       }
     })
   }).then(r => r.json());
+    if (response.error) {
+      throw new Error(response.error);
+    }
     return response.text || "No se pudo generar la rutina.";
   } catch (error) {
     console.error("Error generating workout:", error);
@@ -478,6 +665,9 @@ export async function generateFridgeRecipe(base64Image: string, mimeType: string
       }
     })
   }).then(r => r.json());
+    if (response.error) {
+      throw new Error(response.error);
+    }
     return response.text || "No se pudo generar la receta.";
   } catch (error) {
     console.error("Error generating fridge recipe:", error);
@@ -514,6 +704,9 @@ Instrucciones:
       })
   }).then(r => r.json());
 
+    if (response.error) {
+      throw new Error(response.error);
+    }
     return response.text || "Lo siento, no pude procesar eso.";
   } catch (error) {
     console.error("Error in coach chat:", error);
@@ -572,6 +765,9 @@ export async function findRestaurants(location: string, preferences: string): Pr
     })
   }).then(r => r.json());
 
+    if (response.error) {
+      throw new Error(response.error);
+    }
     const text = response.text;
     if (!text) throw new Error("No response from model");
     
