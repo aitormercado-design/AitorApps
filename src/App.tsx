@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, Download, LogOut, Banana, User as UserIcon, Star, MapPin, Search, Pizza, Save, Edit2, Home } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, Download, LogOut, Banana, User as UserIcon, Star, MapPin, Search, Pizza, Save, Edit2, Trash2, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { ExerciseDelta } from './components/ExerciseDelta';
 import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, extractIngredients, WeeklyMenu, ShoppingList, findRestaurants, Restaurant } from './lib/gemini';
+import { calcularBMR } from './utils/nutrition';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -338,25 +340,30 @@ export default function App() {
     workoutType: 'gym',
     gymGoal: 'muscle',
     trainingDaysPerWeek: 3,
-    theme: 'dark'
+    theme: 'light'
   });
   const [habits, setHabits] = useState<DailyHabits>({});
   const [workoutPlan, setWorkoutPlan] = useState<string | null>(null);
   const [isGeneratingWorkout, setIsGeneratingWorkout] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'today' | 'plan' | 'restaurants' | 'gym' | 'meals'>('today');
-  const [mealsSubTab, setMealsSubTab] = useState<'daily' | 'plan'>('daily');
+  const [mealsSubTab, setMealsSubTab] = useState<'daily' | 'plan' | 'shopping'>('daily');
+  const [menuSelectedDay, setMenuSelectedDay] = useState<number>(0);
   const [evolutionPeriod, setEvolutionPeriod] = useState<'today' | 'weekly' | 'monthly' | 'quarterly' | 'semiannually' | 'annually'>('today');
   const [gymSubTab, setGymSubTab] = useState<'manual' | 'plan'>('plan');
   const [planSubTab, setPlanSubTab] = useState<'info' | 'ejercicios' | 'tips'>('ejercicios');
   const [manualWorkoutCategory, setManualWorkoutCategory] = useState<'cardio'|'strength'|'mixed'|'other'>('mixed');
   const [manualWorkoutName, setManualWorkoutName] = useState('');
   const [manualWorkoutMinutes, setManualWorkoutMinutes] = useState('45');
-  const [todayStr, setTodayStr] = useState(() => new Date().toISOString().split('T')[0]);
+  const [todayStr, setTodayStr] = useState(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split('T')[0];
+  });
   const [manualWorkoutDate, setManualWorkoutDate] = useState(todayStr);
   const [manualWorkoutCaloriesEdit, setManualWorkoutCaloriesEdit] = useState('');
   const [gymDay, setGymDay] = useState<string>('Día 1');
-  const [gymRoutineDate, setGymRoutineDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [gymRoutineDates, setGymRoutineDates] = useState<{[key: string]: string}>({});
 
   useEffect(() => {
     if (profile.theme === 'light') {
@@ -370,7 +377,9 @@ export default function App() {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      const current = new Date().toISOString().split('T')[0];
+      const d = new Date();
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      const current = d.toISOString().split('T')[0];
       if (current !== todayStr) {
         setTodayStr(current);
       }
@@ -403,7 +412,7 @@ export default function App() {
     workoutType: 'gym',
     gymGoal: 'muscle',
     trainingDaysPerWeek: 3,
-    theme: 'dark'
+    theme: 'light'
   });
   const [editWeight, setEditWeight] = useState('');
 
@@ -696,44 +705,60 @@ export default function App() {
 
   const getAssistantState = () => {
     const todayHabits = habits[todayStr] || { water: 0, sleep: 0 };
+    const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
     
     // Estimate burned calories from workout per section
     let burnedCalories = 0;
     const completed = (todayHabits.completedExercises || []).filter(e => e && e.trim() !== "");
     
-    if (workoutPlan && completed.length > 0) {
-      // Helper to determine section of a tableId
-      const getSectionOfTable = (tableId: string) => {
-        if (!tableId.includes('-')) return null; // No hyphen, not a valid exercise block id
-        const parts = tableId.split('-');
-        const offset = parseInt(parts[1]) || 0;
-        const textBefore = workoutPlan.substring(0, offset).toLowerCase();
-        
-        // Find positions of section markers before this table
-        const warmPos = textBefore.lastIndexOf('calentamiento');
-        const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
-        const coolPos = textBefore.lastIndexOf('vuelta a la calma');
-        
-        if (coolPos > mainPos && coolPos > warmPos) return 'cool';
-        if (mainPos > warmPos) return 'main';
-        if (warmPos !== -1) return 'warm';
-        return null;
-      };
+    if (workoutPlan && (completed.length > 0 || todayHabits.workoutDone)) {
+      if (todayHabits.workoutDone) {
+        burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'warm');
+        burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'main');
+        burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
+      } else {
+        // Helper to determine section of a tableId
+        const getSectionOfTable = (tableId: string) => {
+          if (!tableId.includes('-')) return null; // No hyphen, not a valid exercise block id
+          const parts = tableId.split('-');
+          const offset = parseInt(parts[1]) || 0;
+          const textBefore = workoutPlan.substring(0, offset).toLowerCase();
+          
+          // Find positions of section markers before this table
+          const warmPos = textBefore.lastIndexOf('calentamiento');
+          const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
+          const coolPos = textBefore.lastIndexOf('vuelta a la calma');
+          
+          if (coolPos > mainPos && coolPos > warmPos) return 'cool';
+          if (mainPos > warmPos) return 'main';
+          if (warmPos !== -1) return 'warm';
+          return null;
+        };
 
-      const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean));
-      
-      const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
-      
-      // Calculate independent calories
-      if (sectionsDone.has('main')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'main');
-      if (sectionsDone.has('warm')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'warm');
-      if (sectionsDone.has('cool')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
+        const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean));
+        
+        // Calculate independent calories
+        if (sectionsDone.has('main')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'main');
+        if (sectionsDone.has('warm')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'warm');
+        if (sectionsDone.has('cool')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
+      }
     }
     if (profile.gymEnabled && todayHabits.manualWorkout) {
       burnedCalories += todayHabits.manualWorkout.calories;
     }
 
-    const totalTarget = goals.calories; // Las calorías base ya contemplan el factor de actividad (días de entrenamiento)
+    const activityFactors = [1.2, 1.2, 1.375, 1.375, 1.55, 1.725, 1.725, 1.9];
+    const gymDays = Math.min(7, Math.max(0, profile.trainingDaysPerWeek));
+    const bmrValue = calcularBMR(profile, latestWeight);
+    const sedentaryTDEE = bmrValue * 1.2;
+    const activeTDEE = bmrValue * activityFactors[gymDays];
+    const impliedCalories = Math.round((activeTDEE - sedentaryTDEE) / 7);
+
+    // Calculate delta based on real vs implied activity
+    const delta = (profile.gymEnabled && profile.trainingDaysPerWeek > 0) ? (burnedCalories - impliedCalories) : 0;
+    const adjustedGoal = goals.calories + delta;
+
+    const totalTarget = adjustedGoal;
     const consumedCalories = totals.calories;
     const remainingCalories = totalTarget - consumedCalories;
     const remainingProtein = goals.protein - totals.protein;
@@ -785,6 +810,7 @@ export default function App() {
       stateType, 
       remainingCalories, 
       burnedCalories: profile.gymEnabled ? burnedCalories : 0,
+      impliedCalories: profile.gymEnabled ? impliedCalories : 0,
       totalTarget,
       baseTarget: goals.calories,
       consumedCalories
@@ -837,33 +863,38 @@ export default function App() {
 
     // Sum burned calories from gym
     let burnedCalories = 0;
-    if (profile.gymEnabled && workoutPlan) {
+    if (profile.gymEnabled) {
       for (let i = 0; i < 7; i++) {
         const day = new Date(start + i * 86400000);
         const dayStr = day.toISOString().split('T')[0];
         const dayHabits = habits[dayStr];
         const completed = (dayHabits?.completedExercises || []).filter(Boolean);
-        if (completed.length > 0) {
-          const getSectionOfTable = (tableId: string) => {
-            if (!tableId.includes('-')) return null;
-            const parts = tableId.split('-');
-            const offset = parts.length >= 2 ? (parseInt(parts[1]) || 0) : 0;
-            const textBefore = workoutPlan.substring(0, offset).toLowerCase();
-            const warmPos = textBefore.lastIndexOf('calentamiento');
-            const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
-            const coolPos = textBefore.lastIndexOf('vuelta a la calma');
-            if (coolPos > mainPos && coolPos > warmPos) return 'cool';
-            if (mainPos > warmPos) return 'main';
-            if (warmPos !== -1) return 'warm';
-            return null;
-          };
-          const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean));
-          
-          const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
-          
-          if (sectionsDone.has('main')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'main');
-          if (sectionsDone.has('warm')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'warm');
-          if (sectionsDone.has('cool')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
+        const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+        
+        if (workoutPlan && (completed.length > 0 || dayHabits?.workoutDone)) {
+          if (dayHabits?.workoutDone) {
+            burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'warm');
+            burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'main');
+            burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
+          } else {
+            const getSectionOfTable = (tableId: string) => {
+              if (!tableId.includes('-')) return null;
+              const parts = tableId.split('-');
+              const offset = parts.length >= 2 ? (parseInt(parts[1]) || 0) : 0;
+              const textBefore = workoutPlan.substring(0, offset).toLowerCase();
+              const warmPos = textBefore.lastIndexOf('calentamiento');
+              const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
+              const coolPos = textBefore.lastIndexOf('vuelta a la calma');
+              if (coolPos > mainPos && coolPos > warmPos) return 'cool';
+              if (mainPos > warmPos) return 'main';
+              if (warmPos !== -1) return 'warm';
+              return null;
+            };
+            const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean));
+            if (sectionsDone.has('main')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'main');
+            if (sectionsDone.has('warm')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'warm');
+            if (sectionsDone.has('cool')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
+          }
         }
         if (dayHabits?.manualWorkout) {
           burnedCalories += dayHabits.manualWorkout.calories;
@@ -874,12 +905,24 @@ export default function App() {
     return { ...totals, burnedCalories };
   }, [meals, habits, workoutPlan, profile.gymEnabled]);
 
-  const weeklyGoals = useMemo(() => ({
-    calories: goals.calories * 7,
-    protein: goals.protein * 7,
-    carbs: goals.carbs * 7,
-    fat: goals.fat * 7,
-  }), [goals]);
+  const weeklyGoals = useMemo(() => {
+    const activityFactors = [1.2, 1.2, 1.375, 1.375, 1.55, 1.725, 1.725, 1.9];
+    const gymDays = Math.min(7, Math.max(0, profile.trainingDaysPerWeek));
+    const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+    const bmrValue = calcularBMR(profile, latestWeight);
+    const sedentaryTDEE = bmrValue * 1.2;
+    const activeTDEE = bmrValue * activityFactors[gymDays];
+    const weeklyImpliedBurned = Math.round(activeTDEE - sedentaryTDEE);
+    
+    const weeklyDelta = profile.gymEnabled ? (weeklyStats.burnedCalories - weeklyImpliedBurned) : 0;
+    
+    return {
+      calories: (goals.calories * 7) + weeklyDelta,
+      protein: goals.protein * 7,
+      carbs: goals.carbs * 7,
+      fat: goals.fat * 7,
+    };
+  }, [goals, weeklyStats, profile, weights]);
 
   // Calculate trends based on period
   const trendsData = useMemo(() => {
@@ -892,6 +935,14 @@ export default function App() {
       'annually': 365
     };
     const length = periodDays[evolutionPeriod];
+
+    const activityFactors = [1.2, 1.2, 1.375, 1.375, 1.55, 1.725, 1.725, 1.9];
+    const gymDays = Math.min(7, Math.max(0, profile.trainingDaysPerWeek));
+    const latestWeightForBMR = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+    const bmrValue = calcularBMR(profile, latestWeightForBMR);
+    const sedentaryTDEE = bmrValue * 1.2;
+    const activeTDEE = bmrValue * activityFactors[gymDays];
+    const dailyImplied = Math.round((activeTDEE - sedentaryTDEE) / 7);
 
     return Array.from({ length }).map((_, i) => {
       const d = new Date();
@@ -912,25 +963,31 @@ export default function App() {
       if (profile.gymEnabled) {
         const dayHabits = habits[dayStr];
         const completed = (dayHabits?.completedExercises || []).filter(Boolean);
-        if (completed.length > 0 && workoutPlan) {
-          const getSectionOfTable = (tableId: string) => {
-            if (!tableId.includes('-')) return null;
-            const parts = tableId.split('-');
-            const offset = parseInt(parts[1]) || 0;
-            const textBefore = workoutPlan.substring(0, offset).toLowerCase();
-            const warmPos = textBefore.lastIndexOf('calentamiento');
-            const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
-            const coolPos = textBefore.lastIndexOf('vuelta a la calma');
-            
-            if (coolPos > mainPos && coolPos > warmPos) return 'cool';
-            if (mainPos > warmPos) return 'main';
-            if (warmPos !== -1) return 'warm';
-            return null;
-          };
-          const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean) as string[]);
-          if (sectionsDone.has('main')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'main');
-          if (sectionsDone.has('warm')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'warm');
-          if (sectionsDone.has('cool')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'cool');
+        if (workoutPlan && (completed.length > 0 || dayHabits?.workoutDone)) {
+          if (dayHabits?.workoutDone) {
+            dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'warm');
+            dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'main');
+            dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'cool');
+          } else {
+            const getSectionOfTable = (tableId: string) => {
+              if (!tableId.includes('-')) return null;
+              const parts = tableId.split('-');
+              const offset = parseInt(parts[1]) || 0;
+              const textBefore = workoutPlan.substring(0, offset).toLowerCase();
+              const warmPos = textBefore.lastIndexOf('calentamiento');
+              const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
+              const coolPos = textBefore.lastIndexOf('vuelta a la calma');
+              
+              if (coolPos > mainPos && coolPos > warmPos) return 'cool';
+              if (mainPos > warmPos) return 'main';
+              if (warmPos !== -1) return 'warm';
+              return null;
+            };
+            const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean) as string[]);
+            if (sectionsDone.has('main')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'main');
+            if (sectionsDone.has('warm')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'warm');
+            if (sectionsDone.has('cool')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'cool');
+          }
         }
         if (dayHabits?.manualWorkout) {
           dayBurned += dayHabits.manualWorkout.calories;
@@ -951,15 +1008,17 @@ export default function App() {
         return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'numeric' });
       }
 
+      const dayDelta = profile.gymEnabled ? (dayBurned - dailyImplied) : 0;
+
       return {
         name: formatLabel(),
         calories: dayCals,
         burned: dayBurned,
         weight: dayWeight,
-        goal: goals.calories
+        goal: goals.calories + dayDelta
       };
     });
-  }, [meals, weights, goals, habits, profile.gymGoal, profile.gymEnabled, evolutionPeriod]);
+  }, [meals, weights, goals, habits, profile, workoutPlan, evolutionPeriod]);
 
   const compressImage = (file: File, maxWidth = 800): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -1487,8 +1546,7 @@ export default function App() {
   };
 
   const updateGoalsForProfile = (prof: UserProfile, currentWeight: number) => {
-    let bmr = 10 * currentWeight + 6.25 * prof.height - 5 * prof.age;
-    bmr += prof.gender === 'male' ? 5 : -161;
+    let bmr = calcularBMR(prof, currentWeight);
 
     let derivedActivityLevel = 1.2;
     if (prof.trainingDaysPerWeek >= 1 && prof.trainingDaysPerWeek <= 2) derivedActivityLevel = 1.375;
@@ -1685,6 +1743,22 @@ export default function App() {
     setIsGoalModalOpen(false);
   };
 
+  const handleToggleWorkoutAtDate = async (impactDate: string) => {
+    const isDone = !habits[impactDate]?.workoutDone;
+    const newHabits = {
+      ...habits,
+      [impactDate]: {
+        ...(habits[impactDate] || { water: 0, sleep: 0 }),
+        workoutDone: isDone,
+        completedExercises: isDone ? [] : (habits[impactDate]?.completedExercises || [])
+      }
+    };
+    setHabits(newHabits);
+    if (user) {
+      setDoc(doc(db, 'users', user.uid, 'habits', impactDate), newHabits[impactDate]).catch(console.error);
+    }
+  };
+
   const handleToggleExercise = async (id: string, impactDate: string) => {
     const currentCompleted = habits[impactDate]?.completedExercises || [];
     const isDone = currentCompleted.includes(id);
@@ -1713,20 +1787,22 @@ export default function App() {
   };
 
   const handleToggleWorkout = async () => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    const dateStr = d.toISOString().split('T')[0];
     const newHabits = {
       ...habits,
-      [todayStr]: {
-        ...(habits[todayStr] || { water: 0, sleep: 0 }),
-        workoutDone: !habits[todayStr]?.workoutDone
+      [dateStr]: {
+        ...(habits[dateStr] || { water: 0, sleep: 0 }),
+        workoutDone: !habits[dateStr]?.workoutDone
       }
     };
     setHabits(newHabits);
     if (user) {
       try {
-        await setDoc(doc(db, 'users', user.uid, 'habits', todayStr), newHabits[todayStr]);
+        await setDoc(doc(db, 'users', user.uid, 'habits', dateStr), newHabits[dateStr]);
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/habits/${todayStr}`);
+        handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}/habits/${dateStr}`);
       }
     }
   };
@@ -1751,17 +1827,19 @@ export default function App() {
   };
 
   const updateHabit = (type: 'water' | 'sleep', value: number) => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    const dateStr = d.toISOString().split('T')[0];
     const newHabits = {
       ...habits,
-      [todayStr]: {
-        ...(habits[todayStr] || { water: 0, sleep: 0 }),
+      [dateStr]: {
+        ...(habits[dateStr] || { water: 0, sleep: 0 }),
         [type]: value
       }
     };
     setHabits(newHabits);
     if (user) {
-      setDoc(doc(db, 'users', user.uid, 'habits', todayStr), newHabits[todayStr]).catch(console.error);
+      setDoc(doc(db, 'users', user.uid, 'habits', dateStr), newHabits[dateStr]).catch(console.error);
     }
   };
 
@@ -1817,21 +1895,24 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
     const normalizedText = text.replace(/\r\n/g, '\n');
 
     if (subTab === 'exercises') {
-        const h2ExercisesTags = ['EJERCICIOS', 'RUTINA', 'DETALLE', 'TABLAS', 'CONTENIDO', 'RUTINAS', 'PROGRAMA', 'WORKOUT'];
-        
-        let exercisesContent = '';
+        // Improved extraction logic
+        const exercisesRegex = /##?\s*[^#\n]*(?:EJERCICIOS|RUTINA|DETALLE|TABLAS|CONTENIDO|RUTINAS|PROGRAMA|WORKOUT)[^#\n]*\n([\s\S]*?)(?=\n#|$)/i;
+        const match = normalizedText.match(exercisesRegex);
+        let exercisesContent = match ? match[1].trim() : '';
 
-        // Extract Exercises only (Vision de la semana removed as per user request)
-        for (const tag of h2ExercisesTags) {
-            const regex = new RegExp(`##\\s*[^\\n]*${tag}[^\\n]*\\n`, 'i');
-            const match = normalizedText.match(regex);
-            if (match && match.index !== undefined) {
-                const exercisesStart = match.index + match[0].length;
-                const nextH2 = normalizedText.indexOf('\n## ', exercisesStart);
-                exercisesContent = nextH2 !== -1 
-                    ? normalizedText.substring(exercisesStart, nextH2).trim() 
-                    : normalizedText.substring(exercisesStart).trim();
-                break;
+        if (!exercisesContent) {
+            const h2ExercisesTags = ['EJERCICIOS', 'RUTINA', 'DETALLE', 'TABLAS', 'CONTENIDO', 'RUTINAS', 'PROGRAMA', 'WORKOUT'];
+            for (const tag of h2ExercisesTags) {
+                const regex = new RegExp(`##\\s*[^\\n]*${tag}[^\\n]*\\n`, 'i');
+                const fallbackMatch = normalizedText.match(regex);
+                if (fallbackMatch && fallbackMatch.index !== undefined) {
+                    const exercisesStart = fallbackMatch.index + fallbackMatch[0].length;
+                    const nextH2 = normalizedText.indexOf('\n## ', exercisesStart);
+                    exercisesContent = nextH2 !== -1 
+                        ? normalizedText.substring(exercisesStart, nextH2).trim() 
+                        : normalizedText.substring(exercisesStart).trim();
+                    break;
+                }
             }
         }
 
@@ -1998,7 +2079,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         workoutType: 'gym',
         gymGoal: 'maintenance',
         trainingDaysPerWeek: 3,
-        theme: 'dark'
+        theme: 'light'
       });
       setHabits({});
       setGeneratedMenu(null);
@@ -2310,7 +2391,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                <div className="flex flex-col items-center md:items-end gap-2 group-hover:scale-105 transition-transform">
                                   <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Margen de hoy</span>
                                   <span className={`text-6xl font-display font-black tracking-tighter ${
-                                    assistant.remainingCalories < 0 ? 'text-amber-500' : (profile.theme === 'light' ? 'text-emerald-600' : '${themeStyles.accent}')
+                                    assistant.remainingCalories < 0 ? 'text-amber-500' : 
+                                    (assistant.burnedCalories > assistant.impliedCalories) 
+                                      ? (profile.theme === 'light' ? 'text-emerald-500' : 'text-lime-400')
+                                      : (profile.theme === 'light' ? 'text-emerald-600' : themeStyles.accent)
                                   }`}>
                                     {Math.round(assistant.remainingCalories)}
                                   </span>
@@ -2328,8 +2412,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                     </div>
                                   </div>
                                   <div className="text-right">
-                                    <span className={`text-[9px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Objetivo Diario</span>
-                                    <span className={`text-xl font-black ${themeStyles.textMain}`}>
+                                    <span className={`text-[9px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Puedes llegar a</span>
+                                    <span className={`text-xl font-black ${
+                                      (assistant.burnedCalories > assistant.impliedCalories)
+                                        ? (profile.theme === 'light' ? 'text-emerald-500' : 'text-lime-400')
+                                        : themeStyles.textMain
+                                    }`}>
                                       {Math.round(assistant.totalTarget)} 
                                       <span className="text-[10px] ml-1 opacity-40">kcal</span>
                                     </span>
@@ -2350,22 +2438,19 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           </div>
                         </div>
 
-                        {/* 2. Extra Gym - Reordered Middle */}
-                        {profile.gymEnabled && assistant.burnedCalories > 0 && (
-                           <div className={`${themeStyles.bento} border-l-4 border-orange-500 bg-orange-500/5`}>
-                             <div className="flex items-center gap-3">
-                               <div className="p-2 bg-orange-500 rounded-xl shadow-lg shadow-orange-500/20">
-                                 <Zap className="w-4 h-4 text-white" fill="currentColor" />
-                               </div>
-                               <div>
-                                 <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest block">Extra Gym Activado</span>
-                                 <span className={`text-sm font-black ${themeStyles.textMain}`}>+{assistant.burnedCalories} kcal quemadas</span>
-                               </div>
-                             </div>
-                           </div>
+                        {/* 2. Exercise Delta - Moved here */}
+                        {user && (
+                          <ExerciseDelta 
+                            profile={profile} 
+                            goals={goals} 
+                            userId={user.uid} 
+                            realCalories={assistant.burnedCalories}
+                            impliedCalories={assistant.impliedCalories}
+                            themeStyles={themeStyles} 
+                          />
                         )}
 
-                        {/* 3. Distribution (Macros) - Reordered Bottom */}
+                        {/* 3. Distribution (Macros) */}
                         <div className={`${themeStyles.bento} p-6 space-y-6 relative overflow-hidden`}>
                            <div className="flex items-center justify-between">
                              <h4 className={`text-xs font-black ${themeStyles.textMain} uppercase tracking-widest`}>Distribución de Macros</h4>
@@ -2468,7 +2553,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             strokeWidth={2} 
                             strokeDasharray="6 6"
                             dot={false}
-                            name="Objetivo" 
+                            name="Puedes llegar a" 
                           />
                         </ComposedChart>
                       </ResponsiveContainer>
@@ -2481,7 +2566,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="w-4 h-0.5 bg-indigo-400 border-t border-dashed border-indigo-400"></div>
-                        <span className={themeStyles.textMain}>Objetivo</span>
+                        <span className={themeStyles.textMain}>Puedes llegar a</span>
                       </div>
                     </div>
                   </div>
@@ -2499,21 +2584,31 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               className="space-y-6 pb-32"
             >
               {/* Meals Sub Tabs */}
-              <div className={`grid grid-flow-col auto-cols-fr ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border} shadow-lg mb-6`}>
+              <div className={`grid ${generatedMenu ? 'grid-cols-3' : 'grid-cols-2'} ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border} shadow-lg mb-6`}>
                 <button
                   onClick={() => setMealsSubTab('daily')}
-                  className={`py-3 text-[10px] flex items-center justify-center gap-2 font-black uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'daily' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                  className={`py-3 text-[10px] flex items-center justify-center gap-1.5 font-black uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'daily' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
                 >
                   <Utensils className="w-3.5 h-3.5" />
-                  Comidas del día
+                  <span className="hidden sm:inline">Comidas del día</span>
+                  <span className="sm:hidden">Hoy</span>
                 </button>
                 <button
                   onClick={() => setMealsSubTab('plan')}
-                  className={`py-3 text-[10px] flex items-center justify-center gap-2 font-black uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'plan' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                  className={`py-3 text-[10px] flex items-center justify-center gap-1.5 font-black uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'plan' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
                 >
                   <ClipboardList className="w-3.5 h-3.5" />
                   Plan
                 </button>
+                {generatedMenu && (
+                  <button
+                    onClick={() => setMealsSubTab('shopping')}
+                    className={`py-3 text-[10px] flex items-center justify-center gap-1.5 font-black uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'shopping' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5" />
+                    Compra
+                  </button>
+                )}
               </div>
 
               {mealsSubTab === 'daily' ? (
@@ -2620,7 +2715,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   </div>
                 </section>
               </div>
-              ) : (
+              ) : mealsSubTab === 'plan' ? (
                 <div className="space-y-6">
                 <p className={`${themeStyles.textMain} text-sm font-medium mb-4`}>
                     Esta es una propuesta de plan nutricional para ayudarte a cumplir con tus objetivos de calorías y macronutrientes.
@@ -2681,131 +2776,85 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             </div>
                           </div>
                         ) : (
-                          <div className={`${themeStyles.card} p-6 text-center`}>
-                            <CheckCircle2 className={`w-12 h-12 ${themeStyles.accent} mx-auto mb-3 opacity-50`} />
-                            <p className={`${themeStyles.textMain} font-bold mb-2`}>¡Plan de {profile.name || 'Usuario'} listo!</p>
-                            <p className={`${themeStyles.textMuted} text-xs mb-6 px-4`}>Tu plan nutricional personalizado y la lista de la compra optimizada ya están disponibles.</p>
-                            
-                            <div className="grid grid-cols-2 gap-3">
-                              <button 
-                                type="button"
-                                onClick={downloadMenuPDF}
-                                className={`flex flex-col items-center gap-2 ${themeStyles.accentMuted} p-4 rounded-2xl border ${themeStyles.accentBorder} transition-all group`}
-                              >
-                                <Download className={`w-6 h-6 ${themeStyles.accent} group-hover:scale-110 transition-transform`} />
-                                <span className={`text-[10px] font-bold ${themeStyles.accent} uppercase tracking-widest`}>Descargar Plan</span>
-                              </button>
-                              <button 
-                                onClick={() => handleGenerateMenu()}
-                                disabled={isGeneratingMenu}
-                                className={`flex flex-col items-center gap-2 p-4 rounded-2xl transition-all group disabled:opacity-50 ${themeStyles.iconBg} ${themeStyles.textMuted} border ${themeStyles.border} hover:${themeStyles.textMain} hover:${themeStyles.accentBorder}`}
-                              >
-                                {isGeneratingMenu ? <Loader2 className="w-6 h-6 animate-spin" /> : <RefreshCw className="w-6 h-6 group-hover:rotate-180 transition-transform duration-500" />}
-                                <span className="text-[10px] font-bold uppercase tracking-widest">Regenerar Plan</span>
-                              </button>
+                          <div className="space-y-6">
+                            <div className={`${themeStyles.card} p-8 text-center relative overflow-hidden`}>
+                              <div className={`absolute top-0 right-0 w-32 h-32 ${themeStyles.accentBg} rounded-full blur-3xl opacity-10 -mr-16 -mt-16`}></div>
+                              <CheckCircle2 className={`w-12 h-12 ${themeStyles.accent} mx-auto mb-4`} />
+                              <h3 className={`text-xl font-display font-black ${themeStyles.textMain} uppercase tracking-tight mb-2`}>¡Plan de {profile.name || 'Usuario'} listo!</h3>
+                              <p className={`${themeStyles.textMuted} text-xs mb-8 max-w-sm mx-auto leading-relaxed`}>Tu plan nutricional semanal ha sido diseñado específicamente para alcanzar un peso de <span className={themeStyles.accent}>{profile.goal === 'lose' ? 'pérdida' : profile.goal === 'gain' ? 'ganancia' : 'mantenimiento'}</span>.</p>
+                              
+                              <div className="grid grid-cols-2 gap-4">
+                                <button 
+                                  type="button"
+                                  onClick={downloadMenuPDF}
+                                  className={`flex items-center justify-center gap-2 py-4 rounded-2xl border ${themeStyles.accentBorder} ${themeStyles.accentMuted} ${themeStyles.accent} text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-emerald-500/10`}
+                                >
+                                  <Download className="w-4 h-4" />
+                                  PDF Completo
+                                </button>
+                                <button 
+                                  onClick={() => handleGenerateMenu()}
+                                  disabled={isGeneratingMenu}
+                                  className={`flex items-center justify-center gap-2 py-4 rounded-2xl border ${themeStyles.border} ${themeStyles.iconBg} ${themeStyles.textMuted} text-[10px] font-black uppercase tracking-widest hover:${themeStyles.textMain} transition-all`}
+                                >
+                                  <RefreshCw className={`w-4 h-4 ${isGeneratingMenu ? 'animate-spin' : ''}`} />
+                                  Regenerar
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Weekly Menu Display with Tabs */}
+                            <div className="space-y-4">
+                               <div className="flex items-center justify-between px-2">
+                                 <h3 className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-[0.2em]`}>Detalle Semanal</h3>
+                               </div>
+                               
+                               <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+                                 {generatedMenu.days.map((day: any, dIdx: number) => (
+                                   <button
+                                     key={dIdx}
+                                     onClick={() => setMenuSelectedDay(dIdx)}
+                                     className={`flex-shrink-0 px-4 py-2 rounded-2xl text-[10px] uppercase font-black tracking-widest transition-all ${
+                                       menuSelectedDay === dIdx 
+                                         ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` 
+                                         : `${themeStyles.iconBg} ${themeStyles.textMuted} border ${themeStyles.border} hover:${themeStyles.textMain}`
+                                     }`}
+                                   >
+                                     {day.day}
+                                   </button>
+                                 ))}
+                               </div>
+                               
+                               {generatedMenu.days[menuSelectedDay] && (
+                                 <div className={`${themeStyles.card} rounded-[2rem] overflow-hidden border ${themeStyles.border} mt-2`}>
+                                   <div className={`px-6 py-4 ${themeStyles.iconBg} border-b ${themeStyles.border} flex items-center justify-between`}>
+                                     <div className="flex items-center gap-3">
+                                       <div className={`w-2 h-2 rounded-full ${themeStyles.accentBg}`}></div>
+                                       <span className={`text-sm font-black ${themeStyles.textMain} uppercase tracking-wider`}>{generatedMenu.days[menuSelectedDay].day}</span>
+                                     </div>
+                                     <span className={`text-[9px] font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>{generatedMenu.days[menuSelectedDay].meals?.length || 0} Ingestas</span>
+                                   </div>
+                                   <div className="p-6 space-y-4">
+                                     {generatedMenu.days[menuSelectedDay].meals?.map((meal: any, mIdx: number) => (
+                                       <div key={mIdx} className="flex gap-4">
+                                         <div className={`w-10 h-10 rounded-xl ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center shrink-0`}>
+                                            <span className={`text-[10px] font-black ${themeStyles.accent}`}>{meal.type?.[0].toUpperCase() || 'C'}</span>
+                                         </div>
+                                         <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between mb-1">
+                                              <h4 className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-wide truncate`}>{meal.type || 'Comida'}</h4>
+                                              <span className={`text-[10px] font-black ${themeStyles.accent}`}>{meal.calories} kcal</span>
+                                            </div>
+                                            <p className={`${themeStyles.textMuted} text-xs leading-relaxed line-clamp-2`}>{meal.description}</p>
+                                         </div>
+                                       </div>
+                                     ))}
+                                   </div>
+                                 </div>
+                               )}
                             </div>
                           </div>
                         )}
-
-                        {/* Unified Shopping List Section */}
-                        <div className={`${themeStyles.card} rounded-3xl p-6 md:p-8 space-y-6`}>
-                          <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-2xl ${themeStyles.accentMuted} border ${themeStyles.accentBorder} flex items-center justify-center`}>
-                              <ShoppingCart className={`w-6 h-6 ${themeStyles.accent}`} />
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between">
-                                <h2 className={`text-xl font-bold ${themeStyles.textMain}`}>Lista de la Compra</h2>
-                                {generatedMenu && (
-                                  <button
-                                    onClick={handleGenerateShoppingList}
-                                    disabled={isGeneratingShoppingList}
-                                    className={`p-2 rounded-xl transition-colors disabled:opacity-50 ${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.textMain}`}
-                                    title="Regenerar lista de la compra"
-                                  >
-                                    <RefreshCw className={`w-4 h-4 ${isGeneratingShoppingList ? 'animate-spin' : ''}`} />
-                                  </button>
-                                )}
-                              </div>
-                              <p className={`${themeStyles.textMuted} text-sm`}>Lista de ingredientes necesarios</p>
-                            </div>
-                          </div>
-
-                          {isGeneratingShoppingList ? (
-                            <div className="text-center py-12">
-                              <div className="relative w-20 h-20 mx-auto mb-6">
-                                <motion.div
-                                  className={`absolute inset-0 rounded-2xl ${themeStyles.accentMuted}`}
-                                  animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.2, 0.5] }}
-                                  transition={{ repeat: Infinity, duration: 2 }}
-                                />
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                  <ShoppingCart className={`w-8 h-8 ${themeStyles.accent}`} />
-                                </div>
-                              </div>
-                              <div className="space-y-2">
-                                <p className={`${themeStyles.textMain} font-bold`}>
-                                  Analizando tu menú...
-                                </p>
-                                <motion.div 
-                                  className={`${themeStyles.textMuted} text-xs font-mono h-4`}
-                                  animate={{ opacity: [0, 1, 0] }}
-                                  transition={{ repeat: Infinity, duration: 1.5 }}
-                                >
-                                  {`> Buscando productos en ${profile.favoriteSupermarket}...`}
-                                </motion.div>
-                              </div>
-                            </div>
-                          ) : !shoppingList ? (
-                            <div className={`text-center py-8 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border}`}>
-                              <ShoppingCart className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-4`} />
-                              <p className={`${themeStyles.textMain} font-bold mb-2`}>Sin Lista de la Compra</p>
-                              <p className={`${themeStyles.textMuted} text-[10px] uppercase font-bold tracking-widest px-4 mb-6`}>
-                                Extrae los ingredientes del menú y crea tu lista para <span className={`${themeStyles.accent}`}>{profile.favoriteSupermarket}</span>
-                              </p>
-                              <button 
-                                onClick={handleGenerateShoppingList}
-                                disabled={!generatedMenu}
-                                className={`${themeStyles.buttonPrimary} px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-[10px] mx-auto flex items-center gap-2`}
-                              >
-                                <ShoppingCart className="w-4 h-4" />
-                                Generar Lista
-                              </button>
-                            </div>
-                          ) : shoppingList.categories.length === 0 ? (
-                            <div className={`text-center py-8 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border}`}>
-                              <Info className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-2`} />
-                              <p className={`${themeStyles.textMuted} text-sm`}>No se han podido detectar ingredientes.</p>
-                              <p className={`${themeStyles.textMuted} text-[10px] mt-1 opacity-80`}>Intenta generar el menú de nuevo.</p>
-                            </div>
-                          ) : (
-                            <div className="space-y-6">
-                              <div className={`${themeStyles.accentMuted} border ${themeStyles.accentBorder} rounded-2xl p-6 text-center`}>
-                                <p className={`${themeStyles.accent} text-sm font-bold mb-1 uppercase tracking-widest`}>¡Lista generada con éxito!</p>
-                                <p className={`${themeStyles.textMuted} text-xs mb-6`}>La lista se ha generado orientada a tu supermercado favorito: <span className={`${themeStyles.accent} font-bold`}>{profile.favoriteSupermarket}</span>.</p>
-                                
-                                <div className="space-y-4">
-                                  <p className={`${themeStyles.textMuted} text-[10px] uppercase font-bold tracking-widest text-center`}>
-                                    Puedes ir marcando los productos mientras compras en el supermercado
-                                  </p>
-                                  <div className="flex flex-col gap-3">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        downloadShoppingListHTML();
-                                      }}
-                                      className={`w-full flex items-center justify-center gap-2 p-4 rounded-xl ${themeStyles.buttonPrimary} font-bold text-[10px] uppercase tracking-widest`}
-                                    >
-                                      <CheckSquare className="w-4 h-4" />
-                                      Ver Lista
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
                       </div>
                     ) : (
                       <div className="text-center py-8">
@@ -2822,8 +2871,110 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   </div>
                 </>
               )}
-            </div>
-            )}
+              </div>
+              ) : mealsSubTab === 'shopping' ? (
+                 <div className="space-y-6">
+                 {/* Unified Shopping List Section */}
+                 <div className={`${themeStyles.card} rounded-3xl p-6 md:p-8 space-y-6`}>
+                   <div className="flex items-center gap-4">
+                     <div className={`w-12 h-12 rounded-2xl ${themeStyles.accentMuted} border ${themeStyles.accentBorder} flex items-center justify-center`}>
+                       <ShoppingCart className={`w-6 h-6 ${themeStyles.accent}`} />
+                     </div>
+                     <div className="flex-1">
+                       <div className="flex items-center justify-between">
+                         <h2 className={`text-xl font-bold ${themeStyles.textMain}`}>Lista de la Compra</h2>
+                         {generatedMenu && (
+                           <button
+                             onClick={handleGenerateShoppingList}
+                             disabled={isGeneratingShoppingList}
+                             className={`p-2 rounded-xl transition-colors disabled:opacity-50 ${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.textMain}`}
+                             title="Regenerar lista de la compra"
+                           >
+                             <RefreshCw className={`w-4 h-4 ${isGeneratingShoppingList ? 'animate-spin' : ''}`} />
+                           </button>
+                         )}
+                       </div>
+                       <p className={`${themeStyles.textMuted} text-sm`}>Lista de ingredientes necesarios</p>
+                     </div>
+                   </div>
+
+                   {isGeneratingShoppingList ? (
+                     <div className="text-center py-12">
+                       <div className="relative w-20 h-20 mx-auto mb-6">
+                         <motion.div
+                           className={`absolute inset-0 rounded-2xl ${themeStyles.accentMuted}`}
+                           animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.2, 0.5] }}
+                           transition={{ repeat: Infinity, duration: 2 }}
+                         />
+                         <div className="absolute inset-0 flex items-center justify-center">
+                           <ShoppingCart className={`w-8 h-8 ${themeStyles.accent}`} />
+                         </div>
+                       </div>
+                       <div className="space-y-2">
+                         <p className={`${themeStyles.textMain} font-bold`}>
+                           Analizando tu menú...
+                         </p>
+                         <motion.div 
+                           className={`${themeStyles.textMuted} text-xs font-mono h-4`}
+                           animate={{ opacity: [0, 1, 0] }}
+                           transition={{ repeat: Infinity, duration: 1.5 }}
+                         >
+                           {`> Buscando productos en ${profile.favoriteSupermarket}...`}
+                         </motion.div>
+                       </div>
+                     </div>
+                   ) : !shoppingList ? (
+                     <div className={`text-center py-8 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border}`}>
+                       <ShoppingCart className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-4`} />
+                       <p className={`${themeStyles.textMain} font-bold mb-2`}>Sin Lista de la Compra</p>
+                       <p className={`${themeStyles.textMuted} text-[10px] uppercase font-bold tracking-widest px-4 mb-6`}>
+                         Extrae los ingredientes del menú y crea tu lista para <span className={`${themeStyles.accent}`}>{profile.favoriteSupermarket}</span>
+                       </p>
+                       <button 
+                         onClick={handleGenerateShoppingList}
+                         disabled={!generatedMenu}
+                         className={`${themeStyles.buttonPrimary} px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-[10px] mx-auto flex items-center gap-2`}
+                       >
+                         <ShoppingCart className="w-4 h-4" />
+                         Generar Lista
+                       </button>
+                     </div>
+                   ) : shoppingList.categories.length === 0 ? (
+                     <div className={`text-center py-8 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border}`}>
+                       <Info className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-2`} />
+                       <p className={`${themeStyles.textMuted} text-sm`}>No se han podido detectar ingredientes.</p>
+                       <p className={`${themeStyles.textMuted} text-[10px] mt-1 opacity-80`}>Intenta generar el menú de nuevo.</p>
+                     </div>
+                   ) : (
+                     <div className="space-y-6">
+                       <div className={`${themeStyles.accentMuted} border ${themeStyles.accentBorder} rounded-2xl p-6 text-center`}>
+                         <p className={`${themeStyles.accent} text-sm font-bold mb-1 uppercase tracking-widest`}>¡Lista generada con éxito!</p>
+                         <p className={`${themeStyles.textMuted} text-xs mb-6`}>La lista se ha generado orientada a tu supermercado favorito: <span className={`${themeStyles.accent} font-bold`}>{profile.favoriteSupermarket}</span>.</p>
+                         
+                         <div className="space-y-4">
+                           <p className={`${themeStyles.textMuted} text-[10px] uppercase font-bold tracking-widest text-center`}>
+                             Puedes ir marcando los productos mientras compras en el supermercado
+                           </p>
+                           <div className="flex flex-col gap-3">
+                             <button
+                               type="button"
+                               onClick={(e) => {
+                                 e.preventDefault();
+                                 downloadShoppingListHTML();
+                               }}
+                               className={`w-full flex items-center justify-center gap-2 p-4 rounded-xl ${themeStyles.buttonPrimary} font-bold text-[10px] uppercase tracking-widest`}
+                             >
+                               <CheckSquare className="w-4 h-4" />
+                               Ver Lista
+                             </button>
+                           </div>
+                         </div>
+                       </div>
+                     </div>
+                   )}
+                 </div>
+                 </div>
+              ) : null}
             </motion.div>
           )}
 
@@ -3146,11 +3297,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         animate={{ opacity: [0, 1, 0] }}
                         transition={{ repeat: Infinity, duration: 1.5 }}
                       >
-                        {`> Programando microciclo de ${profile.trainingDaysPerWeek} días...`}
+                        {`> Programando microciclo de ${profile.trainingDaysPerWeek || 3} días...`}
                       </motion.div>
                     </div>
                   </div>
-                ) : workoutPlan ? (
+                ) : (workoutPlan && workoutPlan.length > 50) ? (
                   <>
                     <motion.div
                       key={gymSubTab}
@@ -3217,8 +3368,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
                               prose-h2:text-2xl prose-h2:${themeStyles.accent} prose-h2:border-b prose-h2:border-white/10 prose-h2:pb-4 prose-h2:mb-6
                               prose-strong:text-orange-500 prose-strong:font-black
-                              prose-p:text-zinc-400 prose-p:leading-relaxed prose-p:text-sm
-                              prose-li:text-zinc-300 prose-li:my-1 prose-li:text-sm
+                              prose-p:text-zinc-700 dark:prose-p:text-zinc-400 prose-p:leading-relaxed prose-p:text-sm prose-p:font-medium
+                              prose-li:text-zinc-800 dark:prose-li:text-zinc-300 prose-li:my-1 prose-li:text-sm prose-li:font-medium
                             `}>
                               <Markdown remarkPlugins={[remarkGfm]}>
                                 {getWorkoutSection(workoutPlan, 'intro' as any)}
@@ -3231,24 +3382,57 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         {/* Daily routines logic */}
                         {planSubTab === 'ejercicios' && (() => {
                           const normalized = workoutPlan.replace(/\r\n/g, '\n');
-                          const h2Tags = ['EJERCICIOS', 'RUTINA', 'DETALLE', 'TABLAS', 'CONTENIDO', 'RUTINAS', 'PROGRAMA', 'WORKOUT'];
-                          let exercisesContent = '';
-                          for (const tag of h2Tags) {
-                            const regex = new RegExp(`##\\s*[^\\n]*${tag}[^\\n]*\\n`, 'i');
-                            const match = normalized.match(regex);
-                            if (match && match.index !== undefined) {
-                              const start = match.index + match[0].length;
-                              const nextH2 = normalized.indexOf('\n## ', start);
-                              exercisesContent = nextH2 !== -1 ? normalized.substring(start, nextH2) : normalized.substring(start);
-                              break;
+                          
+                          // Improved extraction logic
+                          const exercisesRegex = /##?\s*[^#\n]*(?:EJERCICIOS|RUTINA|DETALLE|TABLAS|CONTENIDO|RUTINAS|PROGRAMA|WORKOUT)[^#\n]*\n([\s\S]*?)(?=\n#|$)/i;
+                          const match = normalized.match(exercisesRegex);
+                          let exercisesContent = match ? match[1].trim() : '';
+
+                          // Secondary fallback if regex fails
+                          if (!exercisesContent) {
+                            const h2Tags = ['EJERCICIOS', 'RUTINA', 'DETALLE', 'TABLAS', 'CONTENIDO', 'RUTINAS', 'PROGRAMA', 'WORKOUT'];
+                            for (const tag of h2Tags) {
+                              const regex = new RegExp(`##\\s*[^\\n]*${tag}[^\\n]*\\n`, 'i');
+                              const fallbackMatch = normalized.match(regex);
+                              if (fallbackMatch && fallbackMatch.index !== undefined) {
+                                const start = fallbackMatch.index + fallbackMatch[0].length;
+                                const nextH2 = normalized.indexOf('\n## ', start);
+                                exercisesContent = nextH2 !== -1 ? normalized.substring(start, nextH2) : normalized.substring(start);
+                                break;
+                              }
                             }
                           }
 
-                          if (!exercisesContent) return <div className={`p-10 text-center font-bold uppercase tracking-widest rounded-3xl border ${themeStyles.card} ${themeStyles.textMuted} ${themeStyles.border}`}>No se encontraron rutinas detalladas.</div>;
+                          // If still empty, use the whole text but try to skip intro
+                          if (!exercisesContent) {
+                             exercisesContent = normalized.length > 200 ? normalized : '';
+                          }
 
-                          const dayChunks = exercisesContent.split(/\n###\s+/).filter(Boolean);
+                          if (!exercisesContent || exercisesContent.length < 50) {
+                            return (
+                              <div className={`${themeStyles.bento} p-10 text-center space-y-4 border ${themeStyles.border}`}>
+                                <div className={`w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto border ${themeStyles.border}`}>
+                                  <AlertTriangle className="w-8 h-8 text-amber-500" />
+                                </div>
+                                <h4 className={`text-sm font-black uppercase tracking-widest ${themeStyles.textMain}`}>Plan no procesable</h4>
+                                <p className={`text-xs ${themeStyles.textMuted} max-w-xs mx-auto leading-relaxed font-medium`}>
+                                  El plan generado no sigue el formato esperado. Intenta regenerarlo.
+                                </p>
+                                <button 
+                                  onClick={() => handleGenerateWorkout()}
+                                  className={`mt-4 px-8 py-3 rounded-xl ${themeStyles.accentBg} text-zinc-950 text-[10px] font-black uppercase tracking-widest shadow-lg`}
+                                >
+                                  Reintentar Generación
+                                </button>
+                              </div>
+                            );
+                          }
+
+                          // Better day chunking: split by ### and keep the header in the chunk
+                          const dayChunks = exercisesContent.split(/(?=###\s+)/).filter(s => s.trim().length > 20);
                           const parsedDays = dayChunks.map((chunk, idx) => {
-                            const lines = chunk.trim().split('\n');
+                            const trimmedChunk = chunk.trim();
+                            const lines = trimmedChunk.split('\n');
                             const headerRaw = lines[0].replace(/^###\s*/, '').replace(/^#+/, '').trim();
                             const dayMatch = headerRaw.match(/Día\s*(\d+)/i);
                             const label = dayMatch ? `Día ${dayMatch[1]}` : `Día ${idx + 1}`;
@@ -3256,8 +3440,20 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             const dayNameMatch = headerRaw.match(/(Lunes|Martes|Miércoles|Jueves|Viernes|Sábado|Domingo)/i);
                             const dayName = dayNameMatch ? dayNameMatch[0] : label;
                             
-                            const objective = headerRaw.replace(dayName, '').replace(label, '').replace(/^[:\s-]+/, '').trim() || 'Entrenamiento';
-                            return { id: idx, dayName, label, objective, content: lines.slice(1).join('\n').trim() };
+                            // Extract title carefully
+                            const objective = headerRaw
+                              .replace(dayMatch?.[0] || '', '')
+                              .replace(dayNameMatch?.[0] || '', '')
+                              .replace(/^[:\s-]+/, '')
+                              .trim() || 'Entrenamiento';
+                              
+                            return { 
+                              id: idx, 
+                              dayName, 
+                              label, 
+                              objective, 
+                              content: lines.slice(1).join('\n').trim() || trimmedChunk 
+                            };
                           });
 
                           if (parsedDays.length === 0) return null;
@@ -3307,13 +3503,24 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                         <div className="relative inline-block border-b-2 border-dotted border-current opacity-70 hover:opacity-100 transition-opacity">
                                           <input
                                             type="date"
-                                            value={gymRoutineDate}
-                                            onChange={(e) => setGymRoutineDate(e.target.value)}
+                                            value={gymRoutineDates[activeDayData.label] || todayStr}
+                                            onChange={(e) => setGymRoutineDates(prev => ({ ...prev, [activeDayData.label]: e.target.value }))}
                                             className="bg-transparent text-current border-none focus:ring-0 p-0 cursor-pointer appearance-none text-sm font-black"
                                           />
                                         </div>
                                       </div>
                                     </div>
+                                    <button
+                                      onClick={() => handleToggleWorkoutAtDate(gymRoutineDates[activeDayData.label] || todayStr)}
+                                      className={`mt-2 flex items-center gap-2 px-6 py-3 rounded-xl border font-black uppercase tracking-widest text-[10px] transition-all w-full md:w-auto justify-center ${
+                                        habits[gymRoutineDates[activeDayData.label] || todayStr]?.workoutDone 
+                                          ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} border-transparent shadow-lg` 
+                                          : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent}`
+                                      }`}
+                                    >
+                                      <CheckCircle2 className="w-4 h-4" />
+                                      {habits[gymRoutineDates[activeDayData.label] || todayStr]?.workoutDone ? 'Rutina Completada' : 'Marcar Rutina como Hecha'}
+                                    </button>
                                   </div>
 
                                   <div className="space-y-1 text-left">
@@ -3349,28 +3556,18 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                         else if (sectionTitleRaw.toLowerCase().includes('principal')) sectionTitle = 'Parte Principal';
                                         else if (sectionTitleRaw.toLowerCase().includes('calma')) sectionTitle = 'Vuelta a la calma';
 
-                                        const isCompleted = habits[gymRoutineDate]?.completedExercises?.includes(tableId);
+                                        const currentDayDate = gymRoutineDates[activeDayData.label] || todayStr;
+                                        const isTableCompleted = habits[currentDayDate]?.completedExercises?.includes(tableId);
 
                                         return (
                                           <div className="my-8 relative group">
                                             <div className="flex items-center justify-between gap-4 mb-4">
                                               <div className="flex items-center gap-3 px-2 text-left">
-                                                <div className={`w-1 h-5 ${isCompleted ? themeStyles.accentBg : 'bg-zinc-500'} rounded-full`} />
-                                                <h5 className={`text-[11px] font-black uppercase tracking-widest ${isCompleted ? themeStyles.accent : themeStyles.textMain}`}>{sectionTitle}</h5>
+                                                <div className={`w-1 h-5 ${isTableCompleted || habits[currentDayDate]?.workoutDone ? themeStyles.accentBg : 'bg-zinc-500'} rounded-full`} />
+                                                <h5 className={`text-[11px] font-black uppercase tracking-widest ${isTableCompleted || habits[currentDayDate]?.workoutDone ? themeStyles.accent : themeStyles.textMain}`}>{sectionTitle}</h5>
                                               </div>
                                               
                                               <div className="flex items-center gap-2 pr-2">
-                                                <button
-                                                  onClick={() => handleToggleExercise(tableId, gymRoutineDate)}
-                                                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl border font-black uppercase tracking-widest text-[9px] transition-all ${
-                                                    isCompleted 
-                                                      ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} border-transparent shadow-[0_0_15px_rgba(0,0,0,0.1)]` 
-                                                      : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent}`
-                                                  }`}
-                                                >
-                                                  <CheckCircle2 className="w-4 h-4" />
-                                                  {isCompleted ? 'Hecho' : 'Pendiente'}
-                                                </button>
                                                 <button
                                                   onClick={() => tableContent && handleRegenerateWorkoutTable(tableContent)}
                                                   className={`p-2.5 rounded-xl ${themeStyles.iconBg} border ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent} transition-all shadow-sm`}
@@ -3381,7 +3578,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                               </div>
                                             </div>
 
-                                            <div className={`overflow-x-auto rounded-[2.5rem] border ${themeStyles.border} ${profile.theme === 'light' ? 'bg-slate-50 shadow-inner' : 'bg-zinc-950/30'} shadow-sm`}>
+                                            <div className={`overflow-x-auto rounded-[2.5rem] border ${themeStyles.border} ${profile.theme === 'light' ? 'bg-slate-50 shadow-inner' : 'bg-zinc-950/30'} shadow-sm ${habits[currentDayDate]?.workoutDone ? 'opacity-60 grayscale-[0.5]' : ''}`}>
                                               <table {...props} className="w-full text-left border-collapse" />
                                             </div>
                                           </div>
@@ -3467,8 +3664,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
                             prose-h2:text-2xl prose-h2:${themeStyles.accent} prose-h2:border-b prose-h2:border-white/10 prose-h2:pb-4 prose-h2:mb-6
                             prose-strong:text-orange-500 prose-strong:font-black
-                            prose-p:text-zinc-400 prose-p:leading-relaxed prose-p:text-sm
-                            prose-li:text-zinc-300 prose-li:my-1 prose-li:text-sm
+                            prose-p:text-slate-800 dark:prose-p:text-slate-200 prose-p:leading-relaxed prose-p:text-sm prose-p:font-medium
+                            prose-li:text-slate-900 dark:prose-li:text-slate-100 prose-li:my-1 prose-li:text-sm prose-li:font-medium
                           `}>
                             <Markdown remarkPlugins={[remarkGfm]}>
                               {getWorkoutSection(workoutPlan, 'safety' as any)}
@@ -3598,17 +3795,56 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </form>
                         
                         {habits[todayStr]?.manualWorkout && (
-                          <div className={`mt-6 p-4 rounded-2xl border-l-4 ${profile.theme === 'light' ? 'border-emerald-500 bg-emerald-50' : `${themeStyles.accentBorder} bg-lime-400/10`}`}>
-                            <div className="flex justify-between items-center">
-                              <div>
-                                <span className={`text-[10px] font-black ${themeStyles.accent} uppercase tracking-widest`}>Añadido Hoy</span>
-                                <h4 className={`text-sm font-bold ${themeStyles.textMain} mt-1`}>{habits[todayStr].manualWorkout.activity}</h4>
-                              </div>
-                              <div className="text-right">
-                                <span className={`text-xl font-display font-black ${themeStyles.accent}`}>+{habits[todayStr].manualWorkout.calories}</span>
-                                <span className={`text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest block`}>Kcal</span>
-                              </div>
-                            </div>
+                          <div className={`${themeStyles.card} rounded-[2rem] p-6 border ${themeStyles.border} relative overflow-hidden group shadow-xl mt-6`}>
+                             <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                   <div className={`p-2.5 ${themeStyles.accentMuted} rounded-xl shadow-inner border ${themeStyles.accentBorder}`}>
+                                      <Activity className={`w-4 h-4 ${themeStyles.accent}`} />
+                                   </div>
+                                   <div>
+                                      <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Ejercicio Extra</span>
+                                      <h4 className={`text-sm font-bold ${themeStyles.textMain} mt-1`}>{habits[todayStr].manualWorkout.activity}</h4>
+                                   </div>
+                                </div>
+                                <div className="text-right flex flex-col items-end">
+                                   <span className={`text-xl font-display font-black ${themeStyles.accent}`}>+{habits[todayStr].manualWorkout.calories}</span>
+                                   <span className={`text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest block`}>kcal</span>
+                                </div>
+                             </div>
+                             <div className="flex items-center gap-2 pt-4 border-t border-dashed border-zinc-500/20">
+                                <button 
+                                  onClick={() => {
+                                    const w = habits[todayStr].manualWorkout;
+                                    if (w) {
+                                      setManualWorkoutName(w.activity.split(' (')[0]);
+                                      const minsMatch = w.activity.match(/\((\d+) min\)/);
+                                      if (minsMatch) setManualWorkoutMinutes(minsMatch[1]);
+                                      setManualWorkoutCaloriesEdit(w.calories.toString());
+                                      setManualWorkoutCategory('mixed');
+                                      const form = document.querySelector('form h2')?.parentElement;
+                                      form?.scrollIntoView({ behavior: 'smooth' });
+                                    }
+                                  }}
+                                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} text-[10px] font-black uppercase tracking-widest ${themeStyles.textMuted} hover:${themeStyles.accent} transition-all`}
+                                >
+                                   <Edit2 className="w-3.5 h-3.5" />
+                                   Editar
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    const newHabits = { ...habits };
+                                    if (newHabits[todayStr]) {
+                                      delete newHabits[todayStr].manualWorkout;
+                                      setHabits(newHabits);
+                                      if (user) setDoc(doc(db, 'users', user.uid, 'habits', todayStr), newHabits[todayStr]).catch(console.error);
+                                    }
+                                  }}
+                                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} text-[10px] font-black uppercase tracking-widest ${themeStyles.textMuted} hover:text-rose-500 transition-all`}
+                                >
+                                   <Trash2 className="w-3.5 h-3.5" />
+                                   Eliminar
+                                </button>
+                             </div>
                           </div>
                         )}
                       </div>

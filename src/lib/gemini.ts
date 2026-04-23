@@ -1,4 +1,5 @@
 import { Type } from "@google/genai";
+import { calcularBMR } from '../utils/nutrition';
 
 export type NutritionalInfo = {
   foodName: string;
@@ -272,9 +273,7 @@ export interface NutritionTargets {
 
 export function calculateDailyCalories(profile: any, currentWeight: number): NutritionTargets {
   // Mifflin-St Jeor 
-  const bmr = profile.gender === 'male'
-    ? 10 * currentWeight + 6.25 * profile.height - 5 * profile.age + 5
-    : 10 * currentWeight + 6.25 * profile.height - 5 * profile.age - 161;
+  const bmr = calcularBMR(profile, currentWeight);
 
   // Factor de actividad según días de gym
   const activityFactor =
@@ -460,26 +459,46 @@ IMPORTANTE PARA FORMATO: Dentro de "meals" de cada día (ej: "Desayuno", "Almuer
       thursday: "Jueves", friday: "Viernes", saturday: "Sábado", sunday: "Domingo"
     };
 
+    const dayOrder = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+
     if (parsed.weeklyPlan) {
-      for (const [dayKey, dayData] of Object.entries(parsed.weeklyPlan) as any) {
-        const mealList: any[] = [];
-        if (dayData && dayData.meals) {
-          for (const [mealKey, meal] of Object.entries(dayData.meals) as any) {
-            let desc = meal.name || mealKey;
-            if (meal.ingredients && Array.isArray(meal.ingredients)) {
-              desc += " - " + meal.ingredients.map((i: any) => `${i.grams}g ${i.item}`).join(", ");
+      dayOrder.forEach(dayKey => {
+        const dayData = parsed.weeklyPlan[dayKey];
+        if (dayData) {
+          const mealList: any[] = [];
+          if (dayData.meals) {
+            for (const [mealKey, meal] of Object.entries(dayData.meals) as any) {
+              let desc = meal.name || mealKey;
+              if (meal.ingredients && Array.isArray(meal.ingredients)) {
+                desc += " - " + meal.ingredients.map((i: any) => `${i.grams}g ${i.item}`).join(", ");
+              }
+              mealList.push({
+                type: mealKey,
+                description: desc,
+                calories: meal.calories
+              });
             }
-            mealList.push({
-              type: mealKey,
-              description: desc,
-              calories: meal.calories
-            });
           }
+          legacyDays.push({
+            day: dayNames[dayKey] || dayKey,
+            meals: mealList
+          });
         }
-        legacyDays.push({
-          day: dayNames[dayKey.toLowerCase()] || dayKey,
-          meals: mealList
-        });
+      });
+
+      // Catch any extra days not in standard order if they exist
+      for (const [dayKey, dayData] of Object.entries(parsed.weeklyPlan) as any) {
+        if (!dayOrder.includes(dayKey.toLowerCase()) && dayData) {
+          const mealList: any[] = [];
+          if (dayData.meals) {
+            // ... same mapping logic
+            for (const [mealKey, meal] of Object.entries(dayData.meals) as any) {
+              let desc = meal.name || mealKey;
+              mealList.push({ type: mealKey, description: desc, calories: meal.calories });
+            }
+          }
+          legacyDays.push({ day: dayKey, meals: mealList });
+        }
       }
     }
 

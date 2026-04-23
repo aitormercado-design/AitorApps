@@ -34,6 +34,15 @@
         "date": { "type": "string" }
       }
     },
+    "Workout": {
+      "title": "Workout Entry",
+      "description": "Daily workout tracking",
+      "type": "object",
+      "properties": {
+        "caloriesBurned": { "type": "number" },
+        "timestamp": { "type": "number" }
+      }
+    },
     "Habits": {
       "title": "Daily Habits",
       "description": "Water, sleep, manual workouts tracked per day",
@@ -60,6 +69,10 @@
     "/users/{userId}/habits/{habitId}": {
       "schema": { "$ref": "#/entities/Habits" },
       "description": "User's daily habits subcollection"
+    },
+    "/users/{userId}/workouts/{workoutId}": {
+      "schema": { "$ref": "#/entities/Workout" },
+      "description": "User's workouts subcollection"
     }
   }
 }
