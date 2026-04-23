@@ -1732,7 +1732,6 @@ export default function App() {
       handleGenerateWorkout(editProfile);
     }
 
-    setGoals(newGoals);
     setIsGoalModalOpen(false);
   };
 
