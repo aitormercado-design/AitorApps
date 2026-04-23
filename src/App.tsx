@@ -100,12 +100,14 @@ type UserProfile = {
 };
 
 type DailyHabits = {
-  [date: string]: { 
-    water: number; 
-    sleep: number; 
-    workoutDone?: boolean; 
+  [date: string]: {
+    water: number;
+    sleep: number;
+    workoutDone?: boolean;
     completedExercises?: string[]; // IDs or names of exercise blocks completed
     manualWorkout?: { activity: string, calories: number };
+    workoutCalories?: number;
+    workoutSessionFocus?: string;
   };
 };
 
@@ -719,37 +721,29 @@ export default function App() {
     let burnedCalories = 0;
     const completed = (todayHabits.completedExercises || []).filter(e => e && e.trim() !== "");
     
-    if (workoutPlan && (completed.length > 0 || todayHabits.workoutDone)) {
-      if (todayHabits.workoutDone) {
-        burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'warm');
-        burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'main');
-        burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
-      } else {
-        // Helper to determine section of a tableId
-        const getSectionOfTable = (tableId: string) => {
-          if (!tableId.includes('-')) return null; // No hyphen, not a valid exercise block id
-          const parts = tableId.split('-');
-          const offset = parseInt(parts[1]) || 0;
-          const textBefore = workoutPlan.substring(0, offset).toLowerCase();
-          
-          // Find positions of section markers before this table
-          const warmPos = textBefore.lastIndexOf('calentamiento');
-          const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
-          const coolPos = textBefore.lastIndexOf('vuelta a la calma');
-          
-          if (coolPos > mainPos && coolPos > warmPos) return 'cool';
-          if (mainPos > warmPos) return 'main';
-          if (warmPos !== -1) return 'warm';
-          return null;
-        };
-
-        const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean));
-        
-        // Calculate independent calories
-        if (sectionsDone.has('main')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'main');
-        if (sectionsDone.has('warm')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'warm');
-        if (sectionsDone.has('cool')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
-      }
+    if (todayHabits.workoutDone) {
+      burnedCalories += todayHabits.workoutCalories ??
+        calculateExpertCalories(latestWeight, profile.gymGoal, 'warm') +
+        calculateExpertCalories(latestWeight, profile.gymGoal, 'main') +
+        calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
+    } else if (workoutPlan && completed.length > 0) {
+      const getSectionOfTable = (tableId: string) => {
+        if (!tableId.includes('-')) return null;
+        const parts = tableId.split('-');
+        const offset = parseInt(parts[1]) || 0;
+        const textBefore = workoutPlan.substring(0, offset).toLowerCase();
+        const warmPos = textBefore.lastIndexOf('calentamiento');
+        const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
+        const coolPos = textBefore.lastIndexOf('vuelta a la calma');
+        if (coolPos > mainPos && coolPos > warmPos) return 'cool';
+        if (mainPos > warmPos) return 'main';
+        if (warmPos !== -1) return 'warm';
+        return null;
+      };
+      const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean));
+      if (sectionsDone.has('main')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'main');
+      if (sectionsDone.has('warm')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'warm');
+      if (sectionsDone.has('cool')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
     }
     if (profile.gymEnabled && todayHabits.manualWorkout) {
       burnedCalories += todayHabits.manualWorkout.calories;
@@ -878,30 +872,29 @@ export default function App() {
         const completed = (dayHabits?.completedExercises || []).filter(Boolean);
         const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
         
-        if (workoutPlan && (completed.length > 0 || dayHabits?.workoutDone)) {
-          if (dayHabits?.workoutDone) {
-            burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'warm');
-            burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'main');
-            burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
-          } else {
-            const getSectionOfTable = (tableId: string) => {
-              if (!tableId.includes('-')) return null;
-              const parts = tableId.split('-');
-              const offset = parts.length >= 2 ? (parseInt(parts[1]) || 0) : 0;
-              const textBefore = workoutPlan.substring(0, offset).toLowerCase();
-              const warmPos = textBefore.lastIndexOf('calentamiento');
-              const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
-              const coolPos = textBefore.lastIndexOf('vuelta a la calma');
-              if (coolPos > mainPos && coolPos > warmPos) return 'cool';
-              if (mainPos > warmPos) return 'main';
-              if (warmPos !== -1) return 'warm';
-              return null;
-            };
-            const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean));
-            if (sectionsDone.has('main')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'main');
-            if (sectionsDone.has('warm')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'warm');
-            if (sectionsDone.has('cool')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
-          }
+        if (dayHabits?.workoutDone) {
+          burnedCalories += dayHabits.workoutCalories ??
+            calculateExpertCalories(latestWeight, profile.gymGoal, 'warm') +
+            calculateExpertCalories(latestWeight, profile.gymGoal, 'main') +
+            calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
+        } else if (workoutPlan && completed.length > 0) {
+          const getSectionOfTable = (tableId: string) => {
+            if (!tableId.includes('-')) return null;
+            const parts = tableId.split('-');
+            const offset = parts.length >= 2 ? (parseInt(parts[1]) || 0) : 0;
+            const textBefore = workoutPlan.substring(0, offset).toLowerCase();
+            const warmPos = textBefore.lastIndexOf('calentamiento');
+            const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
+            const coolPos = textBefore.lastIndexOf('vuelta a la calma');
+            if (coolPos > mainPos && coolPos > warmPos) return 'cool';
+            if (mainPos > warmPos) return 'main';
+            if (warmPos !== -1) return 'warm';
+            return null;
+          };
+          const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean));
+          if (sectionsDone.has('main')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'main');
+          if (sectionsDone.has('warm')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'warm');
+          if (sectionsDone.has('cool')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
         }
         if (dayHabits?.manualWorkout) {
           burnedCalories += dayHabits.manualWorkout.calories;
@@ -968,31 +961,29 @@ export default function App() {
       if (profile.gymEnabled) {
         const dayHabits = habits[dayStr];
         const completed = (dayHabits?.completedExercises || []).filter(Boolean);
-        if (workoutPlan && (completed.length > 0 || dayHabits?.workoutDone)) {
-          if (dayHabits?.workoutDone) {
-            dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'warm');
-            dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'main');
-            dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'cool');
-          } else {
-            const getSectionOfTable = (tableId: string) => {
-              if (!tableId.includes('-')) return null;
-              const parts = tableId.split('-');
-              const offset = parseInt(parts[1]) || 0;
-              const textBefore = workoutPlan.substring(0, offset).toLowerCase();
-              const warmPos = textBefore.lastIndexOf('calentamiento');
-              const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
-              const coolPos = textBefore.lastIndexOf('vuelta a la calma');
-              
-              if (coolPos > mainPos && coolPos > warmPos) return 'cool';
-              if (mainPos > warmPos) return 'main';
-              if (warmPos !== -1) return 'warm';
-              return null;
-            };
-            const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean) as string[]);
-            if (sectionsDone.has('main')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'main');
-            if (sectionsDone.has('warm')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'warm');
-            if (sectionsDone.has('cool')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'cool');
-          }
+        if (dayHabits?.workoutDone) {
+          dayBurned += dayHabits.workoutCalories ??
+            calculateExpertCalories(dayWeight, profile.gymGoal, 'warm') +
+            calculateExpertCalories(dayWeight, profile.gymGoal, 'main') +
+            calculateExpertCalories(dayWeight, profile.gymGoal, 'cool');
+        } else if (workoutPlan && completed.length > 0) {
+          const getSectionOfTable = (tableId: string) => {
+            if (!tableId.includes('-')) return null;
+            const parts = tableId.split('-');
+            const offset = parseInt(parts[1]) || 0;
+            const textBefore = workoutPlan.substring(0, offset).toLowerCase();
+            const warmPos = textBefore.lastIndexOf('calentamiento');
+            const mainPos = Math.max(textBefore.lastIndexOf('ejercicios'), textBefore.lastIndexOf('rutina'), textBefore.lastIndexOf('fuerza'));
+            const coolPos = textBefore.lastIndexOf('vuelta a la calma');
+            if (coolPos > mainPos && coolPos > warmPos) return 'cool';
+            if (mainPos > warmPos) return 'main';
+            if (warmPos !== -1) return 'warm';
+            return null;
+          };
+          const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean) as string[]);
+          if (sectionsDone.has('main')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'main');
+          if (sectionsDone.has('warm')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'warm');
+          if (sectionsDone.has('cool')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'cool');
         }
         if (dayHabits?.manualWorkout) {
           dayBurned += dayHabits.manualWorkout.calories;
@@ -1747,12 +1738,20 @@ export default function App() {
 
   const handleToggleWorkoutAtDate = async (impactDate: string) => {
     const isDone = !habits[impactDate]?.workoutDone;
+    const currentWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+    const sessionCalories = isDone
+      ? calculateExpertCalories(currentWeight, profile.gymGoal, 'warm') +
+        calculateExpertCalories(currentWeight, profile.gymGoal, 'main') +
+        calculateExpertCalories(currentWeight, profile.gymGoal, 'cool')
+      : 0;
     const newHabits = {
       ...habits,
       [impactDate]: {
         ...(habits[impactDate] || { water: 0, sleep: 0 }),
         workoutDone: isDone,
-        completedExercises: isDone ? [] : (habits[impactDate]?.completedExercises || [])
+        completedExercises: isDone ? [] : (habits[impactDate]?.completedExercises || []),
+        workoutCalories: sessionCalories,
+        workoutSessionFocus: isDone ? translateGymGoal(profile.gymGoal) : '',
       }
     };
     setHabits(newHabits);
