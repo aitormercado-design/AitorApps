@@ -109,6 +109,14 @@ type DailyHabits = {
   };
 };
 
+function getActivityFactor(gymDaysPerWeek: number): number {
+  if (gymDaysPerWeek === 0) return 1.2;
+  if (gymDaysPerWeek <= 2) return 1.375;
+  if (gymDaysPerWeek <= 4) return 1.55;
+  if (gymDaysPerWeek <= 6) return 1.725;
+  return 1.9;
+}
+
 // Fitness expert calculation for calories burned per block
 const calculateExpertCalories = (weight: number | null | undefined, goal: string | undefined, blockType: 'warm' | 'main' | 'cool'): number => {
   const w = weight || 70; // fallback to 70kg
@@ -747,11 +755,10 @@ export default function App() {
       burnedCalories += todayHabits.manualWorkout.calories;
     }
 
-    const activityFactors = [1.2, 1.2, 1.375, 1.375, 1.55, 1.725, 1.725, 1.9];
     const gymDays = Math.min(7, Math.max(0, profile.trainingDaysPerWeek));
     const bmrValue = calcularBMR(profile, latestWeight);
     const sedentaryTDEE = bmrValue * 1.2;
-    const activeTDEE = bmrValue * activityFactors[gymDays];
+    const activeTDEE = bmrValue * getActivityFactor(gymDays);
     const impliedCalories = Math.round((activeTDEE - sedentaryTDEE) / 7);
 
     // Calculate delta based on real vs implied activity
@@ -906,12 +913,11 @@ export default function App() {
   }, [meals, habits, workoutPlan, profile.gymEnabled]);
 
   const weeklyGoals = useMemo(() => {
-    const activityFactors = [1.2, 1.2, 1.375, 1.375, 1.55, 1.725, 1.725, 1.9];
     const gymDays = Math.min(7, Math.max(0, profile.trainingDaysPerWeek));
     const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
     const bmrValue = calcularBMR(profile, latestWeight);
     const sedentaryTDEE = bmrValue * 1.2;
-    const activeTDEE = bmrValue * activityFactors[gymDays];
+    const activeTDEE = bmrValue * getActivityFactor(gymDays);
     const weeklyImpliedBurned = Math.round(activeTDEE - sedentaryTDEE);
     
     const weeklyDelta = profile.gymEnabled ? (weeklyStats.burnedCalories - weeklyImpliedBurned) : 0;
@@ -936,12 +942,11 @@ export default function App() {
     };
     const length = periodDays[evolutionPeriod];
 
-    const activityFactors = [1.2, 1.2, 1.375, 1.375, 1.55, 1.725, 1.725, 1.9];
     const gymDays = Math.min(7, Math.max(0, profile.trainingDaysPerWeek));
     const latestWeightForBMR = weights.length > 0 ? weights[weights.length - 1].weight : 70;
     const bmrValue = calcularBMR(profile, latestWeightForBMR);
     const sedentaryTDEE = bmrValue * 1.2;
-    const activeTDEE = bmrValue * activityFactors[gymDays];
+    const activeTDEE = bmrValue * getActivityFactor(gymDays);
     const dailyImplied = Math.round((activeTDEE - sedentaryTDEE) / 7);
 
     return Array.from({ length }).map((_, i) => {
@@ -1548,15 +1553,12 @@ export default function App() {
   const updateGoalsForProfile = (prof: UserProfile, currentWeight: number) => {
     let bmr = calcularBMR(prof, currentWeight);
 
-    let derivedActivityLevel = 1.2;
-    if (prof.trainingDaysPerWeek >= 1 && prof.trainingDaysPerWeek <= 2) derivedActivityLevel = 1.375;
-    else if (prof.trainingDaysPerWeek >= 3 && prof.trainingDaysPerWeek <= 4) derivedActivityLevel = 1.55;
-    else if (prof.trainingDaysPerWeek >= 5) derivedActivityLevel = 1.725;
+    const derivedActivityLevel = getActivityFactor(prof.trainingDaysPerWeek);
 
     const tdee = bmr * derivedActivityLevel;
 
     let targetCalories = Math.round(tdee);
-    if (prof.goal === 'lose') targetCalories -= 500;
+    if (prof.goal === 'lose') targetCalories -= 400;
     else if (prof.goal === 'gain') targetCalories += 300;
 
     let proteinRatio = 0.3, carbsRatio = 0.4, fatRatio = 0.3;
