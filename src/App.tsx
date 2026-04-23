@@ -117,6 +117,12 @@ function getActivityFactor(gymDaysPerWeek: number): number {
   return 1.9;
 }
 
+function getLocalDateStr(date: Date = new Date()): string {
+  const d = new Date(date);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().split('T')[0];
+}
+
 // Fitness expert calculation for calories burned per block
 const calculateExpertCalories = (weight: number | null | undefined, goal: string | undefined, blockType: 'warm' | 'main' | 'cool'): number => {
   const w = weight || 70; // fallback to 70kg
@@ -363,11 +369,7 @@ export default function App() {
   const [manualWorkoutCategory, setManualWorkoutCategory] = useState<'cardio'|'strength'|'mixed'|'other'>('mixed');
   const [manualWorkoutName, setManualWorkoutName] = useState('');
   const [manualWorkoutMinutes, setManualWorkoutMinutes] = useState('45');
-  const [todayStr, setTodayStr] = useState(() => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().split('T')[0];
-  });
+  const [todayStr, setTodayStr] = useState(() => getLocalDateStr());
   const [manualWorkoutDate, setManualWorkoutDate] = useState(todayStr);
   const [manualWorkoutCaloriesEdit, setManualWorkoutCaloriesEdit] = useState('');
   const [gymDay, setGymDay] = useState<string>('Día 1');
@@ -385,9 +387,7 @@ export default function App() {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      const d = new Date();
-      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-      const current = d.toISOString().split('T')[0];
+      const current = getLocalDateStr();
       if (current !== todayStr) {
         setTodayStr(current);
       }
@@ -873,7 +873,7 @@ export default function App() {
     if (profile.gymEnabled) {
       for (let i = 0; i < 7; i++) {
         const day = new Date(start + i * 86400000);
-        const dayStr = day.toISOString().split('T')[0];
+        const dayStr = getLocalDateStr(day);
         const dayHabits = habits[dayStr];
         const completed = (dayHabits?.completedExercises || []).filter(Boolean);
         const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
@@ -953,7 +953,7 @@ export default function App() {
       const d = new Date();
       d.setDate(d.getDate() - (length - 1 - i));
       d.setHours(0, 0, 0, 0);
-      const dayStr = d.toISOString().split('T')[0];
+      const dayStr = getLocalDateStr(d);
       const start = d.getTime();
       const end = start + 86400000;
       
@@ -1789,9 +1789,7 @@ export default function App() {
   };
 
   const handleToggleWorkout = async () => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = getLocalDateStr();
     const newHabits = {
       ...habits,
       [dateStr]: {
@@ -1829,9 +1827,7 @@ export default function App() {
   };
 
   const updateHabit = (type: 'water' | 'sleep', value: number) => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = getLocalDateStr();
     const newHabits = {
       ...habits,
       [dateStr]: {
