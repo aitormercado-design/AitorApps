@@ -2,77 +2,74 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "User profile and settings",
+      "description": "Documento raíz del usuario. Todos los campos se escriben individualmente con merge:true desde la app.",
       "type": "object",
       "properties": {
-        "profile": { "type": "object" },
-        "goals": { "type": "object" },
-        "generatedMenu": { "type": "object" },
-        "shoppingList": { "type": "object" },
-        "workoutPlan": { "type": "string" }
+        "profile":       { "type": "object",  "description": "UserProfile: datos personales, preferencias dietéticas y de entrenamiento" },
+        "goals":         { "type": "object",  "description": "{ calories: number, protein: number, carbs: number, fat: number } — calculado por updateGoalsForProfile()" },
+        "generatedMenu": { "type": "object",  "description": "Menú semanal generado por Gemini (WeeklyMenu)" },
+        "shoppingList":  { "type": "object",  "description": "Lista de la compra generada por Gemini. Puede ser null cuando se limpia." },
+        "chatMessages":  { "type": "array",   "description": "Historial del chat con el coach IA: [{ role: 'user'|'model', parts: [{ text: string }] }]" },
+        "checkedItems":  { "type": "object",  "description": "Map de itemId → boolean para el estado de checks en la lista de la compra" },
+        "workoutPlan":   { "type": "string",  "description": "Rutina semanal en formato Markdown generada por Gemini. Puede ser extensa (hasta ~50 000 caracteres). Pendiente de revisar límite cuando se implemente paginación." }
       }
     },
     "Meal": {
       "title": "Meal",
-      "description": "A single meal entry",
+      "description": "Comida registrada por el usuario (análisis de imagen o texto via Gemini)",
       "type": "object",
       "properties": {
-        "foodName": { "type": "string" },
-        "calories": { "type": "number" },
-        "protein": { "type": "number" },
-        "carbs": { "type": "number" },
-        "fat": { "type": "number" },
-        "timestamp": { "type": "number" }
+        "id":        { "type": "string" },
+        "foodName":  { "type": "string" },
+        "calories":  { "type": "number" },
+        "protein":   { "type": "number" },
+        "carbs":     { "type": "number" },
+        "fat":       { "type": "number" },
+        "imageUrl":  { "type": "string" },
+        "timestamp": { "type": "number", "description": "Unix ms (Date.now())" }
       }
     },
     "Weight": {
       "title": "Weight Entry",
-      "description": "Daily weight tracking",
+      "description": "Registro de peso diario",
       "type": "object",
       "properties": {
-        "weight": { "type": "number" },
-        "date": { "type": "string" }
-      }
-    },
-    "Workout": {
-      "title": "Workout Entry",
-      "description": "Daily workout tracking",
-      "type": "object",
-      "properties": {
-        "caloriesBurned": { "type": "number" },
-        "timestamp": { "type": "number" }
+        "id":        { "type": "string",  "description": "Date.now().toString()" },
+        "weight":    { "type": "number", "description": "Peso en kg" },
+        "timestamp": { "type": "number", "description": "Unix ms (Date.now())" }
       }
     },
     "Habits": {
       "title": "Daily Habits",
-      "description": "Water, sleep, manual workouts tracked per day",
+      "description": "Hábitos del día: agua, sueño y ejercicio. La clave del documento es la fecha local en formato YYYY-MM-DD.",
       "type": "object",
       "properties": {
-        "water": { "type": "number" },
-        "sleep": { "type": "number" }
+        "water":              { "type": "number",  "description": "Vasos de agua consumidos" },
+        "sleep":              { "type": "number",  "description": "Horas de sueño" },
+        "workoutDone":        { "type": "boolean", "description": "true cuando el usuario marca la rutina del día como completada" },
+        "completedExercises": { "type": "array",   "description": "IDs de tablas de ejercicio completadas individualmente (ej. 'table-1240')" },
+        "workoutCalories":    { "type": "number",  "description": "Kcal quemadas calculadas al pulsar Rutina Completada (warm+main+cool según gymGoal y peso actual). 0 cuando se desmarca." },
+        "workoutSessionFocus":{ "type": "string",  "description": "Objetivo de la sesión en el momento de marcarla (ej. 'Ganar Músculo'). Vacío cuando se desmarca." },
+        "manualWorkout":      { "type": "object",  "description": "Ejercicio manual registrado: { activity: string, calories: number }" }
       }
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
-      "description": "Main user document"
+      "description": "Documento principal del usuario"
     },
     "/users/{userId}/meals/{mealId}": {
       "schema": { "$ref": "#/entities/Meal" },
-      "description": "User's meals history logged using subcollections"
+      "description": "Historial de comidas del usuario (subcolección)"
     },
     "/users/{userId}/weights/{weightId}": {
       "schema": { "$ref": "#/entities/Weight" },
-      "description": "User's weights tracking subcollection"
+      "description": "Registros de peso del usuario (subcolección)"
     },
-    "/users/{userId}/habits/{habitId}": {
+    "/users/{userId}/habits/{fecha}": {
       "schema": { "$ref": "#/entities/Habits" },
-      "description": "User's daily habits subcollection"
-    },
-    "/users/{userId}/workouts/{workoutId}": {
-      "schema": { "$ref": "#/entities/Workout" },
-      "description": "User's workouts subcollection"
+      "description": "Hábitos diarios del usuario. El ID del documento es la fecha local YYYY-MM-DD generada por getLocalDateStr()."
     }
   }
 }

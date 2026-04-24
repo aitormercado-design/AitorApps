@@ -3,19 +3,22 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // ===============================================================
-    // Assumed Data Model
+    // Data Model — documento raíz /users/{userId}
     // ===============================================================
     //
-    // Collection: users
-    // Document ID: {userId} (matches auth.uid)
-    // Fields:
-    //   - profile: map (optional)
-    //   - goals: map (optional)
-    //   - habits: map (optional)
-    //   - generatedMenu: map (optional)
-    //   - shoppingList: map (optional)
-    //   - meals: list (optional)
-    //   - weights: list (optional)
+    // Campos del documento raíz (todos opcionales, escritos con merge):
+    //   - profile:       map   — UserProfile (datos personales y preferencias)
+    //   - goals:         map   — { calories, protein, carbs, fat }
+    //   - generatedMenu: map   — menú semanal generado por Gemini
+    //   - shoppingList:  map   — lista de la compra generada por Gemini
+    //   - chatMessages:  list  — historial del chat con el coach IA
+    //   - checkedItems:  map   — estado de checks en lista de compra
+    //   - workoutPlan:   string — rutina semanal en Markdown (Gemini)
+    //
+    // Subcolecciones (documentos independientes, no en el doc raíz):
+    //   - /meals/{mealId}     — comidas registradas
+    //   - /weights/{weightId} — registros de peso
+    //   - /habits/{fecha}     — hábitos diarios (agua, sueño, ejercicio)
     //
     // ===============================================================
 
@@ -31,19 +34,19 @@ service cloud.firestore {
     }
 
     function isValidUser() {
-      let allowedKeys = ['profile', 'goals', 'habits', 'generatedMenu', 'shoppingList', 'meals', 'weights', 'chatMessages', 'checkedItems', 'workoutPlan'];
+      let allowedKeys = ['profile', 'goals', 'generatedMenu', 'shoppingList', 'chatMessages', 'checkedItems', 'workoutPlan'];
       let data = request.resource.data;
-      
+
       let hasValidKeys = data.keys().hasOnly(allowedKeys);
-      
+
       // Size limits to prevent 1MB attacks and resource exhaustion
-      let validMeals = !('meals' in data) || (data.meals is list && data.meals.size() <= 2000);
-      let validWeights = !('weights' in data) || (data.weights is list && data.weights.size() <= 2000);
-      let validChat = !('chatMessages' in data) || (data.chatMessages is list && data.chatMessages.size() <= 1000);
-      let validChecked = !('checkedItems' in data) || (data.checkedItems is map && data.checkedItems.size() <= 1000);
+      let validChat    = !('chatMessages' in data) || (data.chatMessages is list && data.chatMessages.size() <= 1000);
+      let validChecked = !('checkedItems' in data) || (data.checkedItems is map  && data.checkedItems.size() <= 1000);
+      // workoutPlan: string Markdown generado por Gemini — puede ser extenso.
+      // Límite provisional de 50 000 caracteres; revisar cuando se implemente paginación.
       let validWorkout = !('workoutPlan' in data) || (data.workoutPlan is string && data.workoutPlan.size() <= 50000);
-      
-      return hasValidKeys && validMeals && validWeights && validChat && validChecked && validWorkout;
+
+      return hasValidKeys && validChat && validChecked && validWorkout;
     }
 
     match /users/{userId} {
@@ -63,11 +66,6 @@ service cloud.firestore {
       }
 
       match /habits/{habitId} {
-        allow read: if isOwner(userId);
-        allow write: if isOwner(userId);
-      }
-
-      match /workouts/{workoutId} {
         allow read: if isOwner(userId);
         allow write: if isOwner(userId);
       }
