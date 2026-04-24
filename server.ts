@@ -41,12 +41,16 @@ async function startServer() {
       // Use the potentially updated key or the initial one
       const client = currentKey === apiKey ? ai : new GoogleGenAI({ apiKey: currentKey });
       
+      console.log('[SERVER] MODEL RECIBIDO:', model);
+      console.log('[SERVER] config keys:', config ? Object.keys(config) : 'none');
       try {
         const geminiPromise = client.models.generateContent({ model, contents, config });
         const timeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Gemini tardó demasiado. Inténtalo de nuevo.')), 55000)
         );
         const response = await Promise.race([geminiPromise, timeoutPromise]);
+        console.log('[SERVER] GEMINI RESPONSE LENGTH:', response.text?.length);
+        console.log('[SERVER] GEMINI RESPONSE (primeros 500):', response.text?.substring(0, 500));
         res.json({ text: response.text });
       } catch (innerError: any) {
         if (innerError.message && innerError.message.includes('503') && model !== 'gemini-2.5-flash') {

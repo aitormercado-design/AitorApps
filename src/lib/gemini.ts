@@ -384,6 +384,9 @@ COMIDA LIBRE:
 - Día: ${profile.freeMealDay || ''}
 - Tipo: ${profile.freeMealType || ''}`;
 
+    console.log('[MENU] REQUEST model: gemini-2.5-flash');
+    console.log('[MENU] REQUEST contents (primeros 300):', userPrompt.substring(0, 300));
+
     const requestPromise = fetch('/api/gemini/generateContent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -455,11 +458,14 @@ Cada objeto de día incluye: "nombre" (día en español, ej: "Lunes"), "calorias
       }
     })
   }).then(async r => {
+    console.log('[MENU] RESPONSE STATUS:', r.status);
+    const rawText = await r.text();
+    console.log('[MENU] RESPONSE TEXT (primeros 500):', rawText.substring(0, 500));
     const ct = r.headers.get('content-type') || '';
     if (!r.ok || !ct.includes('json')) {
-      throw new Error('Error de conexión con el servidor. Inténtalo de nuevo.');
+      throw new Error(`Error del servidor (${r.status}): ${rawText.substring(0, 200)}`);
     }
-    return r.json();
+    return JSON.parse(rawText);
   });
 
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -472,8 +478,9 @@ Cada objeto de día incluye: "nombre" (día en español, ej: "Lunes"), "calorias
       throw new Error(response.error);
     }
     const text = response.text;
+    console.log('[MENU] response.text length:', text?.length);
     if (!text) throw new Error("No response from model");
-    
+
     let cleanText = text;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -481,8 +488,11 @@ Cada objeto de día incluye: "nombre" (día en español, ej: "Lunes"), "calorias
     } else {
       cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
     }
-    
+
+    console.log('[MENU] CLEAN TEXT (primeros 500):', cleanText.substring(0, 500));
     const parsed = JSON.parse(cleanText);
+    console.log('[MENU] parsed.weeklyPlan keys:', parsed.weeklyPlan ? Object.keys(parsed.weeklyPlan) : 'NULL');
+    console.log('[MENU] monday.meals sample:', JSON.stringify(parsed.weeklyPlan?.monday?.meals?.[0]));
 
     // Map to legacy format for UI compatibility
     const legacyDays: any[] = [];
