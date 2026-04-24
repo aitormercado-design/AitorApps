@@ -320,12 +320,30 @@ export function calculateDailyCalories(profile: any, currentWeight: number): Nut
   };
 }
 
-export function extractIngredients(weeklyPlan: any): any[] {
+export function extractIngredients(menuData: any): any[] {
   const allIngredients: any[] = [];
-  if (!weeklyPlan || !weeklyPlan.weeklyPlan) return allIngredients;
-  for (const dayKey of Object.keys(weeklyPlan.weeklyPlan)) {
-    const day = weeklyPlan.weeklyPlan[dayKey];
-    if (day && day.meals) {
+
+  // New format: menuData.days[].meals[].ingredientes (string "Avena 80g · Plátano 1ud")
+  if (Array.isArray(menuData?.days)) {
+    for (const day of menuData.days) {
+      if (Array.isArray(day.meals)) {
+        for (const meal of day.meals) {
+          if (meal.ingredientes) {
+            meal.ingredientes.split(/\s*·\s*|\s*,\s*/).forEach((item: string) => {
+              if (item.trim()) allIngredients.push({ item: item.trim() });
+            });
+          }
+        }
+      }
+    }
+    return allIngredients;
+  }
+
+  // Legacy format: menuData.weeklyPlan[day].meals (object with meal-type keys)
+  if (!menuData?.weeklyPlan) return allIngredients;
+  for (const dayKey of Object.keys(menuData.weeklyPlan)) {
+    const day = menuData.weeklyPlan[dayKey];
+    if (day?.meals) {
       for (const mealKey of Object.keys(day.meals)) {
         const meal = day.meals[mealKey];
         if (meal && Array.isArray(meal.ingredients)) {
@@ -385,60 +403,49 @@ Reglas no negociables:
 - En días de gimnasio, la ingesta de proteína aumenta un 15% respecto a días de descanso, compensando con una reducción equivalente en carbohidratos.
 - Si hay una comida libre declarada, el exceso calórico máximo permitido es de 400 kcal sobre el objetivo diario. El resto de ingestas de ese día se reducen proporcionalmente para absorber ese exceso.
 
-IMPORTANTE PARA FORMATO: Dentro de "meals" de cada día (ej: "Desayuno", "Almuerzo", "Cena", "Snack"), debes incluir "name", "calories" (number) y un array "ingredients" donde cada elemento tenga "item" y "grams".`,
+IMPORTANTE PARA FORMATO: "meals" de cada día es un ARRAY. Cada elemento tiene:
+- "nombre": nombre de la ingesta ("Desayuno", "Media mañana", "Almuerzo", "Merienda" o "Cena")
+- "descripcion": nombre del plato (ej: "Pechuga de pollo con arroz y brócoli")
+- "calorias", "proteinas", "carbohidratos", "grasas": números
+- "ingredientes": string con ingredientes y cantidades separados por " · " (ej: "Pechuga 150g · Arroz 80g · Brócoli 100g")
+Cada objeto de día incluye: "nombre" (día en español, ej: "Lunes"), "calorias", "proteinas", "carbohidratos", "grasas" (totales del día).`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
             weeklyPlan: {
               type: Type.OBJECT,
-              properties: {
-                monday: { 
+              properties: (() => {
+                const mealItem = {
                   type: Type.OBJECT,
                   properties: {
-                    meals: {
-                      type: Type.OBJECT,
-                      description: "E.g. {'Desayuno': { name: 'Huevos', ingredients: [{item: 'huevo', grams: 100}], calories: 150 }}",
-                    }
-                  }
-                },
-                tuesday: { 
+                    nombre:         { type: Type.STRING },
+                    descripcion:    { type: Type.STRING },
+                    calorias:       { type: Type.NUMBER },
+                    proteinas:      { type: Type.NUMBER },
+                    carbohidratos:  { type: Type.NUMBER },
+                    grasas:         { type: Type.NUMBER },
+                    ingredientes:   { type: Type.STRING },
+                  },
+                  required: ['nombre', 'calorias', 'proteinas', 'carbohidratos', 'grasas', 'ingredientes'],
+                };
+                const daySchema = {
                   type: Type.OBJECT,
                   properties: {
-                    meals: { type: Type.OBJECT }
-                  }
-                },
-                wednesday: { 
-                  type: Type.OBJECT,
-                  properties: {
-                    meals: { type: Type.OBJECT }
-                  }
-                },
-                thursday: { 
-                  type: Type.OBJECT,
-                  properties: {
-                    meals: { type: Type.OBJECT }
-                  }
-                },
-                friday: { 
-                  type: Type.OBJECT,
-                  properties: {
-                    meals: { type: Type.OBJECT }
-                  }
-                },
-                saturday: { 
-                  type: Type.OBJECT,
-                  properties: {
-                    meals: { type: Type.OBJECT }
-                  }
-                },
-                sunday: { 
-                  type: Type.OBJECT,
-                  properties: {
-                    meals: { type: Type.OBJECT }
-                  }
-                }
-              }
+                    nombre:        { type: Type.STRING },
+                    calorias:      { type: Type.NUMBER },
+                    proteinas:     { type: Type.NUMBER },
+                    carbohidratos: { type: Type.NUMBER },
+                    grasas:        { type: Type.NUMBER },
+                    meals:         { type: Type.ARRAY, items: mealItem },
+                  },
+                  required: ['nombre', 'calorias', 'proteinas', 'carbohidratos', 'grasas', 'meals'],
+                };
+                return {
+                  monday: daySchema, tuesday: daySchema, wednesday: daySchema,
+                  thursday: daySchema, friday: daySchema, saturday: daySchema, sunday: daySchema,
+                };
+              })(),
             },
             nutritionistNotes: { type: Type.STRING },
             warnings: { type: Type.ARRAY, items: { type: Type.STRING } }
@@ -491,40 +498,29 @@ IMPORTANTE PARA FORMATO: Dentro de "meals" de cada día (ej: "Desayuno", "Almuer
         const dayData = parsed.weeklyPlan[dayKey];
         if (dayData) {
           const mealList: any[] = [];
-          if (dayData.meals) {
-            for (const [mealKey, meal] of Object.entries(dayData.meals) as any) {
-              let desc = meal.name || mealKey;
-              if (meal.ingredients && Array.isArray(meal.ingredients)) {
-                desc += " - " + meal.ingredients.map((i: any) => `${i.grams}g ${i.item}`).join(", ");
-              }
+          if (Array.isArray(dayData.meals)) {
+            for (const meal of dayData.meals) {
               mealList.push({
-                type: mealKey,
-                description: desc,
-                calories: meal.calories
+                type: meal.nombre,
+                description: meal.descripcion || meal.nombre,
+                calories: meal.calorias,
+                proteinas: meal.proteinas,
+                carbohidratos: meal.carbohidratos,
+                grasas: meal.grasas,
+                ingredientes: meal.ingredientes,
               });
             }
           }
           legacyDays.push({
-            day: dayNames[dayKey] || dayKey,
-            meals: mealList
+            day: dayData.nombre || dayNames[dayKey] || dayKey,
+            calorias: dayData.calorias,
+            proteinas: dayData.proteinas,
+            carbohidratos: dayData.carbohidratos,
+            grasas: dayData.grasas,
+            meals: mealList,
           });
         }
       });
-
-      // Catch any extra days not in standard order if they exist
-      for (const [dayKey, dayData] of Object.entries(parsed.weeklyPlan) as any) {
-        if (!dayOrder.includes(dayKey.toLowerCase()) && dayData) {
-          const mealList: any[] = [];
-          if (dayData.meals) {
-            // ... same mapping logic
-            for (const [mealKey, meal] of Object.entries(dayData.meals) as any) {
-              let desc = meal.name || mealKey;
-              mealList.push({ type: mealKey, description: desc, calories: meal.calories });
-            }
-          }
-          legacyDays.push({ day: dayKey, meals: mealList });
-        }
-      }
     }
 
     parsed.days = legacyDays;

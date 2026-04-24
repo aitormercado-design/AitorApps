@@ -363,6 +363,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'today' | 'plan' | 'restaurants' | 'gym' | 'meals'>('today');
   const [mealsSubTab, setMealsSubTab] = useState<'daily' | 'plan' | 'shopping'>('daily');
   const [menuSelectedDay, setMenuSelectedDay] = useState<number>(0);
+  const [expandedMeal, setExpandedMeal] = useState<number>(0);
   const [evolutionPeriod, setEvolutionPeriod] = useState<'today' | 'weekly' | 'monthly' | 'quarterly' | 'semiannually' | 'annually'>('today');
   const [gymSubTab, setGymSubTab] = useState<'manual' | 'plan'>('plan');
   const [planSubTab, setPlanSubTab] = useState<'info' | 'ejercicios' | 'tips'>('ejercicios');
@@ -2453,114 +2454,141 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         <h2 className={`text-xl font-display font-bold ${themeStyles.textMain} uppercase tracking-tight`}>Plan Nutricional</h2>
                       </div>
                     </div>
-                    {generatedMenu ? (
-                      <div className="space-y-6">
-                        {isGeneratingMenu ? (
-                          <div className={`${themeStyles.card} p-12 text-center`}>
-                            <div className="relative w-20 h-20 mx-auto mb-6">
-                              <motion.div
-                                className={`absolute inset-0 rounded-2xl ${themeStyles.accentMuted}`}
-                                animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.2, 0.5] }}
-                                transition={{ repeat: Infinity, duration: 2 }}
-                              />
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <Utensils className={`w-8 h-8 ${themeStyles.accent}`} />
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <p className={`${themeStyles.textMain} font-bold`}>Diseñando el plan de {profile.name || 'Usuario'}...</p>
-                              <motion.div 
-                                className={`${themeStyles.textMuted} text-xs font-mono h-4`}
-                                animate={{ opacity: [0, 1, 0] }}
-                                transition={{ repeat: Infinity, duration: 1.5 }}
-                              >
-                                {'> Calculando macros óptimos...'}
-                              </motion.div>
-                            </div>
+                    {isGeneratingMenu ? (
+                      <div className={`${themeStyles.card} p-12 text-center`}>
+                        <div className="relative w-20 h-20 mx-auto mb-6">
+                          <motion.div
+                            className={`absolute inset-0 rounded-2xl ${themeStyles.accentMuted}`}
+                            animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.2, 0.5] }}
+                            transition={{ repeat: Infinity, duration: 2 }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Utensils className={`w-8 h-8 ${themeStyles.accent}`} />
                           </div>
-                        ) : (
-                          <div className="space-y-6">
-                            <div className={`${themeStyles.card} p-8 text-center relative overflow-hidden`}>
-                              <div className={`absolute top-0 right-0 w-32 h-32 ${themeStyles.accentBg} rounded-full blur-3xl opacity-10 -mr-16 -mt-16`}></div>
-                              <CheckCircle2 className={`w-12 h-12 ${themeStyles.accent} mx-auto mb-4`} />
-                              <h3 className={`text-xl font-display font-black ${themeStyles.textMain} uppercase tracking-tight mb-2`}>¡Plan de {profile.name || 'Usuario'} listo!</h3>
-                              <p className={`${themeStyles.textMuted} text-xs mb-8 max-w-sm mx-auto leading-relaxed`}>Tu plan nutricional semanal ha sido diseñado específicamente para alcanzar un peso de <span className={themeStyles.accent}>{profile.goal === 'lose' ? 'pérdida' : profile.goal === 'gain' ? 'ganancia' : 'mantenimiento'}</span>.</p>
-                              
-                              <div className="flex justify-center">
-                                <button
-                                  onClick={() => handleGenerateMenu()}
-                                  disabled={isGeneratingMenu}
-                                  className={`flex items-center justify-center gap-2 py-4 px-8 rounded-2xl border ${themeStyles.border} ${themeStyles.iconBg} ${themeStyles.textMuted} text-[10px] font-black uppercase tracking-widest hover:${themeStyles.textMain} transition-all`}
-                                >
-                                  <RefreshCw className={`w-4 h-4 ${isGeneratingMenu ? 'animate-spin' : ''}`} />
-                                  Regenerar
-                                </button>
+                        </div>
+                        <div className="space-y-2">
+                          <p className={`${themeStyles.textMain} font-bold`}>Diseñando el plan de {profile.name || 'Usuario'}...</p>
+                          <motion.div
+                            className={`${themeStyles.textMuted} text-xs font-mono h-4`}
+                            animate={{ opacity: [0, 1, 0] }}
+                            transition={{ repeat: Infinity, duration: 1.5 }}
+                          >
+                            {'> Calculando macros óptimos...'}
+                          </motion.div>
+                        </div>
+                      </div>
+                    ) : generatedMenu ? (
+                      <div className="space-y-4">
+                        {/* Header */}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className={`text-xs font-black ${themeStyles.textMain} uppercase tracking-widest`}>
+                              Plan de {profile.name || 'Usuario'}
+                            </p>
+                            <p className={`text-[10px] ${themeStyles.textMuted} mt-0.5`}>
+                              {generatedMenu.days?.length || 0} días · {profile.goal === 'lose' ? 'Perder grasa' : profile.goal === 'gain' ? 'Ganar músculo' : 'Mantenimiento'} · {profile.favoriteSupermarket || 'General'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleGenerateMenu()}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} ${themeStyles.textMuted} text-[9px] font-black uppercase tracking-widest hover:${themeStyles.textMain} transition-all`}
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            Regenerar
+                          </button>
+                        </div>
+
+                        {/* Day tabs */}
+                        <div className="flex overflow-x-auto gap-2 pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+                          {generatedMenu.days.map((day: any, dIdx: number) => (
+                            <button
+                              key={dIdx}
+                              onClick={() => { setMenuSelectedDay(dIdx); setExpandedMeal(0); }}
+                              className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] uppercase font-black tracking-widest transition-all ${
+                                menuSelectedDay === dIdx
+                                  ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md`
+                                  : `border ${themeStyles.accentBorder} ${themeStyles.accent} ${themeStyles.iconBg}`
+                              }`}
+                            >
+                              {(day.day || `Día ${dIdx + 1}`).slice(0, 3)}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Selected day */}
+                        {generatedMenu.days[menuSelectedDay] && (
+                          <div className={`${themeStyles.card} rounded-2xl overflow-hidden border ${themeStyles.border}`}>
+                            {/* Day summary pills */}
+                            <div className={`px-5 py-4 border-b ${themeStyles.border}`}>
+                              <p className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-[0.2em] mb-3`}>
+                                {generatedMenu.days[menuSelectedDay].day}
+                              </p>
+                              <div className="flex gap-2 flex-wrap">
+                                {[
+                                  { label: '', value: `${generatedMenu.days[menuSelectedDay].calorias ?? '—'} kcal` },
+                                  { label: 'P', value: `${generatedMenu.days[menuSelectedDay].proteinas ?? '—'}g` },
+                                  { label: 'C', value: `${generatedMenu.days[menuSelectedDay].carbohidratos ?? '—'}g` },
+                                  { label: 'G', value: `${generatedMenu.days[menuSelectedDay].grasas ?? '—'}g` },
+                                ].map(pill => (
+                                  <span key={pill.label || 'kcal'} className={`${themeStyles.accentMuted} ${themeStyles.accent} text-[10px] font-black px-3 py-1 rounded-full border ${themeStyles.accentBorder}`}>
+                                    {pill.label ? `${pill.label}:` : ''}{pill.value}
+                                  </span>
+                                ))}
                               </div>
                             </div>
 
-                            {/* Weekly Menu Display with Tabs */}
-                            <div className="space-y-4">
-                               <div className="flex items-center justify-between px-2">
-                                 <h3 className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-[0.2em]`}>Detalle Semanal</h3>
-                               </div>
-                               
-                               <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-                                 {generatedMenu.days.map((day: any, dIdx: number) => (
-                                   <button
-                                     key={dIdx}
-                                     onClick={() => setMenuSelectedDay(dIdx)}
-                                     className={`flex-shrink-0 px-4 py-2 rounded-2xl text-[10px] uppercase font-black tracking-widest transition-all ${
-                                       menuSelectedDay === dIdx 
-                                         ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` 
-                                         : `${themeStyles.iconBg} ${themeStyles.textMuted} border ${themeStyles.border} hover:${themeStyles.textMain}`
-                                     }`}
-                                   >
-                                     {day.day}
-                                   </button>
-                                 ))}
-                               </div>
-                               
-                               {generatedMenu.days[menuSelectedDay] && (
-                                 <div className={`${themeStyles.card} rounded-[2rem] overflow-hidden border ${themeStyles.border} mt-2`}>
-                                   <div className={`px-6 py-4 ${themeStyles.iconBg} border-b ${themeStyles.border} flex items-center justify-between`}>
-                                     <div className="flex items-center gap-3">
-                                       <div className={`w-2 h-2 rounded-full ${themeStyles.accentBg}`}></div>
-                                       <span className={`text-sm font-black ${themeStyles.textMain} uppercase tracking-wider`}>{generatedMenu.days[menuSelectedDay].day}</span>
-                                     </div>
-                                     <span className={`text-[9px] font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>{generatedMenu.days[menuSelectedDay].meals?.length || 0} Ingestas</span>
-                                   </div>
-                                   <div className="p-6 space-y-4">
-                                     {generatedMenu.days[menuSelectedDay].meals?.map((meal: any, mIdx: number) => (
-                                       <div key={mIdx} className="flex gap-4">
-                                         <div className={`w-10 h-10 rounded-xl ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center shrink-0`}>
-                                            <span className={`text-[10px] font-black ${themeStyles.accent}`}>{meal.type?.[0].toUpperCase() || 'C'}</span>
-                                         </div>
-                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between mb-1">
-                                              <h4 className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-wide truncate`}>{meal.type || 'Comida'}</h4>
-                                              <span className={`text-[10px] font-black ${themeStyles.accent}`}>{meal.calories} kcal</span>
-                                            </div>
-                                            <p className={`${themeStyles.textMuted} text-xs leading-relaxed line-clamp-2`}>{meal.description}</p>
-                                         </div>
-                                       </div>
-                                     ))}
-                                   </div>
-                                 </div>
-                               )}
+                            {/* Meal accordion */}
+                            <div>
+                              {(generatedMenu.days[menuSelectedDay].meals?.length ?? 0) > 0 ? (
+                                generatedMenu.days[menuSelectedDay].meals.map((meal: any, mIdx: number) => (
+                                  <div key={mIdx} className={`border-b ${themeStyles.border} last:border-b-0`}>
+                                    <button
+                                      onClick={() => setExpandedMeal(expandedMeal === mIdx ? -1 : mIdx)}
+                                      className={`w-full px-5 py-4 flex items-center justify-between text-left transition-colors ${expandedMeal === mIdx ? themeStyles.iconBg : ''}`}
+                                    >
+                                      <span className={`text-[11px] font-black ${themeStyles.textMain} uppercase tracking-wider`}>
+                                        {meal.type || '—'}
+                                      </span>
+                                      <div className="flex items-center gap-3 shrink-0">
+                                        <span className={`text-[11px] font-black ${themeStyles.accent}`}>{meal.calories ?? '—'} kcal</span>
+                                        <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} transition-transform duration-200 ${expandedMeal === mIdx ? 'rotate-0' : '-rotate-90'}`} />
+                                      </div>
+                                    </button>
+                                    {expandedMeal === mIdx && (
+                                      <div className={`px-5 pb-5 space-y-2 ${themeStyles.iconBg}`}>
+                                        {meal.description && (
+                                          <p className={`text-sm font-semibold ${themeStyles.textMain}`}>{meal.description}</p>
+                                        )}
+                                        {meal.ingredientes && (
+                                          <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>{meal.ingredientes}</p>
+                                        )}
+                                        {(meal.proteinas != null || meal.carbohidratos != null || meal.grasas != null) && (
+                                          <div className="flex gap-4 pt-1">
+                                            <span className={`text-[10px] font-bold ${themeStyles.accent}`}>P:{meal.proteinas ?? '—'}g</span>
+                                            <span className={`text-[10px] font-bold ${themeStyles.accent}`}>C:{meal.carbohidratos ?? '—'}g</span>
+                                            <span className={`text-[10px] font-bold ${themeStyles.accent}`}>G:{meal.grasas ?? '—'}g</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))
+                              ) : (
+                                <div className={`px-5 py-8 text-center ${themeStyles.textMuted} text-xs`}>Sin datos</div>
+                              )}
                             </div>
                           </div>
                         )}
                       </div>
                     ) : (
                       <div className="text-center py-8">
-                            <p className={`${themeStyles.textMuted} text-center py-8`}>Genera tu menú semanal y lista de la compra adaptados a tus preferencias.</p>
-                            <button 
-                              onClick={() => handleGenerateMenu()}
-                              disabled={isGeneratingMenu}
-                              className={`${themeStyles.buttonPrimary} px-6 py-2 rounded-xl font-bold uppercase tracking-wider text-xs`}
-                            >
-                              {isGeneratingMenu ? 'Generando...' : 'Generar Plan'}
-                            </button>
+                        <p className={`${themeStyles.textMuted} text-center py-8`}>Genera tu menú semanal y lista de la compra adaptados a tus preferencias.</p>
+                        <button
+                          onClick={() => handleGenerateMenu()}
+                          className={`${themeStyles.buttonPrimary} px-6 py-2 rounded-xl font-bold uppercase tracking-wider text-xs`}
+                        >
+                          Generar Plan
+                        </button>
                       </div>
                     )}
                   </div>
