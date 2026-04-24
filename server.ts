@@ -42,11 +42,11 @@ async function startServer() {
       const client = currentKey === apiKey ? ai : new GoogleGenAI({ apiKey: currentKey });
       
       try {
-        const response = await client.models.generateContent({
-          model,
-          contents,
-          config
-        });
+        const geminiPromise = client.models.generateContent({ model, contents, config });
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Gemini tardó demasiado. Inténtalo de nuevo.')), 55000)
+        );
+        const response = await Promise.race([geminiPromise, timeoutPromise]);
         res.json({ text: response.text });
       } catch (innerError: any) {
         if (innerError.message && innerError.message.includes('503') && model !== 'gemini-2.5-flash') {
@@ -89,7 +89,11 @@ async function startServer() {
       };
 
       try {
-        const response = await doChat(model);
+        const chatPromise = doChat(model);
+        const chatTimeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Gemini tardó demasiado. Inténtalo de nuevo.')), 55000)
+        );
+        const response = await Promise.race([chatPromise, chatTimeoutPromise]);
         res.json({ text: response.text });
       } catch (innerError: any) {
          if (innerError.message && innerError.message.includes('503') && model !== 'gemini-2.5-flash') {

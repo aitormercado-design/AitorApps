@@ -4,8 +4,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { ExerciseDelta } from './components/ExerciseDelta';
 import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, extractIngredients, WeeklyMenu, ShoppingList, findRestaurants, Restaurant } from './lib/gemini';
 import { calcularBMR } from './utils/nutrition';
@@ -365,6 +363,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'today' | 'plan' | 'restaurants' | 'gym' | 'meals'>('today');
   const [mealsSubTab, setMealsSubTab] = useState<'daily' | 'plan' | 'shopping'>('daily');
   const [menuSelectedDay, setMenuSelectedDay] = useState<number>(0);
+  const [expandedMeal, setExpandedMeal] = useState<number>(0);
   const [evolutionPeriod, setEvolutionPeriod] = useState<'today' | 'weekly' | 'monthly' | 'quarterly' | 'semiannually' | 'annually'>('today');
   const [gymSubTab, setGymSubTab] = useState<'manual' | 'plan'>('plan');
   const [planSubTab, setPlanSubTab] = useState<'info' | 'ejercicios' | 'tips'>('ejercicios');
@@ -1152,196 +1151,6 @@ export default function App() {
     }
   };
 
-  const downloadMenuPDF = () => {
-    if (!generatedMenu) return;
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 15;
-    const contentWidth = pageWidth - (margin * 2);
-    
-    const primaryColor = profile.theme === 'light' ? [16, 185, 129] : [163, 230, 53];
-    const secondaryColor = [24, 24, 27]; // zinc-900
-    const accentColor = [16, 185, 129]; // emerald-500
-    const textColor = [40, 40, 40];
-    const lightTextColor = [113, 113, 122]; // zinc-500
-
-    const drawHeader = (title: string, subtitle: string, color: number[]) => {
-      doc.setFillColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-      doc.rect(0, 0, pageWidth, 50, 'F');
-      
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(32);
-      doc.setTextColor(color[0], color[1], color[2]);
-      doc.text('Nutritiv', margin, 25);
-      doc.setTextColor(255, 255, 255);
-      doc.text('App', margin + 42, 25);
-      
-      doc.setFontSize(10);
-      doc.setTextColor(161, 161, 170); // zinc-400
-      doc.text(subtitle.toUpperCase(), margin, 38);
-      
-      doc.setDrawColor(color[0], color[1], color[2]);
-      doc.setLineWidth(1.5);
-      doc.line(margin, 42, margin + 60, 42);
-    };
-
-    const drawFooter = (pageNumber: number) => {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(161, 161, 170);
-      doc.text(`NutritivApp Premium Plan - Página ${pageNumber}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-    };
-
-    // PAGE 1: COVER & PROFILE
-    drawHeader('NutritivApp', 'Plan Nutricional de Alto Rendimiento', primaryColor);
-    drawFooter(1);
-    
-    let y = 65;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-    doc.text('Tu Perfil de Rendimiento', margin, y);
-    y += 15;
-    
-    // Goal Cards
-    const drawGoalCard = (label: string, value: string, x: number, y: number, w: number, h: number = 25) => {
-      doc.setFillColor(248, 250, 252); // slate-50
-      doc.setDrawColor(226, 232, 240); // slate-200
-      doc.roundedRect(x, y, w, h, 4, 4, 'FD');
-      
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(lightTextColor[0], lightTextColor[1], lightTextColor[2]);
-      doc.text(label.toUpperCase(), x + 6, y + 8);
-      
-      doc.setFontSize(14);
-      doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-      doc.text(value, x + 6, y + 18);
-    };
-
-    const cardWidth = (contentWidth - 10) / 3;
-    drawGoalCard('Calorías Diarias', `${goals.calories} kcal`, margin, y, cardWidth);
-    drawGoalCard('Proteínas', `${goals.protein}g`, margin + cardWidth + 5, y, cardWidth);
-    drawGoalCard('Carbohidratos', `${goals.carbs}g`, margin + (cardWidth + 5) * 2, y, cardWidth);
-    y += 30;
-    drawGoalCard('Grasas', `${goals.fat}g`, margin, y, cardWidth);
-    drawGoalCard('Tipo de Dieta', profile.dietType || 'Equilibrada', margin + cardWidth + 5, y, cardWidth * 2 + 5);
-    y += 40;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-    doc.text('Configuración Personalizada', margin, y);
-    y += 12;
-
-    const profileData = [
-      ['Edad', `${profile.age} años`],
-      ['Altura', `${profile.height} cm`],
-      ['Peso Actual', `${weights.length > 0 ? weights[weights.length - 1].weight : '---'} kg`],
-      ['Entrenamiento', `${profile.trainingDaysPerWeek} días/sem`],
-      ['Alergias', Array.isArray(profile.allergies) && profile.allergies.length > 0 ? profile.allergies.join(', ') : 'Ninguna'],
-      ['No deseados', profile.dislikedFoods || 'Ninguno']
-    ];
-
-    autoTable(doc, {
-      startY: y,
-      head: [],
-      body: profileData,
-      theme: 'plain',
-      styles: { fontSize: 10, cellPadding: 3 },
-      columnStyles: {
-        0: { fontStyle: 'bold', textColor: lightTextColor as [number, number, number], cellWidth: 40 },
-        1: { textColor: textColor as [number, number, number] }
-      },
-      margin: { left: margin }
-    });
-
-    y = (doc as any).lastAutoTable.finalY + 20;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-    doc.text('Recomendaciones del Coach', margin, y);
-    y += 10;
-
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(11);
-    doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-    const recommendations = doc.splitTextToSize(generatedMenu.recommendations, contentWidth);
-    doc.text(recommendations, margin, y);
-
-    // PAGE 2+: WEEKLY MENU
-    let pageNum = 2;
-    generatedMenu.days.forEach((dayData) => {
-      doc.addPage();
-      drawHeader('NutritivApp', `Menú Detallado: ${dayData.day}`, primaryColor);
-      drawFooter(pageNum++);
-      
-      y = 65;
-      
-      const tableData = dayData.meals.map(meal => [
-        meal.type.toUpperCase(),
-        meal.description,
-        meal.calories ? `${meal.calories} kcal` : '---'
-      ]);
-
-      const dayTotalCals = dayData.meals.reduce((sum, m) => sum + (m.calories || 0), 0);
-
-      autoTable(doc, {
-        startY: y,
-        head: [['COMIDA', 'DESCRIPCIÓN DETALLADA', 'CALORÍAS']],
-        body: tableData,
-        theme: 'grid',
-        headStyles: {
-          fillColor: secondaryColor as [number, number, number],
-          textColor: [255, 255, 255],
-          fontSize: 10,
-          fontStyle: 'bold',
-          halign: 'center'
-        },
-        styles: {
-          fontSize: 10,
-          cellPadding: 6,
-          valign: 'middle',
-          lineColor: [230, 230, 230],
-          lineWidth: 0.1
-        },
-        columnStyles: {
-          0: { fontStyle: 'bold', cellWidth: 30, halign: 'center', textColor: primaryColor as [number, number, number] },
-          1: { cellWidth: 'auto' },
-          2: { cellWidth: 30, halign: 'center', fontStyle: 'bold' }
-        },
-        alternateRowStyles: {
-          fillColor: [252, 252, 252]
-        },
-        margin: { left: margin, right: margin },
-        didDrawPage: (data: any) => {
-          y = data.cursor.y;
-        }
-      });
-
-      y = (doc as any).lastAutoTable.finalY + 10;
-      
-      // Day Summary Box
-      doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-      doc.setLineWidth(0.5);
-      doc.roundedRect(margin, y, contentWidth, 15, 2, 2, 'FD');
-      
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-      doc.text(`TOTAL CALORÍAS ${dayData.day.toUpperCase()}:`, margin + 5, y + 9.5);
-      
-      doc.setFontSize(12);
-      doc.setTextColor(primaryColor[0] - 40, primaryColor[1] - 40, primaryColor[2] - 40);
-      doc.text(`${dayTotalCals} kcal`, pageWidth - margin - 5, y + 9.5, { align: 'right' });
-    });
-
-    doc.save(`NutritivApp_Plan_Premium_${new Date().toISOString().split('T')[0]}.pdf`);
-  };
-
   const downloadShoppingListHTML = () => {
     if (!shoppingList) return;
 
@@ -1402,107 +1211,6 @@ export default function App() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
-
-  const downloadShoppingListPDF = () => {
-    if (!shoppingList) return;
-
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 15;
-    const contentWidth = pageWidth - (margin * 2);
-    
-    const primaryColor = profile.theme === 'light' ? [16, 185, 129] : [163, 230, 53];
-    const secondaryColor = [24, 24, 27]; // zinc-900
-    const accentColor = [16, 185, 129]; // emerald-500
-    const textColor = [40, 40, 40];
-    const lightTextColor = [113, 113, 122]; // zinc-500
-
-    const drawHeader = (title: string, subtitle: string, color: number[]) => {
-      doc.setFillColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-      doc.rect(0, 0, pageWidth, 50, 'F');
-      
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(32);
-      doc.setTextColor(color[0], color[1], color[2]);
-      doc.text('Nutritiv', margin, 25);
-      doc.setTextColor(255, 255, 255);
-      doc.text('App', margin + 42, 25);
-      
-      doc.setFontSize(10);
-      doc.setTextColor(161, 161, 170); // zinc-400
-      doc.text(subtitle.toUpperCase(), margin, 38);
-      
-      doc.setDrawColor(color[0], color[1], color[2]);
-      doc.setLineWidth(1.5);
-      doc.line(margin, 42, margin + 60, 42);
-    };
-
-    const drawFooter = (pageNumber: number) => {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(161, 161, 170);
-      doc.text(`NutritivApp Premium Plan - Página ${pageNumber}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-    };
-
-    let pageNum = 1;
-    drawHeader('NutritivApp', `Lista de la Compra - ${profile.favoriteSupermarket}`, accentColor);
-    drawFooter(pageNum++);
-    let y = 65;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-    doc.text('Ingredientes Necesarios', margin, y);
-    y += 10;
-
-    const shoppingData: any[] = [];
-    let totalPrice = 0;
-
-    shoppingList.categories.forEach(cat => {
-      shoppingData.push([{ 
-        content: cat.name.toUpperCase(), 
-        colSpan: 1, 
-        styles: { 
-          fillColor: [241, 245, 249], 
-          fontStyle: 'bold', 
-          textColor: accentColor,
-          fontSize: 12,
-          cellPadding: 5
-        } 
-      }]);
-      
-      cat.items.forEach(item => {
-        shoppingData.push([
-          { content: `[ ] ${item.name} (${item.amount})` }
-        ]);
-      });
-    });
-
-    autoTable(doc, {
-      startY: y,
-      head: [['ARTÍCULO']],
-      body: shoppingData,
-      theme: 'plain',
-      styles: {
-        fontSize: 10,
-        cellPadding: 4,
-        textColor: textColor as [number, number, number]
-      },
-      headStyles: {
-        fillColor: accentColor as [number, number, number],
-        textColor: [255, 255, 255],
-        fontSize: 11,
-        fontStyle: 'bold'
-      },
-      columnStyles: {
-        0: { cellWidth: contentWidth }
-      },
-      margin: { left: margin, right: margin }
-    });
-
-    doc.save(`NutritivApp_Compra_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const handleRecalculateMacros = async () => {
@@ -2746,122 +2454,141 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         <h2 className={`text-xl font-display font-bold ${themeStyles.textMain} uppercase tracking-tight`}>Plan Nutricional</h2>
                       </div>
                     </div>
-                    {generatedMenu ? (
-                      <div className="space-y-6">
-                        {isGeneratingMenu ? (
-                          <div className={`${themeStyles.card} p-12 text-center`}>
-                            <div className="relative w-20 h-20 mx-auto mb-6">
-                              <motion.div
-                                className={`absolute inset-0 rounded-2xl ${themeStyles.accentMuted}`}
-                                animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.2, 0.5] }}
-                                transition={{ repeat: Infinity, duration: 2 }}
-                              />
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <Utensils className={`w-8 h-8 ${themeStyles.accent}`} />
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <p className={`${themeStyles.textMain} font-bold`}>Diseñando el plan de {profile.name || 'Usuario'}...</p>
-                              <motion.div 
-                                className={`${themeStyles.textMuted} text-xs font-mono h-4`}
-                                animate={{ opacity: [0, 1, 0] }}
-                                transition={{ repeat: Infinity, duration: 1.5 }}
-                              >
-                                {'> Calculando macros óptimos...'}
-                              </motion.div>
-                            </div>
+                    {isGeneratingMenu ? (
+                      <div className={`${themeStyles.card} p-12 text-center`}>
+                        <div className="relative w-20 h-20 mx-auto mb-6">
+                          <motion.div
+                            className={`absolute inset-0 rounded-2xl ${themeStyles.accentMuted}`}
+                            animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.2, 0.5] }}
+                            transition={{ repeat: Infinity, duration: 2 }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Utensils className={`w-8 h-8 ${themeStyles.accent}`} />
                           </div>
-                        ) : (
-                          <div className="space-y-6">
-                            <div className={`${themeStyles.card} p-8 text-center relative overflow-hidden`}>
-                              <div className={`absolute top-0 right-0 w-32 h-32 ${themeStyles.accentBg} rounded-full blur-3xl opacity-10 -mr-16 -mt-16`}></div>
-                              <CheckCircle2 className={`w-12 h-12 ${themeStyles.accent} mx-auto mb-4`} />
-                              <h3 className={`text-xl font-display font-black ${themeStyles.textMain} uppercase tracking-tight mb-2`}>¡Plan de {profile.name || 'Usuario'} listo!</h3>
-                              <p className={`${themeStyles.textMuted} text-xs mb-8 max-w-sm mx-auto leading-relaxed`}>Tu plan nutricional semanal ha sido diseñado específicamente para alcanzar un peso de <span className={themeStyles.accent}>{profile.goal === 'lose' ? 'pérdida' : profile.goal === 'gain' ? 'ganancia' : 'mantenimiento'}</span>.</p>
-                              
-                              <div className="grid grid-cols-2 gap-4">
-                                <button 
-                                  type="button"
-                                  onClick={downloadMenuPDF}
-                                  className={`flex items-center justify-center gap-2 py-4 rounded-2xl border ${themeStyles.accentBorder} ${themeStyles.accentMuted} ${themeStyles.accent} text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-emerald-500/10`}
-                                >
-                                  <Download className="w-4 h-4" />
-                                  PDF Completo
-                                </button>
-                                <button 
-                                  onClick={() => handleGenerateMenu()}
-                                  disabled={isGeneratingMenu}
-                                  className={`flex items-center justify-center gap-2 py-4 rounded-2xl border ${themeStyles.border} ${themeStyles.iconBg} ${themeStyles.textMuted} text-[10px] font-black uppercase tracking-widest hover:${themeStyles.textMain} transition-all`}
-                                >
-                                  <RefreshCw className={`w-4 h-4 ${isGeneratingMenu ? 'animate-spin' : ''}`} />
-                                  Regenerar
-                                </button>
+                        </div>
+                        <div className="space-y-2">
+                          <p className={`${themeStyles.textMain} font-bold`}>Diseñando el plan de {profile.name || 'Usuario'}...</p>
+                          <motion.div
+                            className={`${themeStyles.textMuted} text-xs font-mono h-4`}
+                            animate={{ opacity: [0, 1, 0] }}
+                            transition={{ repeat: Infinity, duration: 1.5 }}
+                          >
+                            {'> Calculando macros óptimos...'}
+                          </motion.div>
+                        </div>
+                      </div>
+                    ) : generatedMenu ? (
+                      <div className="space-y-4">
+                        {/* Header */}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className={`text-xs font-black ${themeStyles.textMain} uppercase tracking-widest`}>
+                              Plan de {profile.name || 'Usuario'}
+                            </p>
+                            <p className={`text-[10px] ${themeStyles.textMuted} mt-0.5`}>
+                              {generatedMenu.days?.length || 0} días · {profile.goal === 'lose' ? 'Perder grasa' : profile.goal === 'gain' ? 'Ganar músculo' : 'Mantenimiento'} · {profile.favoriteSupermarket || 'General'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleGenerateMenu()}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} ${themeStyles.textMuted} text-[9px] font-black uppercase tracking-widest hover:${themeStyles.textMain} transition-all`}
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            Regenerar
+                          </button>
+                        </div>
+
+                        {/* Day tabs */}
+                        <div className="flex overflow-x-auto gap-2 pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+                          {generatedMenu.days.map((day: any, dIdx: number) => (
+                            <button
+                              key={dIdx}
+                              onClick={() => { setMenuSelectedDay(dIdx); setExpandedMeal(0); }}
+                              className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] uppercase font-black tracking-widest transition-all ${
+                                menuSelectedDay === dIdx
+                                  ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md`
+                                  : `border ${themeStyles.accentBorder} ${themeStyles.accent} ${themeStyles.iconBg}`
+                              }`}
+                            >
+                              {(day.day || `Día ${dIdx + 1}`).slice(0, 3)}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Selected day */}
+                        {generatedMenu.days[menuSelectedDay] && (
+                          <div className={`${themeStyles.card} rounded-2xl overflow-hidden border ${themeStyles.border}`}>
+                            {/* Day summary pills */}
+                            <div className={`px-5 py-4 border-b ${themeStyles.border}`}>
+                              <p className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-[0.2em] mb-3`}>
+                                {generatedMenu.days[menuSelectedDay].day}
+                              </p>
+                              <div className="flex gap-2 flex-wrap">
+                                {[
+                                  { label: '', value: `${generatedMenu.days[menuSelectedDay].calorias ?? '—'} kcal` },
+                                  { label: 'P', value: `${generatedMenu.days[menuSelectedDay].proteinas ?? '—'}g` },
+                                  { label: 'C', value: `${generatedMenu.days[menuSelectedDay].carbohidratos ?? '—'}g` },
+                                  { label: 'G', value: `${generatedMenu.days[menuSelectedDay].grasas ?? '—'}g` },
+                                ].map(pill => (
+                                  <span key={pill.label || 'kcal'} className={`${themeStyles.accentMuted} ${themeStyles.accent} text-[10px] font-black px-3 py-1 rounded-full border ${themeStyles.accentBorder}`}>
+                                    {pill.label ? `${pill.label}:` : ''}{pill.value}
+                                  </span>
+                                ))}
                               </div>
                             </div>
 
-                            {/* Weekly Menu Display with Tabs */}
-                            <div className="space-y-4">
-                               <div className="flex items-center justify-between px-2">
-                                 <h3 className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-[0.2em]`}>Detalle Semanal</h3>
-                               </div>
-                               
-                               <div className="flex overflow-x-auto gap-2 pb-2 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-                                 {generatedMenu.days.map((day: any, dIdx: number) => (
-                                   <button
-                                     key={dIdx}
-                                     onClick={() => setMenuSelectedDay(dIdx)}
-                                     className={`flex-shrink-0 px-4 py-2 rounded-2xl text-[10px] uppercase font-black tracking-widest transition-all ${
-                                       menuSelectedDay === dIdx 
-                                         ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` 
-                                         : `${themeStyles.iconBg} ${themeStyles.textMuted} border ${themeStyles.border} hover:${themeStyles.textMain}`
-                                     }`}
-                                   >
-                                     {day.day}
-                                   </button>
-                                 ))}
-                               </div>
-                               
-                               {generatedMenu.days[menuSelectedDay] && (
-                                 <div className={`${themeStyles.card} rounded-[2rem] overflow-hidden border ${themeStyles.border} mt-2`}>
-                                   <div className={`px-6 py-4 ${themeStyles.iconBg} border-b ${themeStyles.border} flex items-center justify-between`}>
-                                     <div className="flex items-center gap-3">
-                                       <div className={`w-2 h-2 rounded-full ${themeStyles.accentBg}`}></div>
-                                       <span className={`text-sm font-black ${themeStyles.textMain} uppercase tracking-wider`}>{generatedMenu.days[menuSelectedDay].day}</span>
-                                     </div>
-                                     <span className={`text-[9px] font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>{generatedMenu.days[menuSelectedDay].meals?.length || 0} Ingestas</span>
-                                   </div>
-                                   <div className="p-6 space-y-4">
-                                     {generatedMenu.days[menuSelectedDay].meals?.map((meal: any, mIdx: number) => (
-                                       <div key={mIdx} className="flex gap-4">
-                                         <div className={`w-10 h-10 rounded-xl ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center shrink-0`}>
-                                            <span className={`text-[10px] font-black ${themeStyles.accent}`}>{meal.type?.[0].toUpperCase() || 'C'}</span>
-                                         </div>
-                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between mb-1">
-                                              <h4 className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-wide truncate`}>{meal.type || 'Comida'}</h4>
-                                              <span className={`text-[10px] font-black ${themeStyles.accent}`}>{meal.calories} kcal</span>
-                                            </div>
-                                            <p className={`${themeStyles.textMuted} text-xs leading-relaxed line-clamp-2`}>{meal.description}</p>
-                                         </div>
-                                       </div>
-                                     ))}
-                                   </div>
-                                 </div>
-                               )}
+                            {/* Meal accordion */}
+                            <div>
+                              {(generatedMenu.days[menuSelectedDay].meals?.length ?? 0) > 0 ? (
+                                generatedMenu.days[menuSelectedDay].meals.map((meal: any, mIdx: number) => (
+                                  <div key={mIdx} className={`border-b ${themeStyles.border} last:border-b-0`}>
+                                    <button
+                                      onClick={() => setExpandedMeal(expandedMeal === mIdx ? -1 : mIdx)}
+                                      className={`w-full px-5 py-4 flex items-center justify-between text-left transition-colors ${expandedMeal === mIdx ? themeStyles.iconBg : ''}`}
+                                    >
+                                      <span className={`text-[11px] font-black ${themeStyles.textMain} uppercase tracking-wider`}>
+                                        {meal.type || '—'}
+                                      </span>
+                                      <div className="flex items-center gap-3 shrink-0">
+                                        <span className={`text-[11px] font-black ${themeStyles.accent}`}>{meal.calories ?? '—'} kcal</span>
+                                        <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} transition-transform duration-200 ${expandedMeal === mIdx ? 'rotate-0' : '-rotate-90'}`} />
+                                      </div>
+                                    </button>
+                                    {expandedMeal === mIdx && (
+                                      <div className={`px-5 pb-5 space-y-2 ${themeStyles.iconBg}`}>
+                                        {meal.description && (
+                                          <p className={`text-sm font-semibold ${themeStyles.textMain}`}>{meal.description}</p>
+                                        )}
+                                        {meal.ingredientes && (
+                                          <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>{meal.ingredientes}</p>
+                                        )}
+                                        {(meal.proteinas != null || meal.carbohidratos != null || meal.grasas != null) && (
+                                          <div className="flex gap-4 pt-1">
+                                            <span className={`text-[10px] font-bold ${themeStyles.accent}`}>P:{meal.proteinas ?? '—'}g</span>
+                                            <span className={`text-[10px] font-bold ${themeStyles.accent}`}>C:{meal.carbohidratos ?? '—'}g</span>
+                                            <span className={`text-[10px] font-bold ${themeStyles.accent}`}>G:{meal.grasas ?? '—'}g</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))
+                              ) : (
+                                <div className={`px-5 py-8 text-center ${themeStyles.textMuted} text-xs`}>Sin datos</div>
+                              )}
                             </div>
                           </div>
                         )}
                       </div>
                     ) : (
                       <div className="text-center py-8">
-                            <p className={`${themeStyles.textMuted} text-center py-8`}>Genera tu menú semanal y lista de la compra adaptados a tus preferencias.</p>
-                            <button 
-                              onClick={() => handleGenerateMenu()}
-                              disabled={isGeneratingMenu}
-                              className={`${themeStyles.buttonPrimary} px-6 py-2 rounded-xl font-bold uppercase tracking-wider text-xs`}
-                            >
-                              {isGeneratingMenu ? 'Generando...' : 'Generar Plan'}
-                            </button>
+                        <p className={`${themeStyles.textMuted} text-center py-8`}>Genera tu menú semanal y lista de la compra adaptados a tus preferencias.</p>
+                        <button
+                          onClick={() => handleGenerateMenu()}
+                          className={`${themeStyles.buttonPrimary} px-6 py-2 rounded-xl font-bold uppercase tracking-wider text-xs`}
+                        >
+                          Generar Plan
+                        </button>
                       </div>
                     )}
                   </div>

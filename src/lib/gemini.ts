@@ -36,7 +36,7 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-pro",
         contents: {
           parts: [
             {
@@ -84,7 +84,13 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
         },
       }
     })
-  }).then(res => res.json());
+  }).then(async res => {
+    const ct = res.headers.get('content-type') || '';
+    if (!res.ok || !ct.includes('json')) {
+      throw new Error('Error de conexión con el servidor. Inténtalo de nuevo.');
+    }
+    return res.json();
+  });
 
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error("El análisis está tardando demasiado. Por favor, comprueba tu conexión a internet e inténtalo de nuevo.")), 25000);
@@ -146,7 +152,7 @@ export async function analyzeFoodText(foodDescription: string, contextStr?: stri
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-pro",
         contents: prompt,
         config: {
         systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es estimar de forma precisa el contenido nutricional del alimento descrito. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él de forma personal. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida, teniendo en cuenta el contexto proporcionado. Devuelve un objeto JSON estructurado.",
@@ -183,7 +189,13 @@ export async function analyzeFoodText(foodDescription: string, contextStr?: stri
         },
       }
     })
-  }).then(r => r.json());
+  }).then(async r => {
+    const ct = r.headers.get('content-type') || '';
+    if (!r.ok || !ct.includes('json')) {
+      throw new Error('Error de conexión con el servidor. Inténtalo de nuevo.');
+    }
+    return r.json();
+  });
 
     if (response.error) {
       throw new Error(response.error);
@@ -216,7 +228,7 @@ export async function recalculateFoodMacros(foodDescription: string, contextStr?
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
         systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es estimar de forma precisa el contenido nutricional (calorías y macronutrientes) del alimento descrito. Es CRÍTICO que prestes especial atención al tamaño de las porciones descritas y a los métodos de preparación. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él de forma personal. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida, teniendo en cuenta el contexto.",
@@ -236,7 +248,13 @@ export async function recalculateFoodMacros(foodDescription: string, contextStr?
         },
       }
     })
-  }).then(r => r.json());
+  }).then(async r => {
+    const ct = r.headers.get('content-type') || '';
+    if (!r.ok || !ct.includes('json')) {
+      throw new Error('Error de conexión con el servidor. Inténtalo de nuevo.');
+    }
+    return r.json();
+  });
 
     if (response.error) {
       throw new Error(response.error);
@@ -302,12 +320,30 @@ export function calculateDailyCalories(profile: any, currentWeight: number): Nut
   };
 }
 
-export function extractIngredients(weeklyPlan: any): any[] {
+export function extractIngredients(menuData: any): any[] {
   const allIngredients: any[] = [];
-  if (!weeklyPlan || !weeklyPlan.weeklyPlan) return allIngredients;
-  for (const dayKey of Object.keys(weeklyPlan.weeklyPlan)) {
-    const day = weeklyPlan.weeklyPlan[dayKey];
-    if (day && day.meals) {
+
+  // New format: menuData.days[].meals[].ingredientes (string "Avena 80g · Plátano 1ud")
+  if (Array.isArray(menuData?.days)) {
+    for (const day of menuData.days) {
+      if (Array.isArray(day.meals)) {
+        for (const meal of day.meals) {
+          if (meal.ingredientes) {
+            meal.ingredientes.split(/\s*·\s*|\s*,\s*/).forEach((item: string) => {
+              if (item.trim()) allIngredients.push({ item: item.trim() });
+            });
+          }
+        }
+      }
+    }
+    return allIngredients;
+  }
+
+  // Legacy format: menuData.weeklyPlan[day].meals (object with meal-type keys)
+  if (!menuData?.weeklyPlan) return allIngredients;
+  for (const dayKey of Object.keys(menuData.weeklyPlan)) {
+    const day = menuData.weeklyPlan[dayKey];
+    if (day?.meals) {
       for (const mealKey of Object.keys(day.meals)) {
         const meal = day.meals[mealKey];
         if (meal && Array.isArray(meal.ingredients)) {
@@ -352,10 +388,11 @@ COMIDA LIBRE:
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: userPrompt,
         config: {
-        systemInstruction: `Eres un sistema de planificación nutricional clínica. 
+        maxOutputTokens: 8192,
+        systemInstruction: `Eres un sistema de planificación nutricional clínica.
 Tu única función es generar planes de alimentación semanales estructurados en JSON válido, sin texto adicional, sin explicaciones, sin markdown. Solo JSON. Si no puedes cumplir alguna restricción, indícalo dentro del JSON en el campo "warnings", nunca fuera de él.
 
 Reglas no negociables:
@@ -366,60 +403,49 @@ Reglas no negociables:
 - En días de gimnasio, la ingesta de proteína aumenta un 15% respecto a días de descanso, compensando con una reducción equivalente en carbohidratos.
 - Si hay una comida libre declarada, el exceso calórico máximo permitido es de 400 kcal sobre el objetivo diario. El resto de ingestas de ese día se reducen proporcionalmente para absorber ese exceso.
 
-IMPORTANTE PARA FORMATO: Dentro de "meals" de cada día (ej: "Desayuno", "Almuerzo", "Cena", "Snack"), debes incluir "name", "calories" (number) y un array "ingredients" donde cada elemento tenga "item" y "grams".`,
+IMPORTANTE PARA FORMATO: "meals" de cada día es un ARRAY. Cada elemento tiene:
+- "nombre": nombre de la ingesta ("Desayuno", "Media mañana", "Almuerzo", "Merienda" o "Cena")
+- "descripcion": nombre del plato (ej: "Pechuga de pollo con arroz y brócoli")
+- "calorias", "proteinas", "carbohidratos", "grasas": números
+- "ingredientes": string con ingredientes y cantidades separados por " · " (ej: "Pechuga 150g · Arroz 80g · Brócoli 100g")
+Cada objeto de día incluye: "nombre" (día en español, ej: "Lunes"), "calorias", "proteinas", "carbohidratos", "grasas" (totales del día).`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
             weeklyPlan: {
               type: Type.OBJECT,
-              properties: {
-                monday: { 
+              properties: (() => {
+                const mealItem = {
                   type: Type.OBJECT,
                   properties: {
-                    meals: {
-                      type: Type.OBJECT,
-                      description: "E.g. {'Desayuno': { name: 'Huevos', ingredients: [{item: 'huevo', grams: 100}], calories: 150 }}",
-                    }
-                  }
-                },
-                tuesday: { 
+                    nombre:         { type: Type.STRING },
+                    descripcion:    { type: Type.STRING },
+                    calorias:       { type: Type.NUMBER },
+                    proteinas:      { type: Type.NUMBER },
+                    carbohidratos:  { type: Type.NUMBER },
+                    grasas:         { type: Type.NUMBER },
+                    ingredientes:   { type: Type.STRING },
+                  },
+                  required: ['nombre', 'calorias', 'proteinas', 'carbohidratos', 'grasas', 'ingredientes'],
+                };
+                const daySchema = {
                   type: Type.OBJECT,
                   properties: {
-                    meals: { type: Type.OBJECT }
-                  }
-                },
-                wednesday: { 
-                  type: Type.OBJECT,
-                  properties: {
-                    meals: { type: Type.OBJECT }
-                  }
-                },
-                thursday: { 
-                  type: Type.OBJECT,
-                  properties: {
-                    meals: { type: Type.OBJECT }
-                  }
-                },
-                friday: { 
-                  type: Type.OBJECT,
-                  properties: {
-                    meals: { type: Type.OBJECT }
-                  }
-                },
-                saturday: { 
-                  type: Type.OBJECT,
-                  properties: {
-                    meals: { type: Type.OBJECT }
-                  }
-                },
-                sunday: { 
-                  type: Type.OBJECT,
-                  properties: {
-                    meals: { type: Type.OBJECT }
-                  }
-                }
-              }
+                    nombre:        { type: Type.STRING },
+                    calorias:      { type: Type.NUMBER },
+                    proteinas:     { type: Type.NUMBER },
+                    carbohidratos: { type: Type.NUMBER },
+                    grasas:        { type: Type.NUMBER },
+                    meals:         { type: Type.ARRAY, items: mealItem },
+                  },
+                  required: ['nombre', 'calorias', 'proteinas', 'carbohidratos', 'grasas', 'meals'],
+                };
+                return {
+                  monday: daySchema, tuesday: daySchema, wednesday: daySchema,
+                  thursday: daySchema, friday: daySchema, saturday: daySchema, sunday: daySchema,
+                };
+              })(),
             },
             nutritionistNotes: { type: Type.STRING },
             warnings: { type: Type.ARRAY, items: { type: Type.STRING } }
@@ -428,7 +454,13 @@ IMPORTANTE PARA FORMATO: Dentro de "meals" de cada día (ej: "Desayuno", "Almuer
         }
       }
     })
-  }).then(r => r.json());
+  }).then(async r => {
+    const ct = r.headers.get('content-type') || '';
+    if (!r.ok || !ct.includes('json')) {
+      throw new Error('Error de conexión con el servidor. Inténtalo de nuevo.');
+    }
+    return r.json();
+  });
 
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error("La generación del menú está tardando demasiado. Por favor, inténtalo de nuevo.")), 120000);
@@ -466,40 +498,29 @@ IMPORTANTE PARA FORMATO: Dentro de "meals" de cada día (ej: "Desayuno", "Almuer
         const dayData = parsed.weeklyPlan[dayKey];
         if (dayData) {
           const mealList: any[] = [];
-          if (dayData.meals) {
-            for (const [mealKey, meal] of Object.entries(dayData.meals) as any) {
-              let desc = meal.name || mealKey;
-              if (meal.ingredients && Array.isArray(meal.ingredients)) {
-                desc += " - " + meal.ingredients.map((i: any) => `${i.grams}g ${i.item}`).join(", ");
-              }
+          if (Array.isArray(dayData.meals)) {
+            for (const meal of dayData.meals) {
               mealList.push({
-                type: mealKey,
-                description: desc,
-                calories: meal.calories
+                type: meal.nombre,
+                description: meal.descripcion || meal.nombre,
+                calories: meal.calorias,
+                proteinas: meal.proteinas,
+                carbohidratos: meal.carbohidratos,
+                grasas: meal.grasas,
+                ingredientes: meal.ingredientes,
               });
             }
           }
           legacyDays.push({
-            day: dayNames[dayKey] || dayKey,
-            meals: mealList
+            day: dayData.nombre || dayNames[dayKey] || dayKey,
+            calorias: dayData.calorias,
+            proteinas: dayData.proteinas,
+            carbohidratos: dayData.carbohidratos,
+            grasas: dayData.grasas,
+            meals: mealList,
           });
         }
       });
-
-      // Catch any extra days not in standard order if they exist
-      for (const [dayKey, dayData] of Object.entries(parsed.weeklyPlan) as any) {
-        if (!dayOrder.includes(dayKey.toLowerCase()) && dayData) {
-          const mealList: any[] = [];
-          if (dayData.meals) {
-            // ... same mapping logic
-            for (const [mealKey, meal] of Object.entries(dayData.meals) as any) {
-              let desc = meal.name || mealKey;
-              mealList.push({ type: mealKey, description: desc, calories: meal.calories });
-            }
-          }
-          legacyDays.push({ day: dayKey, meals: mealList });
-        }
-      }
     }
 
     parsed.days = legacyDays;
@@ -540,7 +561,7 @@ ${JSON.stringify(ingredients, null, 2)}`;
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: userPrompt,
       config: {
         systemInstruction: `Eres un sistema de organización de compras para supermercado.
@@ -573,7 +594,13 @@ Reglas:
         }
       }
     })
-  }).then(r => r.json());
+  }).then(async r => {
+    const ct = r.headers.get('content-type') || '';
+    if (!r.ok || !ct.includes('json')) {
+      throw new Error('Error de conexión con el servidor. Inténtalo de nuevo.');
+    }
+    return r.json();
+  });
 
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error("La generación de la lista de la compra está tardando demasiado.")), 90000);
@@ -629,7 +656,7 @@ export async function generateWorkoutPlan(profileStr: string): Promise<string> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: `Genera una rutina de entrenamiento semanal personalizada para este perfil: ${profileStr}. 
       TIPO DE ENTRENAMIENTO: ${data.workoutType === 'home' ? 'En casa sin equipamiento (entrenamiento con peso corporal)' : 'En el Gimnasio (GYM) usando pesas y máquinas'}.
       REQUISITOS OBLIGATORIOS:
@@ -650,7 +677,13 @@ export async function generateWorkoutPlan(profileStr: string): Promise<string> {
         Añade enlaces de imagen en los nombres de ejercicio: [Nombre](https://www.google.com/search?q=gym+exercise+Nombre&tbm=isch).`,
       }
     })
-  }).then(r => r.json());
+  }).then(async r => {
+    const ct = r.headers.get('content-type') || '';
+    if (!r.ok || !ct.includes('json')) {
+      throw new Error('Error de conexión con el servidor. Inténtalo de nuevo.');
+    }
+    return r.json();
+  });
     if (response.error) {
       throw new Error(response.error);
     }
@@ -667,7 +700,7 @@ export async function generateFridgeRecipe(base64Image: string, mimeType: string
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         contents: {
           parts: [
             {
@@ -683,7 +716,13 @@ export async function generateFridgeRecipe(base64Image: string, mimeType: string
         systemInstruction: "Actúa como un chef experto en nutrición deportiva. Inventa una receta paso a paso utilizando PRINCIPALMENTE los ingredientes de la foto (puedes asumir básicos como sal, aceite, especias) que se ajuste lo mejor posible a los macros restantes del usuario. Devuelve la receta en formato Markdown, incluyendo el título, ingredientes, pasos y una estimación de los macros de la receta.",
       }
     })
-  }).then(r => r.json());
+  }).then(async r => {
+    const ct = r.headers.get('content-type') || '';
+    if (!r.ok || !ct.includes('json')) {
+      throw new Error('Error de conexión con el servidor. Inténtalo de nuevo.');
+    }
+    return r.json();
+  });
     if (response.error) {
       throw new Error(response.error);
     }
@@ -706,7 +745,7 @@ export async function chatWithCoach(messages: {role: 'user' | 'model', parts: {t
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.5-flash",
         config: {
           systemInstruction: `Eres un auténtico experto en fitness, fisiología del ejercicio y nutrición clínica (diabetes). Actúas como un coach motivador 24/7.
 Contexto del usuario:
@@ -721,7 +760,13 @@ Instrucciones:
         history: history,
         message: lastMessage
       })
-  }).then(r => r.json());
+  }).then(async r => {
+    const ct = r.headers.get('content-type') || '';
+    if (!r.ok || !ct.includes('json')) {
+      throw new Error('Error de conexión con el servidor. Inténtalo de nuevo.');
+    }
+    return r.json();
+  });
 
     if (response.error) {
       throw new Error(response.error);
@@ -753,7 +798,7 @@ export async function findRestaurants(location: string, preferences: string): Pr
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: "gemini-flash-latest",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
         systemInstruction: "Eres un experto buscador de restaurantes y crítico gastronómico especializado en dietas especiales (vegana, sin gluten, keto, etc.). Tu objetivo es encontrar lugares reales y de alta calidad que se ajusten perfectamente a las necesidades del usuario. Sé muy específico con las direcciones y por qué recomiendas cada lugar. Estima el nivel de precio (1-4) y la distancia aproximada (0.1 a 10.0 km).",
@@ -782,7 +827,13 @@ export async function findRestaurants(location: string, preferences: string): Pr
         }
       }
     })
-  }).then(r => r.json());
+  }).then(async r => {
+    const ct = r.headers.get('content-type') || '';
+    if (!r.ok || !ct.includes('json')) {
+      throw new Error('Error de conexión con el servidor. Inténtalo de nuevo.');
+    }
+    return r.json();
+  });
 
     if (response.error) {
       throw new Error(response.error);
