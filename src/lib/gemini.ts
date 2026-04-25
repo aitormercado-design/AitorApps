@@ -332,16 +332,14 @@ Reglas no negociables:
 - En días de gimnasio, la ingesta de proteína aumenta un 15% respecto a días de descanso, compensando con una reducción equivalente en carbohidratos.
 - Si hay una comida libre declarada, el exceso calórico máximo permitido es de 400 kcal sobre el objetivo diario. El resto de ingestas de ese día se reducen proporcionalmente para absorber ese exceso.
 
-FORMATO JSON OBLIGATORIO — usa exactamente estas claves abreviadas:
-{"d":[{"n":"Lunes","k":0,"p":0,"c":0,"g":0,"m":[{"t":"Desayuno","n":"Nombre del plato","k":0,"p":0,"c":0,"g":0,"i":"ing1,ing2,ing3,ing4"},{"t":"Almuerzo","n":"...","k":0,"p":0,"c":0,"g":0,"i":"..."},{"t":"Merienda","n":"...","k":0,"p":0,"c":0,"g":0,"i":"..."},{"t":"Cena","n":"...","k":0,"p":0,"c":0,"g":0,"i":"..."}]},{"n":"Martes",...},{"n":"Miércoles",...},{"n":"Jueves",...},{"n":"Viernes",...},{"n":"Sábado",...},{"n":"Domingo",...}]}
+FORMATO JSON OBLIGATORIO — devuelve EXACTAMENTE esta estructura con los 7 días (monday a sunday):
+{"weeklyPlan":{"monday":{"nombre":"Lunes","calorias":0,"proteinas":0,"carbohidratos":0,"grasas":0,"meals":[{"nombre":"Desayuno","descripcion":"...","calorias":0,"proteinas":0,"carbohidratos":0,"grasas":0,"ingredientes":"ing1, ing2, ing3"},{"nombre":"Almuerzo",...},{"nombre":"Merienda",...},{"nombre":"Cena",...}]},"tuesday":{...},"wednesday":{...},"thursday":{...},"friday":{...},"saturday":{...},"sunday":{...}}}
 
-Claves: d=días(array), n=nombre, k=kcal, p=proteína(g), c=carbohidratos(g), g=grasa(g), m=comidas(array), t=tipo, i=ingredientes
 Reglas de formato:
-- "d": ARRAY con exactamente 7 objetos en orden Lunes→Domingo
-- "m": ARRAY con exactamente 4 elementos por día: Desayuno, Almuerzo, Merienda, Cena
-- "i": máximo 4 ingredientes principales sin cantidades, separados por coma
+- "meals" de cada día: ARRAY con exactamente 4 elementos en este orden: Desayuno, Almuerzo, Merienda, Cena
+- "ingredientes": máximo 4 ingredientes principales separados por ", " sin cantidades (ej: "Avena, plátano, whey, leche")
 - Todos los valores numéricos son enteros sin decimales
-- Genera los 7 días completos. No pares antes de Domingo.`;
+- Genera los 7 días completos. No pares antes de "sunday".`;
 
     const apiPromise = ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -375,32 +373,40 @@ Reglas de formato:
       throw new Error("Error al procesar el plan. Inténtalo de nuevo.");
     }
 
+    const dayNames: Record<string, string> = {
+      monday: "Lunes", tuesday: "Martes", wednesday: "Miércoles",
+      thursday: "Jueves", friday: "Viernes", saturday: "Sábado", sunday: "Domingo",
+    };
+    const dayOrder = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
     const legacyDays: any[] = [];
 
-    if (Array.isArray(parsed?.d)) {
-      for (const day of parsed.d) {
-        const mealList: any[] = [];
-        if (Array.isArray(day.m)) {
-          for (const meal of day.m) {
-            mealList.push({
-              type: meal.t,
-              description: meal.n,
-              calories: meal.k,
-              proteinas: meal.p,
-              carbohidratos: meal.c,
-              grasas: meal.g,
-              ingredientes: meal.i,
-            });
+    if (parsed?.weeklyPlan) {
+      for (const dayKey of dayOrder) {
+        const dayData = parsed.weeklyPlan[dayKey];
+        if (dayData) {
+          const mealList: any[] = [];
+          if (Array.isArray(dayData.meals)) {
+            for (const meal of dayData.meals) {
+              mealList.push({
+                type: meal.nombre,
+                description: meal.descripcion || meal.nombre,
+                calories: meal.calorias,
+                proteinas: meal.proteinas,
+                carbohidratos: meal.carbohidratos,
+                grasas: meal.grasas,
+                ingredientes: meal.ingredientes,
+              });
+            }
           }
+          legacyDays.push({
+            day: dayData.nombre || dayNames[dayKey] || dayKey,
+            calorias: dayData.calorias,
+            proteinas: dayData.proteinas,
+            carbohidratos: dayData.carbohidratos,
+            grasas: dayData.grasas,
+            meals: mealList,
+          });
         }
-        legacyDays.push({
-          day: day.n,
-          calorias: day.k,
-          proteinas: day.p,
-          carbohidratos: day.c,
-          grasas: day.g,
-          meals: mealList,
-        });
       }
     }
 
