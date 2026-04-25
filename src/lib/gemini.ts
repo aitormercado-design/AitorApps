@@ -292,12 +292,18 @@ export function extractIngredients(menuData: any): any[] {
 
 export type WeeklyMenu = any;
 
-export async function generateWeeklyMenu(profile: any, currentWeight: number): Promise<WeeklyMenu> {
-  try {
-    const targets = calculateDailyCalories(profile, currentWeight);
-    const allergiesStr = Array.isArray(profile.allergies) && profile.allergies.length > 0 ? profile.allergies.join(', ') : 'Ninguna';
+const _dayNames: Record<string, string> = {
+  monday: "Lunes", tuesday: "Martes", wednesday: "Miércoles",
+  thursday: "Jueves", friday: "Viernes", saturday: "Sábado", sunday: "Domingo",
+};
 
-    const userPrompt = `Genera el plan nutricional con estos datos:
+function buildMenuPrompts(profile: any, currentWeight: number) {
+  const targets = calculateDailyCalories(profile, currentWeight);
+  const allergiesStr = Array.isArray(profile.allergies) && profile.allergies.length > 0
+    ? profile.allergies.join(', ')
+    : 'Ninguna';
+
+  const userPrompt = `Genera el plan nutricional con estos datos:
 
 PERFIL CALCULADO (no recalcules esto, úsalo tal cual):
 - Calorías diarias objetivo: ${targets.calories} kcal
@@ -319,7 +325,7 @@ COMIDA LIBRE:
 - Día: ${profile.freeMealDay || ''}
 - Tipo: ${profile.freeMealType || ''}`;
 
-    const systemBase = `Eres un sistema de planificación nutricional clínica.
+  const systemBase = `Eres un sistema de planificación nutricional clínica.
 Tu única función es generar planes de alimentación estructurados en JSON válido, sin texto adicional, sin explicaciones, sin markdown. Solo JSON puro.
 
 Reglas no negociables:
@@ -338,96 +344,95 @@ Reglas de formato:
 - "ingredientes": máximo 4 ingredientes principales separados por ", " sin cantidades (ej: "Avena, plátano, whey, leche")
 - Todos los valores numéricos son enteros sin decimales`;
 
-    const generateDays = async (dayKeys: string[], label: string): Promise<any> => {
-      const daysStr = dayKeys.join(', ');
+  return { userPrompt, systemBase };
+}
 
-      const apiPromise = ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: userPrompt,
-        config: {
-          maxOutputTokens: 8192,
-          systemInstruction: `${systemBase}\n\nGENERA ÚNICAMENTE los días: ${daysStr}. No generes ningún otro día.`,
-        },
-      });
+export async function generateDaysBatch(
+  profile: any,
+  currentWeight: number,
+  dayKeys: string[],
+  label: string,
+): Promise<any[]> {
+  const { userPrompt, systemBase } = buildMenuPrompts(profile, currentWeight);
+  const daysStr = dayKeys.join(', ');
 
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout generando ${label}. Inténtalo de nuevo.`)), 120000)
-      );
+  const apiPromise = ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: userPrompt,
+    config: {
+      maxOutputTokens: 8192,
+      systemInstruction: `${systemBase}\n\nGENERA ÚNICAMENTE los días: ${daysStr}. No generes ningún otro día.`,
+    },
+  });
 
-      const response = await Promise.race([apiPromise, timeoutPromise]);
-      const text = response.text;
-      if (!text) throw new Error(`Sin respuesta para ${label}.`);
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`Timeout generando ${label}. Inténtalo de nuevo.`)), 120000)
+  );
 
-      let cleanText = text;
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        cleanText = jsonMatch[0];
-      } else {
-        cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-      }
+  const response = await Promise.race([apiPromise, timeoutPromise]);
+  const text = response.text;
+  if (!text) throw new Error(`Sin respuesta para ${label}.`);
 
-      try {
-        return JSON.parse(cleanText);
-      } catch {
-        throw new Error(`Error al procesar ${label}. Inténtalo de nuevo.`);
-      }
-    };
+  let cleanText = text;
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    cleanText = jsonMatch[0];
+  } else {
+    cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
+  }
 
-    const [firstHalf, secondHalf] = await Promise.all([
-      generateDays(['monday', 'tuesday', 'wednesday', 'thursday'], 'primera mitad (Lun-Jue)'),
-      generateDays(['friday', 'saturday', 'sunday'], 'segunda mitad (Vie-Dom)'),
-    ]);
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleanText);
+  } catch {
+    throw new Error(`Error al procesar ${label}. Inténtalo de nuevo.`);
+  }
 
-    const mergedPlan = {
-      weeklyPlan: {
-        ...firstHalf.weeklyPlan,
-        ...secondHalf.weeklyPlan,
-      },
-      nutritionistNotes: firstHalf.nutritionistNotes || secondHalf.nutritionistNotes || '',
-    };
-
-    // Map to legacy format for UI compatibility
-    const legacyDays: any[] = [];
-    const dayNames: Record<string, string> = {
-      monday: "Lunes", tuesday: "Martes", wednesday: "Miércoles",
-      thursday: "Jueves", friday: "Viernes", saturday: "Sábado", sunday: "Domingo"
-    };
-    const dayOrder = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-
-    if (mergedPlan.weeklyPlan) {
-      dayOrder.forEach(dayKey => {
-        const dayData = mergedPlan.weeklyPlan[dayKey];
-        if (dayData) {
-          const mealList: any[] = [];
-          if (Array.isArray(dayData.meals)) {
-            for (const meal of dayData.meals) {
-              mealList.push({
-                type: meal.nombre,
-                description: meal.descripcion || meal.nombre,
-                calories: meal.calorias,
-                proteinas: meal.proteinas,
-                carbohidratos: meal.carbohidratos,
-                grasas: meal.grasas,
-                ingredientes: meal.ingredientes,
-              });
-            }
+  const legacyDays: any[] = [];
+  if (parsed?.weeklyPlan) {
+    for (const dayKey of dayKeys) {
+      const dayData = parsed.weeklyPlan[dayKey];
+      if (dayData) {
+        const mealList: any[] = [];
+        if (Array.isArray(dayData.meals)) {
+          for (const meal of dayData.meals) {
+            mealList.push({
+              type: meal.nombre,
+              description: meal.descripcion || meal.nombre,
+              calories: meal.calorias,
+              proteinas: meal.proteinas,
+              carbohidratos: meal.carbohidratos,
+              grasas: meal.grasas,
+              ingredientes: meal.ingredientes,
+            });
           }
-          legacyDays.push({
-            day: dayData.nombre || dayNames[dayKey] || dayKey,
-            calorias: dayData.calorias,
-            proteinas: dayData.proteinas,
-            carbohidratos: dayData.carbohidratos,
-            grasas: dayData.grasas,
-            meals: mealList,
-          });
         }
-      });
+        legacyDays.push({
+          dayKey,
+          day: dayData.nombre || _dayNames[dayKey] || dayKey,
+          calorias: dayData.calorias,
+          proteinas: dayData.proteinas,
+          carbohidratos: dayData.carbohidratos,
+          grasas: dayData.grasas,
+          meals: mealList,
+        });
+      }
     }
+  }
+  return legacyDays;
+}
 
-    mergedPlan.days = legacyDays;
-    mergedPlan.recommendations = mergedPlan.nutritionistNotes || "Disfruta de tu plan de comidas.";
-
-    return mergedPlan;
+export async function generateWeeklyMenu(profile: any, currentWeight: number): Promise<WeeklyMenu> {
+  try {
+    const [batch1, batch2, batch3] = await Promise.all([
+      generateDaysBatch(profile, currentWeight, ['monday', 'tuesday'], 'Lun-Mar'),
+      generateDaysBatch(profile, currentWeight, ['wednesday', 'thursday', 'friday'], 'Mié-Vie'),
+      generateDaysBatch(profile, currentWeight, ['saturday', 'sunday'], 'Sáb-Dom'),
+    ]);
+    return {
+      days: [...batch1, ...batch2, ...batch3],
+      recommendations: "Disfruta de tu plan de comidas.",
+    };
   } catch (error: any) {
     console.error("Error generating menu:", error);
     if (error.message?.includes("Quota exceeded")) {
