@@ -341,7 +341,12 @@ Reglas de formato:
 - "m": ARRAY con exactamente 4 elementos por día: Desayuno, Almuerzo, Merienda, Cena
 - "i": máximo 4 ingredientes sin cantidades, separados por coma
 - Todos los valores numéricos son enteros sin decimales
-- Genera los 7 días completos. No pares antes de Domingo.`;
+- Genera los 7 días completos. No pares antes de Domingo.
+
+OBLIGATORIO: USA EXACTAMENTE ESTAS CLAVES JSON: d, n, k, p, c, g, m, t, i
+NUNCA uses claves largas como "nombre", "calorias", "meals", "proteinas". Solo las abreviadas.
+Ejemplo de estructura correcta:
+{"d":[{"n":"Lunes","k":2900,"p":252,"c":295,"g":81,"m":[{"t":"Desayuno","n":"Avena con whey","k":600,"p":45,"c":75,"g":18,"i":"avena,whey,leche"},{"t":"Almuerzo","n":"Pollo con arroz","k":750,"p":68,"c":80,"g":20,"i":"pollo,arroz,brócoli,aceite"},{"t":"Merienda","n":"Yogur con fruta","k":300,"p":20,"c":45,"g":8,"i":"yogur,plátano,nueces"},{"t":"Cena","n":"Salmón con verduras","k":650,"p":55,"c":40,"g":28,"i":"salmón,espinacas,patata,limón"}]}]}`;
 
     const apiPromise = ai.models.generateContent({
       model: "gemini-2.5-flash",
