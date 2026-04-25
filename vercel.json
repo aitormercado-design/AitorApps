@@ -1,0 +1,14 @@
+{
+  "buildCommand": "vite build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/**/*.ts": {
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    { "source": "/api/gemini/generateContent", "destination": "/api/gemini/generateContent" },
+    { "source": "/api/gemini/chat", "destination": "/api/gemini/chat" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}
