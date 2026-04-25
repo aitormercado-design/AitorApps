@@ -296,8 +296,8 @@ export async function generateWeeklyMenu(profile: any, currentWeight: number): P
   try {
     const targets = calculateDailyCalories(profile, currentWeight);
     const allergiesStr = Array.isArray(profile.allergies) && profile.allergies.length > 0 ? profile.allergies.join(', ') : 'Ninguna';
-    
-    const userPrompt = `Genera un menú semanal completo con estos datos:
+
+    const userPrompt = `Genera el plan nutricional con estos datos:
 
 PERFIL CALCULADO (no recalcules esto, úsalo tal cual):
 - Calorías diarias objetivo: ${targets.calories} kcal
@@ -319,15 +319,8 @@ COMIDA LIBRE:
 - Día: ${profile.freeMealDay || ''}
 - Tipo: ${profile.freeMealType || ''}`;
 
-    const apiPromise = ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: userPrompt,
-      config: {
-        maxOutputTokens: 16000,
-        systemInstruction: `Eres un sistema de planificación nutricional clínica.
-Tu única función es generar planes de alimentación semanales estructurados en JSON válido, sin texto adicional, sin explicaciones, sin markdown. Solo JSON puro. Si no puedes cumplir alguna restricción, indícalo dentro del JSON en el campo "warnings", nunca fuera de él.
-
-OBLIGATORIO: Genera los 7 días completos de la semana: monday, tuesday, wednesday, thursday, friday, saturday, sunday. No omitas ninguno.
+    const systemBase = `Eres un sistema de planificación nutricional clínica.
+Tu única función es generar planes de alimentación estructurados en JSON válido, sin texto adicional, sin explicaciones, sin markdown. Solo JSON puro.
 
 Reglas no negociables:
 - Respetar estrictamente las alergias declaradas. Una alergia es una exclusión absoluta, no una preferencia.
@@ -337,41 +330,61 @@ Reglas no negociables:
 - En días de gimnasio, la ingesta de proteína aumenta un 15% respecto a días de descanso, compensando con una reducción equivalente en carbohidratos.
 - Si hay una comida libre declarada, el exceso calórico máximo permitido es de 400 kcal sobre el objetivo diario. El resto de ingestas de ese día se reducen proporcionalmente para absorber ese exceso.
 
-FORMATO JSON EXACTO (copia esta estructura para los 7 días):
-{"weeklyPlan":{"monday":{"nombre":"Lunes","calorias":0,"proteinas":0,"carbohidratos":0,"grasas":0,"meals":[{"nombre":"Desayuno","descripcion":"...","calorias":0,"proteinas":0,"carbohidratos":0,"grasas":0,"ingredientes":"ing1, ing2, ing3"},{"nombre":"Almuerzo",...},{"nombre":"Merienda",...},{"nombre":"Cena",...}]},"tuesday":{...},...,"sunday":{...}},"nutritionistNotes":"..."}
+FORMATO JSON (estructura exacta por día):
+{"weeklyPlan":{"monday":{"nombre":"Lunes","calorias":0,"proteinas":0,"carbohidratos":0,"grasas":0,"meals":[{"nombre":"Desayuno","descripcion":"...","calorias":0,"proteinas":0,"carbohidratos":0,"grasas":0,"ingredientes":"ing1, ing2, ing3"},{"nombre":"Almuerzo",...},{"nombre":"Merienda",...},{"nombre":"Cena",...}]}}}
 
 Reglas de formato:
 - "meals" de cada día: ARRAY con exactamente 4 elementos en este orden: Desayuno, Almuerzo, Merienda, Cena
 - "ingredientes": máximo 4 ingredientes principales separados por ", " sin cantidades (ej: "Avena, plátano, whey, leche")
-- Todos los valores numéricos son enteros sin decimales`,
+- Todos los valores numéricos son enteros sin decimales`;
+
+    const generateDays = async (dayKeys: string[], label: string): Promise<any> => {
+      const daysStr = dayKeys.join(', ');
+
+      const apiPromise = ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: userPrompt,
+        config: {
+          maxOutputTokens: 8192,
+          systemInstruction: `${systemBase}\n\nGENERA ÚNICAMENTE los días: ${daysStr}. No generes ningún otro día.`,
+        },
+      });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout generando ${label}. Inténtalo de nuevo.`)), 120000)
+      );
+
+      const response = await Promise.race([apiPromise, timeoutPromise]);
+      const text = response.text;
+      if (!text) throw new Error(`Sin respuesta para ${label}.`);
+
+      let cleanText = text;
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleanText = jsonMatch[0];
+      } else {
+        cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
+      }
+
+      try {
+        return JSON.parse(cleanText);
+      } catch {
+        throw new Error(`Error al procesar ${label}. Inténtalo de nuevo.`);
+      }
+    };
+
+    const [firstHalf, secondHalf] = await Promise.all([
+      generateDays(['monday', 'tuesday', 'wednesday', 'thursday'], 'primera mitad (Lun-Jue)'),
+      generateDays(['friday', 'saturday', 'sunday'], 'segunda mitad (Vie-Dom)'),
+    ]);
+
+    const mergedPlan = {
+      weeklyPlan: {
+        ...firstHalf.weeklyPlan,
+        ...secondHalf.weeklyPlan,
       },
-    });
-
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("La generación del menú está tardando demasiado. Por favor, inténtalo de nuevo.")), 120000);
-    });
-
-    const t0 = performance.now();
-    const response = await Promise.race([apiPromise, timeoutPromise]);
-    const t1 = performance.now();
-    alert(`GEMINI TIME: ${Math.round(t1 - t0)} ms`);
-    const text = response.text;
-    if (!text) throw new Error("No response from model");
-
-    let cleanText = text;
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      cleanText = jsonMatch[0];
-    } else {
-      cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-    }
-    
-    let parsed: any;
-    try {
-      parsed = JSON.parse(cleanText);
-    } catch (parseErr) {
-      throw new Error("Error al procesar la respuesta del plan nutricional. Inténtalo de nuevo.");
-    }
+      nutritionistNotes: firstHalf.nutritionistNotes || secondHalf.nutritionistNotes || '',
+    };
 
     // Map to legacy format for UI compatibility
     const legacyDays: any[] = [];
@@ -379,12 +392,11 @@ Reglas de formato:
       monday: "Lunes", tuesday: "Martes", wednesday: "Miércoles",
       thursday: "Jueves", friday: "Viernes", saturday: "Sábado", sunday: "Domingo"
     };
-
     const dayOrder = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
-    if (parsed.weeklyPlan) {
+    if (mergedPlan.weeklyPlan) {
       dayOrder.forEach(dayKey => {
-        const dayData = parsed.weeklyPlan[dayKey];
+        const dayData = mergedPlan.weeklyPlan[dayKey];
         if (dayData) {
           const mealList: any[] = [];
           if (Array.isArray(dayData.meals)) {
@@ -412,10 +424,10 @@ Reglas de formato:
       });
     }
 
-    parsed.days = legacyDays;
-    parsed.recommendations = parsed.nutritionistNotes || "Disfruta de tu plan de comidas.";
+    mergedPlan.days = legacyDays;
+    mergedPlan.recommendations = mergedPlan.nutritionistNotes || "Disfruta de tu plan de comidas.";
 
-    return parsed;
+    return mergedPlan;
   } catch (error: any) {
     console.error("Error generating menu:", error);
     if (error.message?.includes("Quota exceeded")) {
