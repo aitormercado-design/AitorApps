@@ -319,39 +319,15 @@ COMIDA LIBRE:
 - Día: ${profile.freeMealDay || ''}
 - Tipo: ${profile.freeMealType || ''}`;
 
-    const mealItem = {
-      type: Type.OBJECT,
-      properties: {
-        nombre:        { type: Type.STRING },
-        descripcion:   { type: Type.STRING },
-        calorias:      { type: Type.NUMBER },
-        proteinas:     { type: Type.NUMBER },
-        carbohidratos: { type: Type.NUMBER },
-        grasas:        { type: Type.NUMBER },
-        ingredientes:  { type: Type.STRING },
-      },
-      required: ['nombre', 'calorias', 'proteinas', 'carbohidratos', 'grasas', 'ingredientes'],
-    };
-    const daySchema = {
-      type: Type.OBJECT,
-      properties: {
-        nombre:        { type: Type.STRING },
-        calorias:      { type: Type.NUMBER },
-        proteinas:     { type: Type.NUMBER },
-        carbohidratos: { type: Type.NUMBER },
-        grasas:        { type: Type.NUMBER },
-        meals:         { type: Type.ARRAY, items: mealItem },
-      },
-      required: ['nombre', 'calorias', 'proteinas', 'carbohidratos', 'grasas', 'meals'],
-    };
-
     const apiPromise = ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: userPrompt,
       config: {
         maxOutputTokens: 16000,
         systemInstruction: `Eres un sistema de planificación nutricional clínica.
-Tu única función es generar planes de alimentación semanales estructurados en JSON válido, sin texto adicional, sin explicaciones, sin markdown. Solo JSON. Si no puedes cumplir alguna restricción, indícalo dentro del JSON en el campo "warnings", nunca fuera de él.
+Tu única función es generar planes de alimentación semanales estructurados en JSON válido, sin texto adicional, sin explicaciones, sin markdown. Solo JSON puro. Si no puedes cumplir alguna restricción, indícalo dentro del JSON en el campo "warnings", nunca fuera de él.
+
+OBLIGATORIO: Genera los 7 días completos de la semana: monday, tuesday, wednesday, thursday, friday, saturday, sunday. No omitas ninguno.
 
 Reglas no negociables:
 - Respetar estrictamente las alergias declaradas. Una alergia es una exclusión absoluta, no una preferencia.
@@ -361,29 +337,13 @@ Reglas no negociables:
 - En días de gimnasio, la ingesta de proteína aumenta un 15% respecto a días de descanso, compensando con una reducción equivalente en carbohidratos.
 - Si hay una comida libre declarada, el exceso calórico máximo permitido es de 400 kcal sobre el objetivo diario. El resto de ingestas de ese día se reducen proporcionalmente para absorber ese exceso.
 
-IMPORTANTE PARA FORMATO: "meals" de cada día es un ARRAY con exactamente 4 elementos: Desayuno, Almuerzo, Merienda y Cena. Cada elemento tiene:
-- "nombre": uno de estos valores exactos: "Desayuno", "Almuerzo", "Merienda", "Cena"
-- "descripcion": nombre del plato (ej: "Pechuga de pollo con arroz y brócoli")
-- "calorias", "proteinas", "carbohidratos", "grasas": números
-- "ingredientes": string con máximo 4 ingredientes principales separados por ", " sin cantidades (ej: "Avena, plátano, whey, leche")
-Cada objeto de día incluye: "nombre" (día en español, ej: "Lunes"), "calorias", "proteinas", "carbohidratos", "grasas" (totales del día).`,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            weeklyPlan: {
-              type: Type.OBJECT,
-              properties: {
-                monday: daySchema, tuesday: daySchema, wednesday: daySchema,
-                thursday: daySchema, friday: daySchema, saturday: daySchema, sunday: daySchema,
-              },
-              required: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
-            },
-            nutritionistNotes: { type: Type.STRING },
-            warnings: { type: Type.ARRAY, items: { type: Type.STRING } },
-          },
-          required: ["weeklyPlan"],
-        },
+FORMATO JSON EXACTO (copia esta estructura para los 7 días):
+{"weeklyPlan":{"monday":{"nombre":"Lunes","calorias":0,"proteinas":0,"carbohidratos":0,"grasas":0,"meals":[{"nombre":"Desayuno","descripcion":"...","calorias":0,"proteinas":0,"carbohidratos":0,"grasas":0,"ingredientes":"ing1, ing2, ing3"},{"nombre":"Almuerzo",...},{"nombre":"Merienda",...},{"nombre":"Cena",...}]},"tuesday":{...},...,"sunday":{...}},"nutritionistNotes":"..."}
+
+Reglas de formato:
+- "meals" de cada día: ARRAY con exactamente 4 elementos en este orden: Desayuno, Almuerzo, Merienda, Cena
+- "ingredientes": máximo 4 ingredientes principales separados por ", " sin cantidades (ej: "Avena, plátano, whey, leche")
+- Todos los valores numéricos son enteros sin decimales`,
       },
     });
 
@@ -393,9 +353,6 @@ Cada objeto de día incluye: "nombre" (día en español, ej: "Lunes"), "calorias
 
     const response = await Promise.race([apiPromise, timeoutPromise]);
     const text = response.text;
-    console.log('RESPONSE LENGTH:', response.text?.length);
-    console.log('RESPONSE RAW (primeros 800 chars):', response.text?.substring(0, 800));
-    console.log('RESPONSE RAW (últimos 200 chars):', response.text?.substring((response.text?.length ?? 0) - 200));
     if (!text) throw new Error("No response from model");
 
     let cleanText = text;
