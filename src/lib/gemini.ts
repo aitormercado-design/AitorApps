@@ -356,20 +356,37 @@ export async function generateDaysBatch(
   const { userPrompt, systemBase } = buildMenuPrompts(profile, currentWeight);
   const daysStr = dayKeys.join(', ');
 
-  const apiPromise = ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: userPrompt,
-    config: {
-      maxOutputTokens: 8192,
-      systemInstruction: `${systemBase}\n\nGENERA ÚNICAMENTE los días: ${daysStr}. No generes ningún otro día.`,
-    },
-  });
+  const attemptGenerate = async (): Promise<any> => {
+    const apiPromise = ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: userPrompt,
+      config: {
+        maxOutputTokens: 8192,
+        systemInstruction: `${systemBase}\n\nGENERA ÚNICAMENTE los días: ${daysStr}. No generes ningún otro día.`,
+      },
+    });
 
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`Timeout generando ${label}. Inténtalo de nuevo.`)), 120000)
-  );
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout generando ${label}. Inténtalo de nuevo.`)), 120000)
+    );
 
-  const response = await Promise.race([apiPromise, timeoutPromise]);
+    return Promise.race([apiPromise, timeoutPromise]);
+  };
+
+  let response: any;
+  try {
+    response = await attemptGenerate();
+  } catch (err: any) {
+    const is429 = err?.status === 429 || err?.code === 429
+      || String(err?.message).includes('429')
+      || String(err?.message).includes('RESOURCE_EXHAUSTED');
+    if (is429) {
+      await new Promise(r => setTimeout(r, 8000));
+      response = await attemptGenerate();
+    } else {
+      throw err;
+    }
+  }
   const text = response.text;
   if (!text) throw new Error(`Sin respuesta para ${label}.`);
 

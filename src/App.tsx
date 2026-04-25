@@ -1321,7 +1321,7 @@ export default function App() {
     }
   };
 
-  const handleGenerateMenu = (customProfile?: UserProfile, customGoals?: typeof goals, customWeight?: number) => {
+  const handleGenerateMenu = async (customProfile?: UserProfile, customGoals?: typeof goals, customWeight?: number) => {
     const activeProfile = customProfile || profile;
     if (activeProfile.age === 0) return;
 
@@ -1345,14 +1345,19 @@ export default function App() {
         return combined.sort((a, b) => (dayOrderMap[a.dayKey] ?? 99) - (dayOrderMap[b.dayKey] ?? 99));
       });
     };
+    const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
     generateDaysBatch(activeProfile, currentWeight, ['monday', 'tuesday'], 'Lun-Mar')
       .then(days => { addDays(days); setLoadingParts(p => ({ ...p, part1: false })); })
       .catch(e => { setLoadingParts(p => ({ ...p, part1: false })); setAppError(e.message || 'Error al generar Lun-Mar.'); });
 
+    await delay(2000);
+
     generateDaysBatch(activeProfile, currentWeight, ['wednesday', 'thursday', 'friday'], 'Mié-Vie')
       .then(days => { addDays(days); setLoadingParts(p => ({ ...p, part2: false })); })
       .catch(e => { setLoadingParts(p => ({ ...p, part2: false })); });
+
+    await delay(2000);
 
     generateDaysBatch(activeProfile, currentWeight, ['saturday', 'sunday'], 'Sáb-Dom')
       .then(days => { addDays(days); setLoadingParts(p => ({ ...p, part3: false })); })
