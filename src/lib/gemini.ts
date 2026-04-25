@@ -345,7 +345,7 @@ Reglas de formato:
       model: "gemini-2.5-flash",
       contents: userPrompt,
       config: {
-        maxOutputTokens: 8192,
+        maxOutputTokens: 32000,
         systemInstruction,
       },
     });
