@@ -405,7 +405,14 @@ Cada objeto de día incluye: "nombre" (día en español, ej: "Lunes"), "calorias
       cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
     }
     
-    const parsed = JSON.parse(cleanText);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(cleanText);
+    } catch (parseErr) {
+      throw new Error(
+        `JSON_PARSE_ERROR | len=${text.length} | fin="${text.substring(text.length - 150).replace(/\n/g, '↵')}"`
+      );
+    }
 
     // Map to legacy format for UI compatibility
     const legacyDays: any[] = [];
