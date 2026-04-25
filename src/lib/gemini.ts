@@ -392,8 +392,11 @@ Cada objeto de día incluye: "nombre" (día en español, ej: "Lunes"), "calorias
 
     const response = await Promise.race([apiPromise, timeoutPromise]);
     const text = response.text;
+    console.log('RESPONSE LENGTH:', response.text?.length);
+    console.log('RESPONSE RAW (primeros 800 chars):', response.text?.substring(0, 800));
+    console.log('RESPONSE RAW (últimos 200 chars):', response.text?.substring((response.text?.length ?? 0) - 200));
     if (!text) throw new Error("No response from model");
-    
+
     let cleanText = text;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
