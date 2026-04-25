@@ -388,13 +388,36 @@ COMIDA LIBRE:
 - Día: ${profile.freeMealDay || ''}
 - Tipo: ${profile.freeMealType || ''}`;
 
-    const requestPromise = fetch('/api/gemini/generateContent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: "gemini-2.5-flash",
-        contents: userPrompt,
-        config: {
+    const mealItem = {
+      type: Type.OBJECT,
+      properties: {
+        nombre:        { type: Type.STRING },
+        descripcion:   { type: Type.STRING },
+        calorias:      { type: Type.NUMBER },
+        proteinas:     { type: Type.NUMBER },
+        carbohidratos: { type: Type.NUMBER },
+        grasas:        { type: Type.NUMBER },
+        ingredientes:  { type: Type.STRING },
+      },
+      required: ['nombre', 'calorias', 'proteinas', 'carbohidratos', 'grasas', 'ingredientes'],
+    };
+    const daySchema = {
+      type: Type.OBJECT,
+      properties: {
+        nombre:        { type: Type.STRING },
+        calorias:      { type: Type.NUMBER },
+        proteinas:     { type: Type.NUMBER },
+        carbohidratos: { type: Type.NUMBER },
+        grasas:        { type: Type.NUMBER },
+        meals:         { type: Type.ARRAY, items: mealItem },
+      },
+      required: ['nombre', 'calorias', 'proteinas', 'carbohidratos', 'grasas', 'meals'],
+    };
+
+    const apiPromise = ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: userPrompt,
+      config: {
         maxOutputTokens: 8192,
         systemInstruction: `Eres un sistema de planificación nutricional clínica.
 Tu única función es generar planes de alimentación semanales estructurados en JSON válido, sin texto adicional, sin explicaciones, sin markdown. Solo JSON. Si no puedes cumplir alguna restricción, indícalo dentro del JSON en el campo "warnings", nunca fuera de él.
@@ -419,62 +442,24 @@ Cada objeto de día incluye: "nombre" (día en español, ej: "Lunes"), "calorias
           properties: {
             weeklyPlan: {
               type: Type.OBJECT,
-              properties: (() => {
-                const mealItem = {
-                  type: Type.OBJECT,
-                  properties: {
-                    nombre:         { type: Type.STRING },
-                    descripcion:    { type: Type.STRING },
-                    calorias:       { type: Type.NUMBER },
-                    proteinas:      { type: Type.NUMBER },
-                    carbohidratos:  { type: Type.NUMBER },
-                    grasas:         { type: Type.NUMBER },
-                    ingredientes:   { type: Type.STRING },
-                  },
-                  required: ['nombre', 'calorias', 'proteinas', 'carbohidratos', 'grasas', 'ingredientes'],
-                };
-                const daySchema = {
-                  type: Type.OBJECT,
-                  properties: {
-                    nombre:        { type: Type.STRING },
-                    calorias:      { type: Type.NUMBER },
-                    proteinas:     { type: Type.NUMBER },
-                    carbohidratos: { type: Type.NUMBER },
-                    grasas:        { type: Type.NUMBER },
-                    meals:         { type: Type.ARRAY, items: mealItem },
-                  },
-                  required: ['nombre', 'calorias', 'proteinas', 'carbohidratos', 'grasas', 'meals'],
-                };
-                return {
-                  monday: daySchema, tuesday: daySchema, wednesday: daySchema,
-                  thursday: daySchema, friday: daySchema, saturday: daySchema, sunday: daySchema,
-                };
-              })(),
+              properties: {
+                monday: daySchema, tuesday: daySchema, wednesday: daySchema,
+                thursday: daySchema, friday: daySchema, saturday: daySchema, sunday: daySchema,
+              },
             },
             nutritionistNotes: { type: Type.STRING },
-            warnings: { type: Type.ARRAY, items: { type: Type.STRING } }
+            warnings: { type: Type.ARRAY, items: { type: Type.STRING } },
           },
-          required: ["weeklyPlan"]
-        }
-      }
-    })
-  }).then(async r => {
-    const ct = r.headers.get('content-type') || '';
-    if (!r.ok || !ct.includes('json')) {
-      throw new Error('Error de conexión con el servidor. Inténtalo de nuevo.');
-    }
-    return r.json();
-  });
+          required: ["weeklyPlan"],
+        },
+      },
+    });
 
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => reject(new Error("La generación del menú está tardando demasiado. Por favor, inténtalo de nuevo.")), 120000);
     });
 
-    const response = await Promise.race([requestPromise, timeoutPromise]) as any;
-    
-    if (response.error) {
-      throw new Error(response.error);
-    }
+    const response = await Promise.race([apiPromise, timeoutPromise]);
     const text = response.text;
     if (!text) throw new Error("No response from model");
     
