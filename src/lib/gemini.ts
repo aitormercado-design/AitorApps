@@ -377,6 +377,7 @@ Cada objeto de día incluye: "nombre" (día en español, ej: "Lunes"), "calorias
                 monday: daySchema, tuesday: daySchema, wednesday: daySchema,
                 thursday: daySchema, friday: daySchema, saturday: daySchema, sunday: daySchema,
               },
+              required: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
             },
             nutritionistNotes: { type: Type.STRING },
             warnings: { type: Type.ARRAY, items: { type: Type.STRING } },
