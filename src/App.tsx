@@ -431,6 +431,7 @@ export default function App() {
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const [isRecalculating, setIsRecalculating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const menuTabsRef = useRef<HTMLDivElement>(null);
 
   const [generatedMenu, setGeneratedMenu] = useState<WeeklyMenu | null>(null);
   const [shoppingList, setShoppingList] = useState<ShoppingList | null>(null);
@@ -1313,7 +1314,10 @@ export default function App() {
       
       const menu = await generateWeeklyMenu(activeProfile, currentWeight);
       setGeneratedMenu(menu);
-      
+      setMenuSelectedDay(0);
+      setExpandedMeal(0);
+      if (menuTabsRef.current) menuTabsRef.current.scrollLeft = 0;
+
       // Removed auto shopping list generation to improve performance. The user will click generate intentionally.
     } catch (error: any) {
       console.error("Error generating menu:", error);
@@ -2499,7 +2503,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </div>
 
                         {/* Day tabs */}
-                        <div className="flex overflow-x-auto gap-2 pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+                        <div ref={menuTabsRef} className="flex overflow-x-auto gap-2 pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
                           {generatedMenu.days.map((day: any, dIdx: number) => (
                             <button
                               key={dIdx}
