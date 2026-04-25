@@ -5,7 +5,7 @@ import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, 
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExerciseDelta } from './components/ExerciseDelta';
-import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateDaysBatch, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, extractIngredients, WeeklyMenu, ShoppingList, findRestaurants, Restaurant } from './lib/gemini';
+import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, extractIngredients, WeeklyMenu, ShoppingList, findRestaurants, Restaurant } from './lib/gemini';
 import { calcularBMR } from './utils/nutrition';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer } from 'firebase/firestore';
@@ -434,10 +434,8 @@ export default function App() {
   const menuTabsRef = useRef<HTMLDivElement>(null);
 
   const [generatedMenu, setGeneratedMenu] = useState<WeeklyMenu | null>(null);
-  const [planDays, setPlanDays] = useState<any[]>([]);
-  const [loadingParts, setLoadingParts] = useState({ part1: false, part2: false, part3: false });
-  const isGeneratingMenu = loadingParts.part1 || loadingParts.part2 || loadingParts.part3;
-  const isGeneratingRef = useRef(false);
+  const [isGeneratingMenu, setIsGeneratingMenu] = useState(false);
+  const [progressMsgIdx, setProgressMsgIdx] = useState(0);
   const [shoppingList, setShoppingList] = useState<ShoppingList | null>(null);
   const [isGeneratingShoppingList, setIsGeneratingShoppingList] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
@@ -522,10 +520,7 @@ export default function App() {
               setProfile(loadedProfile);
             }
             if (data.goals) setGoals(data.goals);
-            if (data.generatedMenu) {
-              setGeneratedMenu(data.generatedMenu);
-              if (data.generatedMenu.days) setPlanDays(data.generatedMenu.days);
-            }
+            if (data.generatedMenu) setGeneratedMenu(data.generatedMenu);
             if (data.shoppingList) setShoppingList(data.shoppingList);
             if (data.workoutPlan) setWorkoutPlan(data.workoutPlan);
             if (data.chatMessages) setChatMessages(data.chatMessages);
@@ -596,11 +591,7 @@ export default function App() {
           }
           if (savedGoals) setGoals(JSON.parse(savedGoals));
           if (savedHabits) setHabits(JSON.parse(savedHabits));
-          if (savedMenu) {
-            const parsedMenu = JSON.parse(savedMenu);
-            setGeneratedMenu(parsedMenu);
-            if (parsedMenu?.days) setPlanDays(parsedMenu.days);
-          }
+          if (savedMenu) setGeneratedMenu(JSON.parse(savedMenu));
           if (savedShoppingList) setShoppingList(JSON.parse(savedShoppingList));
           if (localStorage.getItem('nutritivapp_workout_plan')) setWorkoutPlan(localStorage.getItem('nutritivapp_workout_plan'));
           if (savedMeals) setMeals(JSON.parse(savedMeals));
@@ -654,15 +645,6 @@ export default function App() {
   }, [habits, user, isDataLoaded]);
 
   useEffect(() => {
-    if (!isDataLoaded) return;
-    if (loadingParts.part1 || loadingParts.part2 || loadingParts.part3) return;
-    if (planDays.length === 0) return;
-    if (!isGeneratingRef.current) return;
-    isGeneratingRef.current = false;
-    setGeneratedMenu({ days: planDays, recommendations: "Disfruta de tu plan de comidas." });
-  }, [planDays, loadingParts, isDataLoaded]);
-
-  useEffect(() => {
     if (isDataLoaded && generatedMenu) {
       localStorage.setItem('nutritivapp_generated_menu', JSON.stringify(generatedMenu));
       if (user) {
@@ -670,6 +652,22 @@ export default function App() {
       }
     }
   }, [generatedMenu, user, isDataLoaded]);
+
+  const PROGRESS_MSGS = [
+    '> Calculando macros óptimos...',
+    '> Diseñando desayunos y almuerzos...',
+    '> Ajustando días de gimnasio...',
+    '> Equilibrando proteínas y carbohidratos...',
+    '> Revisando alergias y restricciones...',
+    '> Optimizando el menú completo...',
+  ];
+  useEffect(() => {
+    if (!isGeneratingMenu) return;
+    const id = setInterval(() => {
+      setProgressMsgIdx(i => (i + 1) % PROGRESS_MSGS.length);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [isGeneratingMenu]);
 
   useEffect(() => {
     if (isDataLoaded) {
@@ -1324,44 +1322,23 @@ export default function App() {
   const handleGenerateMenu = async (customProfile?: UserProfile, customGoals?: typeof goals, customWeight?: number) => {
     const activeProfile = customProfile || profile;
     if (activeProfile.age === 0) return;
-
-    isGeneratingRef.current = true;
-    setPlanDays([]);
-    setLoadingParts({ part1: true, part2: true, part3: true });
+    setIsGeneratingMenu(true);
+    setProgressMsgIdx(0);
     setGeneratedMenu(null);
     setShoppingList(null);
     setAppError(null);
     setMenuSelectedDay(0);
     setExpandedMeal(0);
     if (menuTabsRef.current) menuTabsRef.current.scrollLeft = 0;
-
-    const currentWeight = customWeight || (weights.length > 0 ? weights[weights.length - 1].weight : 70);
-    const dayOrderMap: Record<string, number> = {
-      monday: 0, tuesday: 1, wednesday: 2, thursday: 3, friday: 4, saturday: 5, sunday: 6,
-    };
-    const addDays = (newDays: any[]) => {
-      setPlanDays(prev => {
-        const combined = [...prev, ...newDays];
-        return combined.sort((a, b) => (dayOrderMap[a.dayKey] ?? 99) - (dayOrderMap[b.dayKey] ?? 99));
-      });
-    };
-    const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
-
-    generateDaysBatch(activeProfile, currentWeight, ['monday', 'tuesday'], 'Lun-Mar')
-      .then(days => { addDays(days); setLoadingParts(p => ({ ...p, part1: false })); })
-      .catch(e => { setLoadingParts(p => ({ ...p, part1: false })); setAppError(e.message || 'Error al generar Lun-Mar.'); });
-
-    await delay(2000);
-
-    generateDaysBatch(activeProfile, currentWeight, ['wednesday', 'thursday', 'friday'], 'Mié-Vie')
-      .then(days => { addDays(days); setLoadingParts(p => ({ ...p, part2: false })); })
-      .catch(e => { setLoadingParts(p => ({ ...p, part2: false })); });
-
-    await delay(2000);
-
-    generateDaysBatch(activeProfile, currentWeight, ['saturday', 'sunday'], 'Sáb-Dom')
-      .then(days => { addDays(days); setLoadingParts(p => ({ ...p, part3: false })); })
-      .catch(e => { setLoadingParts(p => ({ ...p, part3: false })); });
+    try {
+      const currentWeight = customWeight || (weights.length > 0 ? weights[weights.length - 1].weight : 70);
+      const menu = await generateWeeklyMenu(activeProfile, currentWeight);
+      setGeneratedMenu(menu);
+    } catch (error: any) {
+      setAppError(error.message || 'Error al generar el plan. Inténtalo de nuevo.');
+    } finally {
+      setIsGeneratingMenu(false);
+    }
   };
 
   const toggleCheckedItem = (itemName: string) => {
@@ -1372,12 +1349,12 @@ export default function App() {
   };
 
   const handleGenerateShoppingList = async () => {
-    if (planDays.length === 0) return;
+    if (!generatedMenu) return;
     setIsGeneratingShoppingList(true);
     setShoppingList(null);
     setAppError(null);
     try {
-      const ingredients = extractIngredients(generatedMenu || { days: planDays });
+      const ingredients = extractIngredients(generatedMenu);
       const list = await generateShoppingList(ingredients, profile.favoriteSupermarket);
       setShoppingList(list);
     } catch (error) {
@@ -2329,7 +2306,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               className="space-y-6 pb-32"
             >
               {/* Meals Sub Tabs */}
-              <div className={`grid ${!isGeneratingMenu && planDays.length > 0 ? 'grid-cols-3' : 'grid-cols-2'} ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border} shadow-lg mb-6`}>
+              <div className={`grid ${generatedMenu ? 'grid-cols-3' : 'grid-cols-2'} ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border} shadow-lg mb-6`}>
                 <button
                   onClick={() => setMealsSubTab('daily')}
                   className={`py-3 text-[10px] flex items-center justify-center gap-1.5 font-black uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'daily' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
@@ -2345,7 +2322,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <ClipboardList className="w-3.5 h-3.5" />
                   Plan
                 </button>
-                {!isGeneratingMenu && planDays.length > 0 && (
+                {generatedMenu && (
                   <button
                     onClick={() => setMealsSubTab('shopping')}
                     className={`py-3 text-[10px] flex items-center justify-center gap-1.5 font-black uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'shopping' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
@@ -2495,7 +2472,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         <h2 className={`text-xl font-display font-bold ${themeStyles.textMain} uppercase tracking-tight`}>Plan Nutricional</h2>
                       </div>
                     </div>
-                    {isGeneratingMenu && planDays.length === 0 ? (
+                    {isGeneratingMenu ? (
                       <div className={`${themeStyles.card} p-12 text-center`}>
                         <div className="relative w-20 h-20 mx-auto mb-6">
                           <motion.div
@@ -2509,16 +2486,21 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </div>
                         <div className="space-y-2">
                           <p className={`${themeStyles.textMain} font-bold`}>Diseñando el plan de {profile.name || 'Usuario'}...</p>
-                          <motion.div
-                            className={`${themeStyles.textMuted} text-xs font-mono h-4`}
-                            animate={{ opacity: [0, 1, 0] }}
-                            transition={{ repeat: Infinity, duration: 1.5 }}
-                          >
-                            {'> Calculando macros óptimos...'}
-                          </motion.div>
+                          <AnimatePresence mode="wait">
+                            <motion.p
+                              key={progressMsgIdx}
+                              initial={{ opacity: 0, y: 4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -4 }}
+                              transition={{ duration: 0.4 }}
+                              className={`${themeStyles.textMuted} text-xs font-mono`}
+                            >
+                              {PROGRESS_MSGS[progressMsgIdx]}
+                            </motion.p>
+                          </AnimatePresence>
                         </div>
                       </div>
-                    ) : planDays.length > 0 || isGeneratingMenu ? (
+                    ) : generatedMenu ? (
                       <div className="space-y-4">
                         {/* Header */}
                         <div className="flex items-center justify-between">
@@ -2527,41 +2509,23 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               Plan de {profile.name || 'Usuario'}
                             </p>
                             <p className={`text-[10px] ${themeStyles.textMuted} mt-0.5`}>
-                              {planDays.length} {isGeneratingMenu ? `de 7 días` : 'días'} · {profile.goal === 'lose' ? 'Perder grasa' : profile.goal === 'gain' ? 'Ganar músculo' : 'Mantenimiento'} · {profile.favoriteSupermarket || 'General'}
+                              {generatedMenu.days?.length || 0} días · {profile.goal === 'lose' ? 'Perder grasa' : profile.goal === 'gain' ? 'Ganar músculo' : 'Mantenimiento'} · {profile.favoriteSupermarket || 'General'}
                             </p>
                           </div>
                           <button
                             onClick={() => handleGenerateMenu()}
-                            disabled={isGeneratingMenu}
-                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} ${themeStyles.textMuted} text-[9px] font-black uppercase tracking-widest hover:${themeStyles.textMain} transition-all disabled:opacity-40`}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} ${themeStyles.textMuted} text-[9px] font-black uppercase tracking-widest hover:${themeStyles.textMain} transition-all`}
                           >
-                            <RefreshCw className={`w-3 h-3 ${isGeneratingMenu ? 'animate-spin' : ''}`} />
+                            <RefreshCw className="w-3 h-3" />
                             Regenerar
                           </button>
                         </div>
 
-                        {/* Progress bar */}
-                        {isGeneratingMenu && (
-                          <div className={`h-0.5 rounded-full overflow-hidden ${themeStyles.iconBg} border ${themeStyles.border}`}>
-                            <motion.div
-                              className={`h-full ${themeStyles.accentBg}`}
-                              initial={{ width: '0%' }}
-                              animate={{
-                                width: `${Math.round(((!loadingParts.part1 ? 1 : 0) + (!loadingParts.part2 ? 1 : 0) + (!loadingParts.part3 ? 1 : 0)) / 3 * 100)}%`,
-                              }}
-                              transition={{ ease: 'easeOut', duration: 0.4 }}
-                            />
-                          </div>
-                        )}
-
                         {/* Day tabs */}
                         <div ref={menuTabsRef} className="flex overflow-x-auto gap-2 pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
-                          {planDays.map((day: any, dIdx: number) => (
-                            <motion.button
-                              key={day.dayKey || day.day}
-                              initial={{ opacity: 0, y: 8 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.3 }}
+                          {generatedMenu.days.map((day: any, dIdx: number) => (
+                            <button
+                              key={dIdx}
                               onClick={() => { setMenuSelectedDay(dIdx); setExpandedMeal(0); }}
                               className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] uppercase font-black tracking-widest transition-all ${
                                 menuSelectedDay === dIdx
@@ -2570,37 +2534,24 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               }`}
                             >
                               {(day.day || `Día ${dIdx + 1}`).slice(0, 3)}
-                            </motion.button>
+                            </button>
                           ))}
-                          {loadingParts.part1 && (<>
-                            <div className={`flex-shrink-0 w-14 h-9 rounded-xl animate-pulse ${themeStyles.accentMuted}`} />
-                            <div className={`flex-shrink-0 w-14 h-9 rounded-xl animate-pulse ${themeStyles.accentMuted}`} />
-                          </>)}
-                          {loadingParts.part2 && (<>
-                            <div className={`flex-shrink-0 w-14 h-9 rounded-xl animate-pulse ${themeStyles.accentMuted}`} />
-                            <div className={`flex-shrink-0 w-14 h-9 rounded-xl animate-pulse ${themeStyles.accentMuted}`} />
-                            <div className={`flex-shrink-0 w-14 h-9 rounded-xl animate-pulse ${themeStyles.accentMuted}`} />
-                          </>)}
-                          {loadingParts.part3 && (<>
-                            <div className={`flex-shrink-0 w-14 h-9 rounded-xl animate-pulse ${themeStyles.accentMuted}`} />
-                            <div className={`flex-shrink-0 w-14 h-9 rounded-xl animate-pulse ${themeStyles.accentMuted}`} />
-                          </>)}
                         </div>
 
                         {/* Selected day */}
-                        {planDays[menuSelectedDay] ? (
+                        {generatedMenu.days[menuSelectedDay] && (
                           <div className={`${themeStyles.card} rounded-2xl overflow-hidden border ${themeStyles.border}`}>
                             {/* Day summary pills */}
                             <div className={`px-5 py-4 border-b ${themeStyles.border}`}>
                               <p className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-[0.2em] mb-3`}>
-                                {planDays[menuSelectedDay].day}
+                                {generatedMenu.days[menuSelectedDay].day}
                               </p>
                               <div className="flex gap-2 flex-wrap">
                                 {[
-                                  { label: '', value: `${planDays[menuSelectedDay].calorias ?? '—'} kcal` },
-                                  { label: 'P', value: `${planDays[menuSelectedDay].proteinas ?? '—'}g` },
-                                  { label: 'C', value: `${planDays[menuSelectedDay].carbohidratos ?? '—'}g` },
-                                  { label: 'G', value: `${planDays[menuSelectedDay].grasas ?? '—'}g` },
+                                  { label: '', value: `${generatedMenu.days[menuSelectedDay].calorias ?? '—'} kcal` },
+                                  { label: 'P', value: `${generatedMenu.days[menuSelectedDay].proteinas ?? '—'}g` },
+                                  { label: 'C', value: `${generatedMenu.days[menuSelectedDay].carbohidratos ?? '—'}g` },
+                                  { label: 'G', value: `${generatedMenu.days[menuSelectedDay].grasas ?? '—'}g` },
                                 ].map(pill => (
                                   <span key={pill.label || 'kcal'} className={`${themeStyles.accentMuted} ${themeStyles.accent} text-[10px] font-black px-3 py-1 rounded-full border ${themeStyles.accentBorder}`}>
                                     {pill.label ? `${pill.label}:` : ''}{pill.value}
@@ -2611,8 +2562,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                             {/* Meal accordion */}
                             <div>
-                              {(planDays[menuSelectedDay].meals?.length ?? 0) > 0 ? (
-                                planDays[menuSelectedDay].meals.map((meal: any, mIdx: number) => (
+                              {(generatedMenu.days[menuSelectedDay].meals?.length ?? 0) > 0 ? (
+                                generatedMenu.days[menuSelectedDay].meals.map((meal: any, mIdx: number) => (
                                   <div key={mIdx} className={`border-b ${themeStyles.border} last:border-b-0`}>
                                     <button
                                       onClick={() => setExpandedMeal(expandedMeal === mIdx ? -1 : mIdx)}
@@ -2650,24 +2601,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               )}
                             </div>
                           </div>
-                        ) : isGeneratingMenu ? (
-                          <div className={`${themeStyles.card} rounded-2xl overflow-hidden border ${themeStyles.border}`}>
-                            <div className={`px-5 py-4 border-b ${themeStyles.border}`}>
-                              <div className="flex gap-2 flex-wrap">
-                                {[...Array(4)].map((_, i) => (
-                                  <div key={i} className={`h-6 w-20 rounded-full animate-pulse ${themeStyles.accentMuted}`} />
-                                ))}
-                              </div>
-                            </div>
-                            <div>
-                              {[...Array(4)].map((_, i) => (
-                                <div key={i} className={`px-5 py-4 border-b ${themeStyles.border} last:border-b-0`}>
-                                  <div className={`h-4 w-28 rounded-lg animate-pulse ${themeStyles.accentMuted}`} />
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
+                        )}
                       </div>
                     ) : (
                       <div className="text-center py-8">
@@ -2695,7 +2629,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                      <div className="flex-1">
                        <div className="flex items-center justify-between">
                          <h2 className={`text-xl font-bold ${themeStyles.textMain}`}>Lista de la Compra</h2>
-                         {planDays.length > 0 && (
+                         {generatedMenu && (
                            <button
                              onClick={handleGenerateShoppingList}
                              disabled={isGeneratingShoppingList}
@@ -2744,7 +2678,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                        </p>
                        <button 
                          onClick={handleGenerateShoppingList}
-                         disabled={planDays.length === 0}
+                         disabled={!generatedMenu}
                          className={`${themeStyles.buttonPrimary} px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-[10px] mx-auto flex items-center gap-2`}
                        >
                          <ShoppingCart className="w-4 h-4" />
