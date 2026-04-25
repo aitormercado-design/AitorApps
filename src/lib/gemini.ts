@@ -354,7 +354,7 @@ Reglas de formato:
     const t0 = performance.now();
     const response = await Promise.race([apiPromise, timeoutPromise]);
     const t1 = performance.now();
-    console.log('GEMINI TIME:', Math.round(t1 - t0), 'ms');
+    alert(`GEMINI TIME: ${Math.round(t1 - t0)} ms`);
     const text = response.text;
     if (!text) throw new Error("No response from model");
 
