@@ -349,7 +349,7 @@ COMIDA LIBRE:
       model: "gemini-2.5-flash",
       contents: userPrompt,
       config: {
-        maxOutputTokens: 8192,
+        maxOutputTokens: 16000,
         systemInstruction: `Eres un sistema de planificación nutricional clínica.
 Tu única función es generar planes de alimentación semanales estructurados en JSON válido, sin texto adicional, sin explicaciones, sin markdown. Solo JSON. Si no puedes cumplir alguna restricción, indícalo dentro del JSON en el campo "warnings", nunca fuera de él.
 
@@ -361,11 +361,11 @@ Reglas no negociables:
 - En días de gimnasio, la ingesta de proteína aumenta un 15% respecto a días de descanso, compensando con una reducción equivalente en carbohidratos.
 - Si hay una comida libre declarada, el exceso calórico máximo permitido es de 400 kcal sobre el objetivo diario. El resto de ingestas de ese día se reducen proporcionalmente para absorber ese exceso.
 
-IMPORTANTE PARA FORMATO: "meals" de cada día es un ARRAY. Cada elemento tiene:
-- "nombre": nombre de la ingesta ("Desayuno", "Media mañana", "Almuerzo", "Merienda" o "Cena")
+IMPORTANTE PARA FORMATO: "meals" de cada día es un ARRAY con exactamente 4 elementos: Desayuno, Almuerzo, Merienda y Cena. Cada elemento tiene:
+- "nombre": uno de estos valores exactos: "Desayuno", "Almuerzo", "Merienda", "Cena"
 - "descripcion": nombre del plato (ej: "Pechuga de pollo con arroz y brócoli")
 - "calorias", "proteinas", "carbohidratos", "grasas": números
-- "ingredientes": string con ingredientes y cantidades separados por " · " (ej: "Pechuga 150g · Arroz 80g · Brócoli 100g")
+- "ingredientes": string con máximo 4 ingredientes principales separados por ", " sin cantidades (ej: "Avena, plátano, whey, leche")
 Cada objeto de día incluye: "nombre" (día en español, ej: "Lunes"), "calorias", "proteinas", "carbohidratos", "grasas" (totales del día).`,
         responseMimeType: "application/json",
         responseSchema: {
