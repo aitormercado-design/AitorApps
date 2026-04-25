@@ -351,7 +351,10 @@ Reglas de formato:
       setTimeout(() => reject(new Error("La generación del menú está tardando demasiado. Por favor, inténtalo de nuevo.")), 120000);
     });
 
+    const t0 = performance.now();
     const response = await Promise.race([apiPromise, timeoutPromise]);
+    const t1 = performance.now();
+    console.log('GEMINI TIME:', Math.round(t1 - t0), 'ms');
     const text = response.text;
     if (!text) throw new Error("No response from model");
 
