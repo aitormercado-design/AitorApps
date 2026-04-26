@@ -256,39 +256,24 @@ export function calculateDailyCalories(profile: any, currentWeight: number): Nut
 }
 
 export function extractIngredients(menuData: any): any[] {
-  alert('MENU INPUT: ' + JSON.stringify(menuData)?.substring(0, 500));
-  const allIngredients: any[] = [];
+  const ingredients: any[] = [];
+  const days = menuData?.days ?? [];
 
-  // New format: menuData.days[].meals[].ingredientes (string "avena,whey,leche")
-  if (Array.isArray(menuData?.days)) {
-    for (const day of menuData.days) {
-      if (Array.isArray(day.meals)) {
-        for (const meal of day.meals) {
-          if (meal.ingredientes) {
-            meal.ingredientes.split(/\s*·\s*|\s*,\s*/).forEach((item: string) => {
-              if (item.trim()) allIngredients.push({ item: item.trim(), day: day.day || '' });
-            });
-          }
-        }
-      }
-    }
-    return allIngredients;
-  }
+  for (const day of days) {
+    const dayName = day.day ?? day.nombre ?? day.n ?? '';
+    const meals = day.meals ?? day.m ?? [];
 
-  // Legacy format: menuData.weeklyPlan[day].meals (object with meal-type keys)
-  if (!menuData?.weeklyPlan) return allIngredients;
-  for (const dayKey of Object.keys(menuData.weeklyPlan)) {
-    const day = menuData.weeklyPlan[dayKey];
-    if (day?.meals) {
-      for (const mealKey of Object.keys(day.meals)) {
-        const meal = day.meals[mealKey];
-        if (meal && Array.isArray(meal.ingredients)) {
-          allIngredients.push(...meal.ingredients);
-        }
+    for (const meal of meals) {
+      const ingredientStr = meal.ingredientes ?? meal.i ?? '';
+      if (!ingredientStr) continue;
+
+      const items = String(ingredientStr).split(',').map((i: string) => i.trim()).filter(Boolean);
+      for (const item of items) {
+        ingredients.push({ item, day: dayName });
       }
     }
   }
-  return allIngredients;
+  return ingredients;
 }
 
 export type WeeklyMenu = any;
