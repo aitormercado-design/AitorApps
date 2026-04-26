@@ -256,7 +256,7 @@ export function calculateDailyCalories(profile: any, currentWeight: number): Nut
 }
 
 export function extractIngredients(menuData: any): any[] {
-  console.log('MENU INPUT:', JSON.stringify(menuData)?.substring(0, 500));
+  alert('MENU INPUT: ' + JSON.stringify(menuData)?.substring(0, 500));
   const allIngredients: any[] = [];
 
   // New format: menuData.days[].meals[].ingredientes (string "avena,whey,leche")
