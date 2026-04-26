@@ -362,6 +362,7 @@ Ejemplo de estructura correcta:
     );
 
     const response = await Promise.race([apiPromise, timeoutPromise]);
+    console.log('TOKENS:', response.usageMetadata);
     const text = response.text;
     if (!text) throw new Error("Sin respuesta del modelo.");
 
