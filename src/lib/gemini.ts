@@ -299,13 +299,21 @@ export async function generateWeeklyMenu(profile: any, currentWeight: number): P
       ? profile.allergies.join(', ')
       : 'Ninguna';
 
+    // Diabetes: cap carbs at 60g × 4 meals = 240g max, redistribute excess kcal to fat
+    const adjustedTargets = { ...targets };
+    if (profile.diabetesType !== 'none' && adjustedTargets.carbs > 240) {
+      const excessKcal = (adjustedTargets.carbs - 240) * 4;
+      adjustedTargets.carbs = 240;
+      adjustedTargets.fat = Math.round(adjustedTargets.fat + excessKcal / 9);
+    }
+
     const userPrompt = `Genera el plan nutricional con estos datos:
 
 PERFIL CALCULADO (no recalcules esto, úsalo tal cual):
-- Calorías diarias objetivo: ${targets.calories} kcal
-- Proteína diaria: ${targets.protein}g
-- Carbohidratos diarios: ${targets.carbs}g
-- Grasa diaria: ${targets.fat}g
+- Calorías diarias objetivo: ${adjustedTargets.calories} kcal
+- Proteína diaria: ${adjustedTargets.protein}g
+- Carbohidratos diarios: ${adjustedTargets.carbs}g${profile.diabetesType !== 'none' ? ` (máximo absoluto — diabetes)` : ''}
+- Grasa diaria: ${adjustedTargets.fat}g
 
 DATOS DEL USUARIO:
 - Edad: ${profile.age} | Sexo: ${profile.gender} | Peso: ${currentWeight}kg | Altura: ${profile.height}cm
@@ -322,7 +330,7 @@ COMIDA LIBRE:
 - Tipo: ${profile.freeMealType || ''}`;
 
     const diabetesRule = profile.diabetesType !== 'none'
-      ? `- Diabetes tipo ${profile.diabetesType}: ninguna comida supera 60g de carbohidratos por ingesta. Índices glucémicos altos prohibidos.`
+      ? `- RESTRICCIÓN ABSOLUTA DIABETES tipo ${profile.diabetesType}: NINGUNA comida individual puede superar 60g de carbohidratos. Este límite es INVIOLABLE y prevalece sobre cualquier otro objetivo. El total diario de ${adjustedTargets.carbs}g debe repartirse en máximo 60g por ingesta. Elige alimentos de índice glucémico bajo.`
       : '';
 
     const freeMealRule = profile.freeMealEnabled
