@@ -1127,6 +1127,7 @@ export default function App() {
   const downloadShoppingListHTML = () => {
     if (!shoppingList) return;
 
+    const isDark = profile.theme !== 'light';
     const htmlContent = `
 <!DOCTYPE html>
 <html lang="es">
@@ -1135,23 +1136,32 @@ export default function App() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lista de la Compra - NutritivApp</title>
     <style>
-        :root { --lime: #a3e635; --zinc-950: #09090b; --zinc-900: #18181b; --zinc-800: #27272a; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: var(--zinc-950); color: white; margin: 0; padding: 20px; }
+        :root {
+          --accent: ${isDark ? '#a3e635' : '#16a34a'};
+          --bg: ${isDark ? '#09090b' : '#f8fafc'};
+          --surface: ${isDark ? '#18181b' : '#ffffff'};
+          --border: ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)'};
+          --text: ${isDark ? '#ffffff' : '#0f172a'};
+          --muted: ${isDark ? '#71717a' : '#64748b'};
+          --checkbox-bg: ${isDark ? '#18181b' : '#f1f5f9'};
+          --checkbox-border: ${isDark ? '#3f3f46' : '#cbd5e1'};
+        }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
         .container { max-width: 500px; margin: 0 auto; }
         h1 { font-size: 24px; font-weight: 900; letter-spacing: -1px; margin-bottom: 5px; }
-        .subtitle { color: #71717a; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
-        .supermarket { color: var(--lime); font-size: 14px; font-weight: 800; text-transform: uppercase; margin-bottom: 30px; border-bottom: 1px solid rgba(163, 230, 53, 0.2); padding-bottom: 10px; }
+        .subtitle { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        .supermarket { color: var(--accent); font-size: 14px; font-weight: 800; text-transform: uppercase; margin-bottom: 30px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
         .category { margin-bottom: 25px; }
-        .category-title { color: #71717a; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-        .category-title::before { content: ''; width: 4px; height: 4px; background: var(--lime); border-radius: 50%; }
-        .item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: all 0.2s; }
-        .checkbox { width: 20px; height: 20px; border: 1px solid #3f3f46; border-radius: 6px; background: #18181b; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .item.checked { opacity: 0.5; border-color: rgba(163, 230, 53, 0.2); background: rgba(163, 230, 53, 0.02); }
-        .item.checked .checkbox { background: var(--lime); border-color: var(--lime); }
-        .item.checked .checkbox::after { content: '✓'; color: #09090b; font-size: 12px; font-weight: bold; }
-        .item.checked .name { text-decoration: line-through; color: #71717a; }
+        .category-title { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .category-title::before { content: ''; width: 4px; height: 4px; background: var(--accent); border-radius: 50%; }
+        .item { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: all 0.2s; }
+        .checkbox { width: 20px; height: 20px; border: 1px solid var(--checkbox-border); border-radius: 6px; background: var(--checkbox-bg); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .item.checked { opacity: 0.5; }
+        .item.checked .checkbox { background: var(--accent); border-color: var(--accent); }
+        .item.checked .checkbox::after { content: '✓'; color: ${isDark ? '#09090b' : '#fff'}; font-size: 12px; font-weight: bold; }
+        .item.checked .name { text-decoration: line-through; color: var(--muted); }
         .name { font-size: 14px; font-weight: 500; flex: 1; }
-        .amount { color: var(--lime); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+        .amount { color: var(--accent); font-size: 10px; font-weight: 800; text-transform: uppercase; }
     </style>
 </head>
 <body>

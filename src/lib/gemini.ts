@@ -260,7 +260,6 @@ export function extractIngredients(menuData: any): any[] {
   const days = menuData?.days ?? [];
 
   for (const day of days) {
-    const dayName = day.day ?? day.nombre ?? day.n ?? '';
     const meals = day.meals ?? day.m ?? [];
 
     for (const meal of meals) {
@@ -269,7 +268,7 @@ export function extractIngredients(menuData: any): any[] {
 
       const items = String(ingredientStr).split(',').map((i: string) => i.trim()).filter(Boolean);
       for (const item of items) {
-        ingredients.push({ item, day: dayName });
+        ingredients.push({ item });
       }
     }
   }
@@ -478,13 +477,13 @@ Consolida los ingredientes por nombre, agrúpalos en secciones del supermercado 
 Secciones obligatorias (en este orden): "Frutas y verduras", "Carnes y pescados", "Lácteos y huevos", "Cereales y legumbres", "Otros y condimentos"
 
 Reglas:
-- Consolida duplicados: mismo ingrediente en distintos días = una entrada con todos los días en "dias"
+- Consolida duplicados: mismo ingrediente varias veces = una sola entrada con cantidad total
 - Cantidades en unidades comerciales (no "137g" sino "1 paquete 150g" o "7 unidades")
 - Omite secciones sin items
 - Estima presupuesto total aproximado para ${supermarket}
 
 Ejemplo de estructura:
-{"secciones":[{"nombre":"Frutas y verduras","items":[{"nombre":"Plátano","cantidad":"7 unidades","dias":["Lunes","Martes","Miércoles"]}]},{"nombre":"Carnes y pescados","items":[{"nombre":"Pechuga de pollo","cantidad":"1kg (2 pechugas)","dias":["Martes","Jueves","Sábado"]}]}],"presupuesto_estimado":"75-90€"}`;
+{"secciones":[{"nombre":"Frutas y verduras","items":[{"nombre":"Plátano","cantidad":"7 unidades"}]},{"nombre":"Carnes y pescados","items":[{"nombre":"Pechuga de pollo","cantidad":"1kg (2 pechugas)"}]}],"presupuesto_estimado":"75-90€"}`;
 
     const apiPromise = ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -519,7 +518,7 @@ Ejemplo de estructura:
         name: sec.nombre,
         items: (sec.items ?? []).map((it: any) => ({
           name: it.nombre,
-          amount: `${it.cantidad}${it.dias?.length ? ' · ' + it.dias.join(', ') : ''}`,
+          amount: it.cantidad ?? '',
         })),
       }))
       .filter((cat: any) => cat.items.length > 0);
