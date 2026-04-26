@@ -326,7 +326,7 @@ COMIDA LIBRE:
       : '';
 
     const freeMealRule = profile.freeMealEnabled
-      ? `- Comida libre el ${profile.freeMealDay} en ${profile.freeMealType}: usa EXACTAMENTE {"t":"${profile.freeMealType}","n":"COMIDA LIBRE","k":0,"p":0,"c":0,"g":0,"i":"libre"} para esa ingesta. Las 3 comidas restantes suman el 80% del objetivo diario con distribución realista: Desayuno ≤35%, Almuerzo ≤40%, Merienda ≤20% del total diario. El 20% restante se asume en la comida libre.`
+      ? `- Comida libre el ${profile.freeMealDay} en ${profile.freeMealType}: usa EXACTAMENTE {"t":"${profile.freeMealType}","n":"COMIDA LIBRE","k":0,"p":0,"c":0,"g":0,"i":"libre"} para esa ingesta. La comida libre representa el 50% de las calorías del día. El 50% restante se reparte entre las 3 comidas con proporciones realistas: Desayuno ~35% del 50% restante, Almuerzo ~40% del 50% restante, Merienda ~20% del 50% restante (aprox. 18%, 20%, 10% del total diario respectivamente).`
       : '';
 
     const systemInstruction = `Eres un sistema de planificación nutricional clínica. Solo JSON puro, sin texto adicional.
