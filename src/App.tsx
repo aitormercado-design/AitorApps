@@ -1072,6 +1072,7 @@ export default function App() {
         timestamp: Date.now(),
       };
 
+      setPortionMultiplier(1);
       setEditingMeal(newMeal);
     } catch (error) {
       console.error("Error in handleTextFoodSubmit:", error);
@@ -1115,6 +1116,7 @@ export default function App() {
         timestamp: Date.now(),
       };
 
+      setPortionMultiplier(1);
       setEditingMeal(newMeal);
     } catch (error) {
       console.error("Error in handleFileChange:", error);
@@ -3959,21 +3961,28 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 to-transparent"></div>
               </div>
 
-              <form 
+              <form
                 onSubmit={(e) => {
                   e.preventDefault();
+                  const mealToSave: Meal = {
+                    ...editingMeal,
+                    calories: Math.round(editingMeal.calories * portionMultiplier),
+                    protein: Math.round(editingMeal.protein * portionMultiplier),
+                    carbs: Math.round(editingMeal.carbs * portionMultiplier),
+                    fat: Math.round(editingMeal.fat * portionMultiplier),
+                  };
                   const existingIndex = meals.findIndex(m => m.id === editingMeal.id);
                   if (existingIndex >= 0) {
                     setMeals(prev => {
                       const copy = [...prev];
-                      copy[existingIndex] = editingMeal;
+                      copy[existingIndex] = mealToSave;
                       return copy;
                     });
                   } else {
-                    setMeals(prev => [editingMeal, ...prev]);
+                    setMeals(prev => [mealToSave, ...prev]);
                   }
                   if (user) {
-                    setDoc(doc(db, 'users', user.uid, 'meals', editingMeal.id), editingMeal).catch(console.error);
+                    setDoc(doc(db, 'users', user.uid, 'meals', mealToSave.id), mealToSave).catch(console.error);
                   }
                   setEditingMeal(null);
                 }}
@@ -4094,23 +4103,44 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
 
 
+                {/* Portion Multiplier */}
+                <div className="bg-zinc-950 rounded-2xl p-4 border border-white/5">
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-3">Tamaño de la porción</span>
+                  <div className="grid grid-cols-4 gap-2">
+                    {([0.5, 1, 1.5, 2] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setPortionMultiplier(m)}
+                        className={`py-2 rounded-xl text-sm font-bold transition-colors border ${
+                          portionMultiplier === m
+                            ? `${themeStyles.accentBg} text-zinc-950 border-transparent`
+                            : 'bg-zinc-900 text-zinc-400 border-white/10 hover:bg-zinc-800'
+                        }`}
+                      >
+                        {m === 0.5 ? '½x' : m === 1.5 ? '1½x' : `${m}x`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Read-Only Macros */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
                     <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Calorías</span>
-                    <span className={`text-lg font-display font-bold ${themeStyles.accent}`}>{editingMeal.calories} <span className="text-xs text-zinc-500">kcal</span></span>
+                    <span className={`text-lg font-display font-bold ${themeStyles.accent}`}>{Math.round(editingMeal.calories * portionMultiplier)} <span className="text-xs text-zinc-500">kcal</span></span>
                   </div>
                   <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
                     <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Proteínas</span>
-                    <span className="text-lg font-display font-bold text-blue-400">{editingMeal.protein} <span className="text-xs text-zinc-500">g</span></span>
+                    <span className="text-lg font-display font-bold text-blue-400">{Math.round(editingMeal.protein * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
                   </div>
                   <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
                     <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Carbohidratos</span>
-                    <span className="text-lg font-display font-bold text-amber-400">{editingMeal.carbs} <span className="text-xs text-zinc-500">g</span></span>
+                    <span className="text-lg font-display font-bold text-amber-400">{Math.round(editingMeal.carbs * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
                   </div>
                   <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
                     <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Grasas</span>
-                    <span className="text-lg font-display font-bold text-rose-400">{editingMeal.fat} <span className="text-xs text-zinc-500">g</span></span>
+                    <span className="text-lg font-display font-bold text-rose-400">{Math.round(editingMeal.fat * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
                   </div>
                 </div>
 
