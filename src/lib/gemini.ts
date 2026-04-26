@@ -5,6 +5,20 @@ const ai = new GoogleGenAI({
   apiKey: (import.meta.env.VITE_GEMINI_API_KEY as string) || (process.env.GEMINI_API_KEY as string) || '',
 });
 
+function friendlyGeminiError(error: any, fallback: string): Error {
+  const msg: string = error?.message ?? '';
+  if (msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429')) {
+    return new Error('Límite de consultas alcanzado. Espera un momento e inténtalo de nuevo.');
+  }
+  if (msg.includes('TIMEOUT') || msg.includes('tardando demasiado')) {
+    return new Error('La consulta tardó demasiado. Inténtalo de nuevo.');
+  }
+  if (msg.includes('API key not valid') || msg.includes('API_KEY_INVALID')) {
+    return new Error('La clave de API de Gemini no es válida. Por favor, revísala en los secretos.');
+  }
+  return new Error(fallback);
+}
+
 export type NutritionalInfo = {
   foodName: string;
   totalWeight: number;
@@ -69,11 +83,7 @@ Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo ex
     return JSON.parse(cleanText) as NutritionalInfo;
   } catch (error: any) {
     console.error("Error in analyzeFoodImage:", error);
-    const errorMessage = error.message || "Error desconocido";
-    if (errorMessage.includes("API key not valid")) {
-      throw new Error("La clave de API de Gemini no es válida. Por favor, revísala en los secretos.");
-    }
-    throw new Error(`Error al analizar la imagen: ${errorMessage}`);
+    throw friendlyGeminiError(error, 'No se pudo analizar la imagen. Inténtalo de nuevo.');
   }
 }
 
@@ -110,11 +120,7 @@ Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo ex
     return JSON.parse(cleanText) as NutritionalInfo;
   } catch (error: any) {
     console.error("Error analyzing food text:", error);
-    const errorMessage = error.message || "Error desconocido";
-    if (errorMessage.includes("API key not valid")) {
-      throw new Error("La clave de API de Gemini no es válida. Por favor, revísala en los secretos.");
-    }
-    throw new Error(`No se pudo analizar el texto: ${errorMessage}`);
+    throw friendlyGeminiError(error, 'No se pudo analizar el texto. Inténtalo de nuevo.');
   }
 }
 
@@ -160,11 +166,7 @@ export async function recalculateFoodMacros(foodDescription: string, contextStr?
     return JSON.parse(cleanText);
   } catch (error: any) {
     console.error("Error recalculating macros:", error);
-    const errorMessage = error.message || "Error desconocido";
-    if (errorMessage.includes("API key not valid")) {
-      throw new Error("La clave de API de Gemini no es válida. Por favor, revísala en los secretos.");
-    }
-    throw new Error(`Error al recalcular: ${errorMessage}`);
+    throw friendlyGeminiError(error, 'No se pudo recalcular. Inténtalo de nuevo.');
   }
 }
 
@@ -389,10 +391,7 @@ Ejemplo:
     };
   } catch (error: any) {
     console.error("Error generating menu:", error);
-    if (error.message?.includes("Quota exceeded") || error.message?.includes("RESOURCE_EXHAUSTED")) {
-      throw new Error("Se ha superado el límite de uso de la IA. Espera unos minutos e inténtalo de nuevo.");
-    }
-    throw new Error(error.message || "No se pudo generar el menú. Inténtalo de nuevo.");
+    throw friendlyGeminiError(error, 'No se pudo generar el menú. Inténtalo de nuevo.');
   }
 }
 
@@ -477,7 +476,7 @@ Ejemplo de estructura:
     return { categories, budget: parsed.presupuesto_estimado };
   } catch (error: any) {
     console.error("Error generating shopping list:", error);
-    throw new Error(error.message || "No se pudo generar la lista de la compra.");
+    throw friendlyGeminiError(error, 'No se pudo generar la lista de la compra. Inténtalo de nuevo.');
   }
 }
 
@@ -509,9 +508,9 @@ export async function generateWorkoutPlan(profileStr: string): Promise<string> {
       },
     });
     return response.text || "No se pudo generar la rutina.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating workout:", error);
-    throw new Error("No se pudo generar la rutina. Inténtalo de nuevo.");
+    throw friendlyGeminiError(error, 'No se pudo generar la rutina. Inténtalo de nuevo.');
   }
 }
 
@@ -538,8 +537,8 @@ Instrucciones:
       result += chunk.text ?? '';
     }
     return result || "Lo siento, no pude procesar eso.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in coach chat:", error);
-    throw new Error("Hubo un error de conexión. Inténtalo de nuevo.");
+    throw friendlyGeminiError(error, 'Hubo un error de conexión. Inténtalo de nuevo.');
   }
 }
