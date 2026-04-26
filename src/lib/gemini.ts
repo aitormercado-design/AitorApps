@@ -29,8 +29,8 @@ export type NutritionalInfo = {
 export async function analyzeFoodImage(base64Image: string, mimeType: string, contextStr?: string): Promise<NutritionalInfo> {
   try {
     const prompt = contextStr
-      ? `Analiza esta imagen de comida. Contexto del usuario: "${contextStr}". Devuelve SOLO JSON puro.`
-      : `Analiza esta imagen de comida. Devuelve SOLO JSON puro.`;
+      ? `Analiza esta imagen de comida. Contexto del usuario: "${contextStr}". Devuelve ÚNICAMENTE JSON válido.`
+      : `Analiza esta imagen de comida. Devuelve ÚNICAMENTE JSON válido.`;
 
     const apiPromise = ai.models.generateContent({
       model: "gemini-2.5-pro",
@@ -45,8 +45,8 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
         maxOutputTokens: 2048,
         systemInstruction: `Eres un experto nutricionista especializado en nutrición deportiva y gestión de la DIABETES. Actúa como un coach empático y motivador. Analiza imágenes de comida y estima con precisión el contenido nutricional y el peso. Evalúa la calidad nutricional (NutriScore A-E). Si el usuario es diabético, enfócate en la estabilidad de la glucosa. Si el nombre del usuario está en el contexto, úsalo. Desglosa los ingredientes principales con sus gramos estimados.
 
-Devuelve SOLO JSON puro, sin texto adicional ni markdown. Ejemplo:
-{"foodName":"Arroz con pollo","totalWeight":350,"calories":520,"protein":38,"carbs":62,"fat":12,"ingredients":[{"name":"Arroz","amount":"150g"},{"name":"Pechuga de pollo","amount":"150g"},{"name":"Aceite de oliva","amount":"10g"}],"confidence":"alta","confidenceMessage":"Plato claramente visible con ingredientes identificables","alternatives":[],"interpretation":"Comida equilibrada","coachMessage":"¡Muy buena elección! Tienes un balance perfecto de proteína y carbohidratos.","actionableRecommendation":"Añade una ensalada verde para más fibra en la cena.","nutriScore":"B"}`,
+Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo exacto del formato:
+{"foodName":"Arroz con pollo","totalWeight":350,"calories":450,"protein":38,"carbs":52,"fat":12,"ingredients":[{"name":"arroz","amount":"150g"},{"name":"pollo","amount":"150g"},{"name":"aceite","amount":"10g"}],"confidence":"alta","confidenceMessage":"Análisis completado","interpretation":"Plato equilibrado","coachMessage":"Buena elección","actionableRecommendation":"Añade verduras","nutriScore":"B"}`,
       },
     });
 
@@ -80,8 +80,8 @@ Devuelve SOLO JSON puro, sin texto adicional ni markdown. Ejemplo:
 export async function analyzeFoodText(foodDescription: string, contextStr?: string): Promise<NutritionalInfo> {
   try {
     const prompt = contextStr
-      ? `Alimento: "${foodDescription}". Contexto del usuario: "${contextStr}". Devuelve SOLO JSON puro.`
-      : `Alimento: "${foodDescription}". Devuelve SOLO JSON puro.`;
+      ? `Alimento: "${foodDescription}". Contexto del usuario: "${contextStr}". Devuelve ÚNICAMENTE JSON válido.`
+      : `Alimento: "${foodDescription}". Devuelve ÚNICAMENTE JSON válido.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-pro",
@@ -91,8 +91,8 @@ export async function analyzeFoodText(foodDescription: string, contextStr?: stri
         maxOutputTokens: 2048,
         systemInstruction: `Eres un experto nutricionista deportivo y coach empático y motivador. Estima con precisión el contenido nutricional del alimento descrito. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él.
 
-Devuelve SOLO JSON puro, sin texto adicional ni markdown. Ejemplo:
-{"foodName":"Arroz con pollo","totalWeight":350,"calories":520,"protein":38,"carbs":62,"fat":12,"ingredients":[{"name":"Arroz","amount":"150g"},{"name":"Pechuga de pollo","amount":"150g"},{"name":"Aceite de oliva","amount":"10g"}],"confidence":"alta","confidenceMessage":"Composición estándar del plato bien conocida","interpretation":"Comida equilibrada","coachMessage":"¡Muy buena elección! Tienes un balance perfecto de proteína y carbohidratos.","actionableRecommendation":"Añade una ensalada verde para más fibra en la cena.","nutriScore":"B"}`,
+Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo exacto del formato:
+{"foodName":"Arroz con pollo","totalWeight":350,"calories":450,"protein":38,"carbs":52,"fat":12,"ingredients":[{"name":"arroz","amount":"150g"},{"name":"pollo","amount":"150g"},{"name":"aceite","amount":"10g"}],"confidence":"alta","confidenceMessage":"Análisis completado","interpretation":"Plato equilibrado","coachMessage":"Buena elección","actionableRecommendation":"Añade verduras","nutriScore":"B"}`,
       },
     });
 
@@ -108,9 +108,13 @@ Devuelve SOLO JSON puro, sin texto adicional ni markdown. Ejemplo:
     }
 
     return JSON.parse(cleanText) as NutritionalInfo;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error analyzing food text:", error);
-    throw new Error("No se pudo analizar el texto. Inténtalo de nuevo.");
+    const errorMessage = error.message || "Error desconocido";
+    if (errorMessage.includes("API key not valid")) {
+      throw new Error("La clave de API de Gemini no es válida. Por favor, revísala en los secretos.");
+    }
+    throw new Error(`No se pudo analizar el texto: ${errorMessage}`);
   }
 }
 
