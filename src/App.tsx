@@ -2513,7 +2513,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             </p>
                           </div>
                           <button
-                            onClick={() => handleGenerateMenu()}
+                            onClick={() => handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70)}
                             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} ${themeStyles.textMuted} text-[9px] font-black uppercase tracking-widest hover:${themeStyles.textMain} transition-all`}
                           >
                             <RefreshCw className="w-3 h-3" />
@@ -2565,34 +2565,46 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               {(generatedMenu.days[menuSelectedDay].meals?.length ?? 0) > 0 ? (
                                 generatedMenu.days[menuSelectedDay].meals.map((meal: any, mIdx: number) => (
                                   <div key={mIdx} className={`border-b ${themeStyles.border} last:border-b-0`}>
-                                    <button
-                                      onClick={() => setExpandedMeal(expandedMeal === mIdx ? -1 : mIdx)}
-                                      className={`w-full px-5 py-4 flex items-center justify-between text-left transition-colors ${expandedMeal === mIdx ? themeStyles.iconBg : ''}`}
-                                    >
-                                      <span className={`text-[11px] font-black ${themeStyles.textMain} uppercase tracking-wider`}>
-                                        {meal.type || '—'}
-                                      </span>
-                                      <div className="flex items-center gap-3 shrink-0">
-                                        <span className={`text-[11px] font-black ${themeStyles.accent}`}>{meal.calories ?? '—'} kcal</span>
-                                        <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} transition-transform duration-200 ${expandedMeal === mIdx ? 'rotate-0' : '-rotate-90'}`} />
+                                    {meal.description === 'COMIDA LIBRE' ? (
+                                      <div className="px-5 py-4 bg-emerald-500/10 flex items-center gap-3">
+                                        <span className="text-2xl">🍕</span>
+                                        <div>
+                                          <p className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">{meal.type || 'Comida'} · COMIDA LIBRE</p>
+                                          <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70">¡Disfrútala sin culpa!</p>
+                                        </div>
                                       </div>
-                                    </button>
-                                    {expandedMeal === mIdx && (
-                                      <div className={`px-5 pb-5 space-y-2 ${themeStyles.iconBg}`}>
-                                        {meal.description && (
-                                          <p className={`text-sm font-semibold ${themeStyles.textMain}`}>{meal.description}</p>
-                                        )}
-                                        {meal.ingredientes && (
-                                          <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>{meal.ingredientes}</p>
-                                        )}
-                                        {(meal.proteinas != null || meal.carbohidratos != null || meal.grasas != null) && (
-                                          <div className="flex gap-4 pt-1">
-                                            <span className={`text-[10px] font-bold ${themeStyles.accent}`}>P:{meal.proteinas ?? '—'}g</span>
-                                            <span className={`text-[10px] font-bold ${themeStyles.accent}`}>C:{meal.carbohidratos ?? '—'}g</span>
-                                            <span className={`text-[10px] font-bold ${themeStyles.accent}`}>G:{meal.grasas ?? '—'}g</span>
+                                    ) : (
+                                      <>
+                                        <button
+                                          onClick={() => setExpandedMeal(expandedMeal === mIdx ? -1 : mIdx)}
+                                          className={`w-full px-5 py-4 flex items-center justify-between text-left transition-colors ${expandedMeal === mIdx ? themeStyles.iconBg : ''}`}
+                                        >
+                                          <span className={`text-[11px] font-black ${themeStyles.textMain} uppercase tracking-wider`}>
+                                            {meal.type || '—'}
+                                          </span>
+                                          <div className="flex items-center gap-3 shrink-0">
+                                            <span className={`text-[11px] font-black ${themeStyles.accent}`}>{meal.calories ?? '—'} kcal</span>
+                                            <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} transition-transform duration-200 ${expandedMeal === mIdx ? 'rotate-0' : '-rotate-90'}`} />
+                                          </div>
+                                        </button>
+                                        {expandedMeal === mIdx && (
+                                          <div className={`px-5 pb-5 space-y-2 ${themeStyles.iconBg}`}>
+                                            {meal.description && (
+                                              <p className={`text-sm font-semibold ${themeStyles.textMain}`}>{meal.description}</p>
+                                            )}
+                                            {meal.ingredientes && (
+                                              <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>{meal.ingredientes}</p>
+                                            )}
+                                            {(meal.proteinas != null || meal.carbohidratos != null || meal.grasas != null) && (
+                                              <div className="flex gap-4 pt-1">
+                                                <span className={`text-[10px] font-bold ${themeStyles.accent}`}>P:{meal.proteinas ?? '—'}g</span>
+                                                <span className={`text-[10px] font-bold ${themeStyles.accent}`}>C:{meal.carbohidratos ?? '—'}g</span>
+                                                <span className={`text-[10px] font-bold ${themeStyles.accent}`}>G:{meal.grasas ?? '—'}g</span>
+                                              </div>
+                                            )}
                                           </div>
                                         )}
-                                      </div>
+                                      </>
                                     )}
                                   </div>
                                 ))
@@ -2607,7 +2619,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className="text-center py-8">
                         <p className={`${themeStyles.textMuted} text-center py-8`}>Genera tu menú semanal y lista de la compra adaptados a tus preferencias.</p>
                         <button
-                          onClick={() => handleGenerateMenu()}
+                          onClick={() => handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70)}
                           className={`${themeStyles.buttonPrimary} px-6 py-2 rounded-xl font-bold uppercase tracking-wider text-xs`}
                         >
                           Generar Plan

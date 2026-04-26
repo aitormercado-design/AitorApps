@@ -321,38 +321,36 @@ COMIDA LIBRE:
 - Día: ${profile.freeMealDay || ''}
 - Tipo: ${profile.freeMealType || ''}`;
 
-    const systemInstruction = `Eres un sistema de planificación nutricional clínica.
-Tu única función es generar planes de alimentación estructurados en JSON válido, sin texto adicional, sin explicaciones, sin markdown. Solo JSON puro.
+    const diabetesRule = profile.diabetesType !== 'none'
+      ? `- Diabetes tipo ${profile.diabetesType}: ninguna comida supera 60g de carbohidratos por ingesta. Índices glucémicos altos prohibidos.`
+      : '';
 
-Reglas no negociables:
-- Respetar estrictamente las alergias declaradas. Una alergia es una exclusión absoluta, no una preferencia.
-- Si el usuario tiene diabetes, ninguna comida supera 60g de carbohidratos por ingesta. Los índices glucémicos altos están prohibidos.
-- El total calórico diario debe estar entre el 97% y el 103% del objetivo indicado. No hay margen más amplio.
-- Los macros (proteína, carbohidratos, grasa) deben respetar los porcentajes indicados con ±5% de tolerancia.
-- En días de gimnasio, la ingesta de proteína aumenta un 15% respecto a días de descanso, compensando con una reducción equivalente en carbohidratos.
-- Si hay una comida libre declarada, el exceso calórico máximo permitido es de 400 kcal sobre el objetivo diario. El resto de ingestas de ese día se reducen proporcionalmente para absorber ese exceso.
+    const freeMealRule = profile.freeMealEnabled
+      ? `- Comida libre el ${profile.freeMealDay} en ${profile.freeMealType}: usa EXACTAMENTE {"t":"${profile.freeMealType}","n":"COMIDA LIBRE","k":0,"p":0,"c":0,"g":0,"i":"libre"} para esa ingesta. El resto de ingestas de ese día se reducen para compensar.`
+      : '';
 
-FORMATO JSON OBLIGATORIO — usa exactamente estas claves abreviadas:
-{"d":[{"n":"Lunes","k":0,"p":0,"c":0,"g":0,"m":[{"t":"Desayuno","n":"Nombre del plato","k":0,"p":0,"c":0,"g":0,"i":"ing1,ing2,ing3,ing4"},{"t":"Almuerzo","n":"...","k":0,"p":0,"c":0,"g":0,"i":"..."},{"t":"Merienda","n":"...","k":0,"p":0,"c":0,"g":0,"i":"..."},{"t":"Cena","n":"...","k":0,"p":0,"c":0,"g":0,"i":"..."}]},{"n":"Martes",...},{"n":"Miércoles",...},{"n":"Jueves",...},{"n":"Viernes",...},{"n":"Sábado",...},{"n":"Domingo",...}]}
+    const systemInstruction = `Eres un sistema de planificación nutricional clínica. Solo JSON puro, sin texto adicional.
 
-Claves: d=días(array), n=nombre, k=kcal, p=proteína(g), c=carbohidratos(g), g=grasa(g), m=comidas(array), t=tipo, i=ingredientes
-Reglas de formato:
-- "d": ARRAY con exactamente 7 objetos en orden Lunes→Domingo
-- "m": ARRAY con exactamente 4 elementos por día: Desayuno, Almuerzo, Merienda, Cena
-- "i": máximo 4 ingredientes sin cantidades, separados por coma
-- Todos los valores numéricos son enteros sin decimales
-- Genera los 7 días completos. No pares antes de Domingo.
+Reglas:
+- Alergias: exclusión absoluta.${diabetesRule ? '\n' + diabetesRule : ''}
+- Calorías diarias: entre 97%-103% del objetivo. Macros con ±5% de tolerancia.
+- Días de gimnasio: proteína +15%, carbohidratos reducidos equivalente.${freeMealRule ? '\n' + freeMealRule : ''}
 
 OBLIGATORIO: USA EXACTAMENTE ESTAS CLAVES JSON: d, n, k, p, c, g, m, t, i
 NUNCA uses claves largas como "nombre", "calorias", "meals", "proteinas". Solo las abreviadas.
-Ejemplo de estructura correcta:
+- "d": array con exactamente 7 objetos en orden Lunes→Domingo
+- "m": array con exactamente 4 elementos: Desayuno, Almuerzo, Merienda, Cena
+- "i": máximo 4 ingredientes sin cantidades, separados por coma
+- Todos los valores numéricos son enteros sin decimales. Genera los 7 días completos.
+
+Ejemplo:
 {"d":[{"n":"Lunes","k":2900,"p":252,"c":295,"g":81,"m":[{"t":"Desayuno","n":"Avena con whey","k":600,"p":45,"c":75,"g":18,"i":"avena,whey,leche"},{"t":"Almuerzo","n":"Pollo con arroz","k":750,"p":68,"c":80,"g":20,"i":"pollo,arroz,brócoli,aceite"},{"t":"Merienda","n":"Yogur con fruta","k":300,"p":20,"c":45,"g":8,"i":"yogur,plátano,nueces"},{"t":"Cena","n":"Salmón con verduras","k":650,"p":55,"c":40,"g":28,"i":"salmón,espinacas,patata,limón"}]}]}`;
 
     const apiPromise = ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: userPrompt,
       config: {
-        thinkingConfig: { thinkingBudget: 0 },
+        thinkingConfig: { thinkingBudget: 1024 },
         maxOutputTokens: 32000,
         systemInstruction,
       },
