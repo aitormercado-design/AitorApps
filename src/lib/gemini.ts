@@ -29,8 +29,8 @@ export type NutritionalInfo = {
 export async function analyzeFoodImage(base64Image: string, mimeType: string, contextStr?: string): Promise<NutritionalInfo> {
   try {
     const prompt = contextStr
-      ? `Analiza detalladamente esta imagen de comida. Identifica el tamaño de la porción (peso total estimado en gramos), el método de preparación y los ingredientes visibles con sus cantidades estimadas. Estima su valor nutricional con la mayor precisión posible. Evalúa si es saludable y, basándote en este contexto: "${contextStr}", sugiere qué debería comer el resto del día. Calcula un NutriScore (A-E) basado en la densidad nutricional. Si el usuario tiene diabetes, presta especial atención al índice glucémico y balance de carbohidratos. Devuelve un objeto JSON.`
-      : `Analiza detalladamente esta imagen de comida. Identifica el tamaño de la porción (peso total estimado en gramos), el método de preparación y los ingredientes visibles con sus cantidades estimadas. Estima su valor nutricional con la mayor precisión posible. Evalúa si es saludable y sugiere qué debería comer el resto del día. Calcula un NutriScore (A-E) basado en la densidad nutricional. Devuelve un objeto JSON.`;
+      ? `Analiza esta imagen de comida. Contexto del usuario: "${contextStr}". Devuelve SOLO JSON puro.`
+      : `Analiza esta imagen de comida. Devuelve SOLO JSON puro.`;
 
     const apiPromise = ai.models.generateContent({
       model: "gemini-2.5-pro",
@@ -41,44 +41,17 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
         ],
       },
       config: {
-        systemInstruction: "Eres un experto nutricionista especializado en nutrición deportiva y gestión de patologías como la DIABETES. Actúa como un coach muy empático, positivo y motivador. Tu tarea es analizar imágenes de comida y estimar de forma precisa su contenido nutricional y peso. Evalúa la calidad nutricional asignando un NutriScore de A a E. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Si el usuario es diabético, enfócate en la estabilidad de la glucosa sin ser alarmista. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él de forma personal. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida. Evalúa tu nivel de confianza en la detección. Desglosa los ingredientes principales con sus gramos estimados. Sé consistente con las estimaciones de peso y calorías.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            foodName: { type: Type.STRING, description: "Nombre del plato o alimento en español" },
-            totalWeight: { type: Type.NUMBER, description: "Peso total estimado del plato en gramos (g)" },
-            calories: { type: Type.NUMBER, description: "Calorías totales estimadas (kcal)" },
-            protein: { type: Type.NUMBER, description: "Proteínas estimadas en gramos" },
-            carbs: { type: Type.NUMBER, description: "Carbohidratos estimados en gramos" },
-            fat: { type: Type.NUMBER, description: "Grasas estimadas en gramos" },
-            ingredients: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING, description: "Nombre del ingrediente" },
-                  amount: { type: Type.STRING, description: "Cantidad estimada (ej: '150g', '1 unidad', '20g')" },
-                },
-                required: ["name", "amount"],
-              },
-              description: "Lista de ingredientes principales detectados",
-            },
-            confidence: { type: Type.STRING, enum: ["alta", "media", "baja"], description: "Nivel de confianza en la detección" },
-            confidenceMessage: { type: Type.STRING, description: "Mensaje detallando por qué se tiene este nivel de confianza" },
-            alternatives: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Posibles alimentos alternativos si la detección es incierta" },
-            interpretation: { type: Type.STRING, description: "Interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas', 'Baja en proteína')" },
-            coachMessage: { type: Type.STRING, description: "Mensaje humano, cercano y motivador del coach sobre esta comida, sin tecnicismos." },
-            actionableRecommendation: { type: Type.STRING, description: "Recomendación inmediata y concreta (ej. 'Compensa con cena ligera', 'Añade proteína en la próxima comida')" },
-            nutriScore: { type: Type.STRING, enum: ["A", "B", "C", "D", "E"], description: "Calificación nutricional de A a E" },
-          },
-          required: ["foodName", "totalWeight", "calories", "protein", "carbs", "fat", "ingredients", "confidence", "confidenceMessage", "interpretation", "coachMessage", "actionableRecommendation", "nutriScore"],
-        },
+        thinkingConfig: { thinkingBudget: 2048 },
+        maxOutputTokens: 2048,
+        systemInstruction: `Eres un experto nutricionista especializado en nutrición deportiva y gestión de la DIABETES. Actúa como un coach empático y motivador. Analiza imágenes de comida y estima con precisión el contenido nutricional y el peso. Evalúa la calidad nutricional (NutriScore A-E). Si el usuario es diabético, enfócate en la estabilidad de la glucosa. Si el nombre del usuario está en el contexto, úsalo. Desglosa los ingredientes principales con sus gramos estimados.
+
+Devuelve SOLO JSON puro, sin texto adicional ni markdown. Ejemplo:
+{"foodName":"Arroz con pollo","totalWeight":350,"calories":520,"protein":38,"carbs":62,"fat":12,"ingredients":[{"name":"Arroz","amount":"150g"},{"name":"Pechuga de pollo","amount":"150g"},{"name":"Aceite de oliva","amount":"10g"}],"confidence":"alta","confidenceMessage":"Plato claramente visible con ingredientes identificables","alternatives":[],"interpretation":"Comida equilibrada","coachMessage":"¡Muy buena elección! Tienes un balance perfecto de proteína y carbohidratos.","actionableRecommendation":"Añade una ensalada verde para más fibra en la cena.","nutriScore":"B"}`,
       },
     });
 
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("El análisis está tardando demasiado. Por favor, comprueba tu conexión a internet e inténtalo de nuevo.")), 25000);
+      setTimeout(() => reject(new Error("El análisis está tardando demasiado. Por favor, comprueba tu conexión a internet e inténtalo de nuevo.")), 45000);
     });
 
     const response = await Promise.race([apiPromise, timeoutPromise]);
@@ -106,46 +79,20 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
 
 export async function analyzeFoodText(foodDescription: string, contextStr?: string): Promise<NutritionalInfo> {
   try {
-    const prompt = contextStr 
-      ? `Analiza este alimento o comida: "${foodDescription}". Ten en cuenta el contexto: "${contextStr}". Calcula un NutriScore (A-E) basado en la densidad nutricional. Devuelve un objeto JSON.`
-      : `Analiza este alimento o comida: "${foodDescription}". Calcula un NutriScore (A-E) basado en la densidad nutricional. Devuelve un objeto JSON.`;
+    const prompt = contextStr
+      ? `Alimento: "${foodDescription}". Contexto del usuario: "${contextStr}". Devuelve SOLO JSON puro.`
+      : `Alimento: "${foodDescription}". Devuelve SOLO JSON puro.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-pro",
       contents: prompt,
       config: {
-        systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es estimar de forma precisa el contenido nutricional del alimento descrito. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él de forma personal. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida, teniendo en cuenta el contexto proporcionado. Devuelve un objeto JSON estructurado.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            foodName: { type: Type.STRING, description: "Nombre del plato o alimento en español" },
-            totalWeight: { type: Type.NUMBER, description: "Peso total estimado del plato en gramos (g)" },
-            calories: { type: Type.NUMBER, description: "Calorías totales estimadas (kcal)" },
-            protein: { type: Type.NUMBER, description: "Proteínas estimadas en gramos" },
-            carbs: { type: Type.NUMBER, description: "Carbohidratos estimados en gramos" },
-            fat: { type: Type.NUMBER, description: "Grasas estimadas en gramos" },
-            ingredients: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING, description: "Nombre del ingrediente" },
-                  amount: { type: Type.STRING, description: "Cantidad estimada (ej: '150g', '1 unidad', '20g')" },
-                },
-                required: ["name", "amount"],
-              },
-              description: "Lista de ingredientes principales detectados",
-            },
-            confidence: { type: Type.STRING, enum: ["alta", "media", "baja"], description: "Nivel de confianza en la detección" },
-            confidenceMessage: { type: Type.STRING, description: "Mensaje detallando por qué se tiene este nivel de confianza" },
-            interpretation: { type: Type.STRING, description: "Interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas', 'Baja en proteína')" },
-            coachMessage: { type: Type.STRING, description: "Mensaje humano, cercano y motivador del coach sobre esta comida, sin tecnicismos." },
-            actionableRecommendation: { type: Type.STRING, description: "Recomendación inmediata y concreta (ej. 'Compensa con cena ligera', 'Añade proteína en la próxima comida')" },
-            nutriScore: { type: Type.STRING, enum: ["A", "B", "C", "D", "E"], description: "Calificación nutricional de A a E" },
-          },
-          required: ["foodName", "totalWeight", "calories", "protein", "carbs", "fat", "ingredients", "confidence", "confidenceMessage", "interpretation", "coachMessage", "actionableRecommendation", "nutriScore"],
-        },
+        thinkingConfig: { thinkingBudget: 2048 },
+        maxOutputTokens: 2048,
+        systemInstruction: `Eres un experto nutricionista deportivo y coach empático y motivador. Estima con precisión el contenido nutricional del alimento descrito. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él.
+
+Devuelve SOLO JSON puro, sin texto adicional ni markdown. Ejemplo:
+{"foodName":"Arroz con pollo","totalWeight":350,"calories":520,"protein":38,"carbs":62,"fat":12,"ingredients":[{"name":"Arroz","amount":"150g"},{"name":"Pechuga de pollo","amount":"150g"},{"name":"Aceite de oliva","amount":"10g"}],"confidence":"alta","confidenceMessage":"Composición estándar del plato bien conocida","interpretation":"Comida equilibrada","coachMessage":"¡Muy buena elección! Tienes un balance perfecto de proteína y carbohidratos.","actionableRecommendation":"Añade una ensalada verde para más fibra en la cena.","nutriScore":"B"}`,
       },
     });
 

@@ -8,7 +8,7 @@ import { ExerciseDelta } from './components/ExerciseDelta';
 import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, chatWithCoach, recalculateFoodMacros, extractIngredients, WeeklyMenu, ShoppingList } from './lib/gemini';
 import { calcularBMR } from './utils/nutrition';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 enum OperationType {
@@ -429,7 +429,9 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
+  const [portionMultiplier, setPortionMultiplier] = useState(1);
   const [isRecalculating, setIsRecalculating] = useState(false);
+  const mealsListenerRef = useRef<(() => void) | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuTabsRef = useRef<HTMLDivElement>(null);
 
@@ -498,15 +500,17 @@ export default function App() {
             if (data.chatMessages) setChatMessages(data.chatMessages);
             if (data.checkedItems) setCheckedItems(data.checkedItems);
             
-            // Load subcollections
-            try {
-              const mealsSnap = await getDocs(collection(db, 'users', currentUser.uid, 'meals'));
-              const loadedMeals: Meal[] = [];
-              mealsSnap.forEach(doc => loadedMeals.push(doc.data() as Meal));
-              setMeals(loadedMeals.sort((a, b) => b.timestamp - a.timestamp));
-            } catch (err) {
-              handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}/meals`);
-            }
+            // Load subcollections — meals via real-time listener
+            if (mealsListenerRef.current) mealsListenerRef.current();
+            mealsListenerRef.current = onSnapshot(
+              collection(db, 'users', currentUser.uid, 'meals'),
+              (snap) => {
+                const loadedMeals: Meal[] = [];
+                snap.forEach(d => loadedMeals.push(d.data() as Meal));
+                setMeals(loadedMeals.sort((a, b) => b.timestamp - a.timestamp));
+              },
+              (err) => handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}/meals`)
+            );
 
             try {
               const weightsSnap = await getDocs(collection(db, 'users', currentUser.uid, 'weights'));
@@ -577,7 +581,10 @@ export default function App() {
       setIsDataLoaded(true);
       setIsAuthReady(true);
     });
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (mealsListenerRef.current) mealsListenerRef.current();
+    };
   }, []);
 
   useEffect(() => {
