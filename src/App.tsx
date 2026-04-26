@@ -1076,47 +1076,31 @@ export default function App() {
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log("handleFileChange triggered");
     const file = e.target.files?.[0];
-    if (!file) {
-      console.log("No file selected");
-      return;
-    }
+    if (!file) return;
 
-    console.log("File selected:", file.name, file.type, file.size);
     setIsCapturing(true);
     setIsAnalyzing(true);
     setAppError(null);
 
     try {
-      console.log("Compressing image...");
       const base64String = await compressImage(file);
-      console.log("Image compressed, length:", base64String.length);
       setPreviewImage(base64String);
 
-      // Extract base64 data and mime type
       const match = base64String.match(/^data:(image\/[a-zA-Z+.-]+);base64,(.+)$/);
-      if (!match) {
-        console.error("Invalid image format");
-        throw new Error("Formato de imagen inválido");
-      }
-      
+      if (!match) throw new Error("Formato de imagen inválido");
+
       const mimeType = match[1];
       const base64Data = match[2];
 
-      console.log("Mime type:", mimeType);
-
-      // Calculate remaining macros for context
       const remainingCalories = goals.calories - totals.calories;
       const remainingProtein = goals.protein - totals.protein;
       const remainingCarbs = goals.carbs - totals.carbs;
       const remainingFat = goals.fat - totals.fat;
       const contextStr = `Usuario: ${profile.name || 'Usuario'}. Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas para cumplir el objetivo del día. Dieta: ${profile.dietType}.`;
 
-      console.log("Calling analyzeFoodImage...");
       const info = await analyzeFoodImage(base64Data, mimeType, contextStr);
-      console.log("Analysis result received:", info);
-      
+
       const newMeal: Meal = {
         id: Date.now().toString(),
         ...info,
@@ -1129,7 +1113,6 @@ export default function App() {
       console.error("Error in handleFileChange:", error);
       setAppError(error instanceof Error ? error.message : "Error al analizar la imagen");
     } finally {
-      console.log("Analysis process finished");
       setIsAnalyzing(false);
       setIsCapturing(false);
       setPreviewImage(null);
