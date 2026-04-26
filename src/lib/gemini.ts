@@ -258,14 +258,14 @@ export function calculateDailyCalories(profile: any, currentWeight: number): Nut
 export function extractIngredients(menuData: any): any[] {
   const allIngredients: any[] = [];
 
-  // New format: menuData.days[].meals[].ingredientes (string "Avena 80g · Plátano 1ud")
+  // New format: menuData.days[].meals[].ingredientes (string "avena,whey,leche")
   if (Array.isArray(menuData?.days)) {
     for (const day of menuData.days) {
       if (Array.isArray(day.meals)) {
         for (const meal of day.meals) {
           if (meal.ingredientes) {
             meal.ingredientes.split(/\s*·\s*|\s*,\s*/).forEach((item: string) => {
-              if (item.trim()) allIngredients.push({ item: item.trim() });
+              if (item.trim()) allIngredients.push({ item: item.trim(), day: day.day || '' });
             });
           }
         }
@@ -470,49 +470,43 @@ export type ShoppingList = {
     name: string;
     items: ShoppingItem[];
   }[];
+  budget?: string;
 };
 
 export async function generateShoppingList(ingredients: any[], supermarket: string = 'Mercadona'): Promise<ShoppingList> {
   try {
-    const userPrompt = `Supermercado de referencia: ${supermarket}
-Número de personas: 1
-Presupuesto semanal aproximado: null
+    const ingredientLines = ingredients
+      .filter(i => i.item)
+      .map(i => i.day ? `${i.item} [${i.day}]` : i.item)
+      .join('\n');
 
-Lista de ingredientes extraída del menú semanal:
-${JSON.stringify(ingredients, null, 2)}`;
+    const userPrompt = `Supermercado: ${supermarket} | Personas: 1 | Semana completa
+
+Ingredientes del menú (con día de uso):
+${ingredientLines}`;
+
+    const systemInstruction = `Eres un organizador de compras para supermercado. Solo JSON puro, sin texto adicional.
+
+Consolida los ingredientes por nombre, agrúpalos en secciones del supermercado y estima cantidades comerciales reales.
+
+Secciones obligatorias (en este orden): "Frutas y verduras", "Carnes y pescados", "Lácteos y huevos", "Cereales y legumbres", "Otros y condimentos"
+
+Reglas:
+- Consolida duplicados: mismo ingrediente en distintos días = una entrada con todos los días en "dias"
+- Cantidades en unidades comerciales (no "137g" sino "1 paquete 150g" o "7 unidades")
+- Omite secciones sin items
+- Estima presupuesto total aproximado para ${supermarket}
+
+Ejemplo de estructura:
+{"secciones":[{"nombre":"Frutas y verduras","items":[{"nombre":"Plátano","cantidad":"7 unidades","dias":["Lunes","Martes","Miércoles"]}]},{"nombre":"Carnes y pescados","items":[{"nombre":"Pechuga de pollo","cantidad":"1kg (2 pechugas)","dias":["Martes","Jueves","Sábado"]}]}],"presupuesto_estimado":"75-90€"}`;
 
     const apiPromise = ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: userPrompt,
       config: {
-        systemInstruction: `Eres un sistema de organización de compras para supermercado.
-Tu única función es recibir una lista de ingredientes en bruto y devolver un JSON organizado, consolidado y listo para comprar.
-Solo JSON. Sin texto adicional. Sin explicaciones.
-
-Reglas:
-- Consolida duplicados: si el menú usa pechuga de pollo el lunes y el jueves, aparece una sola vez con la cantidad total sumada.
-- Redondea cantidades a unidades comerciales reales: no "137g de arroz" sino "200g de arroz (1 bolsa pequeña)".
-- Agrupa por sección del supermercado indicado.
-- Si un ingrediente puede comprarse ya preparado para ahorrar tiempo (caldo de pollo, tomate triturado) indícalo en el campo "tip".
-- Marca con "essential: true" los ingredientes que aparecen en 3 o más días — son los que nunca deben faltar.
-- Estima el coste aproximado por sección si el supermercado es Mercadona, Lidl, Carrefour o Alcampo. Si es otro, omite el coste.`,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            shoppingList: { type: Type.OBJECT },
-            summary: {
-              type: Type.OBJECT,
-              properties: {
-                totalItems: { type: Type.NUMBER },
-                estimatedTotalCost: { type: Type.NUMBER },
-                budgetFeedback: { type: Type.STRING },
-                quickWins: { type: Type.ARRAY, items: { type: Type.STRING } },
-              },
-            },
-          },
-          required: ["shoppingList"],
-        },
+        thinkingConfig: { thinkingBudget: 512 },
+        maxOutputTokens: 8192,
+        systemInstruction,
       },
     });
 
@@ -533,24 +527,18 @@ Reglas:
     }
 
     const parsed = JSON.parse(cleanText);
-    
-    // Transform the new prompt format into the format expected by the UI
-    const categories: any[] = [];
-    if (parsed && parsed.shoppingList) {
-      for (const [key, section] of Object.entries(parsed.shoppingList) as any) {
-        if (section && Array.isArray(section.items) && section.items.length > 0) {
-          categories.push({
-            name: key,
-            items: section.items.map((it: any) => ({
-              name: it.name,
-              amount: it.totalAmount + (it.commercialUnit ? ` (${it.commercialUnit})` : '') + (it.essential ? ' ⭐' : '')
-            }))
-          });
-        }
-      }
-    }
 
-    return { categories };
+    const categories = (parsed.secciones ?? [])
+      .map((sec: any) => ({
+        name: sec.nombre,
+        items: (sec.items ?? []).map((it: any) => ({
+          name: it.nombre,
+          amount: `${it.cantidad}${it.dias?.length ? ' · ' + it.dias.join(', ') : ''}`,
+        })),
+      }))
+      .filter((cat: any) => cat.items.length > 0);
+
+    return { categories, budget: parsed.presupuesto_estimado };
   } catch (error: any) {
     console.error("Error generating shopping list:", error);
     throw new Error(error.message || "No se pudo generar la lista de la compra.");
