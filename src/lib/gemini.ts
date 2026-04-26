@@ -583,27 +583,6 @@ export async function generateWorkoutPlan(profileStr: string): Promise<string> {
   }
 }
 
-export async function generateFridgeRecipe(base64Image: string, mimeType: string, contextStr: string): Promise<string> {
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: {
-        parts: [
-          { inlineData: { data: base64Image, mimeType } },
-          { text: `Basado en los ingredientes de esta imagen y mi contexto actual (${contextStr}), genera una receta paso a paso que se ajuste a mis macros restantes.` },
-        ],
-      },
-      config: {
-        systemInstruction: "Actúa como un chef experto en nutrición deportiva. Inventa una receta paso a paso utilizando PRINCIPALMENTE los ingredientes de la foto (puedes asumir básicos como sal, aceite, especias) que se ajuste lo mejor posible a los macros restantes del usuario. Devuelve la receta en formato Markdown, incluyendo el título, ingredientes, pasos y una estimación de los macros de la receta.",
-      },
-    });
-    return response.text || "No se pudo generar la receta.";
-  } catch (error) {
-    console.error("Error generating fridge recipe:", error);
-    throw new Error("No se pudo generar la receta. Inténtalo de nuevo.");
-  }
-}
-
 export async function chatWithCoach(messages: {role: 'user' | 'model', parts: {text: string}[]}[], contextStr: string): Promise<string> {
   try {
     const stream = await ai.models.generateContentStream({
@@ -630,75 +609,5 @@ Instrucciones:
   } catch (error) {
     console.error("Error in coach chat:", error);
     throw new Error("Hubo un error de conexión. Inténtalo de nuevo.");
-  }
-}
-
-export type Restaurant = {
-  name: string;
-  rating: number;
-  address: string;
-  description: string;
-  specialty: string;
-  priceLevel: 1 | 2 | 3 | 4; // 1: $, 2: $$, 3: $$$, 4: $$$$
-  distance?: number; // in km
-};
-
-export async function findRestaurants(location: string, preferences: string): Promise<Restaurant[]> {
-  try {
-    const prompt = `Busca los mejores restaurantes en ${location} que cumplan con estas preferencias dietéticas: ${preferences}. 
-    Devuelve una lista extensa de al menos 15-20 restaurantes reales con su nombre, puntuación estimada (1-5), dirección, una breve descripción de por qué encaja con el usuario, su especialidad, nivel de precio (1-4) y una estimación de distancia en km desde el centro de la ubicación indicada.
-    Devuelve un objeto JSON con la estructura: { restaurants: [{ name: string, rating: number, address: string, description: string, specialty: string, priceLevel: number, distance: number }] }.`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        systemInstruction: "Eres un experto buscador de restaurantes y crítico gastronómico especializado en dietas especiales (vegana, sin gluten, keto, etc.). Tu objetivo es encontrar lugares reales y de alta calidad que se ajusten perfectamente a las necesidades del usuario. Sé muy específico con las direcciones y por qué recomiendas cada lugar. Estima el nivel de precio (1-4) y la distancia aproximada (0.1 a 10.0 km).",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            restaurants: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  rating: { type: Type.NUMBER },
-                  address: { type: Type.STRING },
-                  description: { type: Type.STRING },
-                  specialty: { type: Type.STRING },
-                  priceLevel: { type: Type.NUMBER, description: "1: $, 2: $$, 3: $$$, 4: $$$$" },
-                  distance: { type: Type.NUMBER, description: "Distancia estimada en km" },
-                },
-                required: ["name", "rating", "address", "description", "specialty", "priceLevel", "distance"],
-              },
-            },
-          },
-          required: ["restaurants"],
-        },
-      },
-    });
-
-    const text = response.text;
-    if (!text) throw new Error("No response from model");
-    
-    let cleanText = text;
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      cleanText = jsonMatch[0];
-    } else {
-      cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-    }
-    
-    const data = JSON.parse(cleanText);
-    return data.restaurants;
-  } catch (error: any) {
-    console.error("Error finding restaurants:", error);
-    const errorMessage = error.message || "Error desconocido";
-    if (errorMessage.includes("API key not valid")) {
-      throw new Error("La clave de API de Gemini no es válida. Por favor, revísala en los secretos.");
-    }
-    throw new Error(`Error al buscar restaurantes: ${errorMessage}`);
   }
 }

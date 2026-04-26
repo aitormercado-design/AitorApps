@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, Banana, User as UserIcon, Star, MapPin, Search, Pizza, Save, Edit2, Trash2, Home } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, Banana, User as UserIcon, Pizza, Save, Edit2, Trash2, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExerciseDelta } from './components/ExerciseDelta';
-import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateFridgeRecipe, chatWithCoach, recalculateFoodMacros, extractIngredients, WeeklyMenu, ShoppingList, findRestaurants, Restaurant } from './lib/gemini';
+import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, chatWithCoach, recalculateFoodMacros, extractIngredients, WeeklyMenu, ShoppingList } from './lib/gemini';
 import { calcularBMR } from './utils/nutrition';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer } from 'firebase/firestore';
@@ -360,7 +360,7 @@ export default function App() {
   const [workoutPlan, setWorkoutPlan] = useState<string | null>(null);
   const [isGeneratingWorkout, setIsGeneratingWorkout] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'today' | 'plan' | 'restaurants' | 'gym' | 'meals'>('today');
+  const [activeTab, setActiveTab] = useState<'today' | 'gym' | 'meals'>('today');
   const [mealsSubTab, setMealsSubTab] = useState<'daily' | 'plan' | 'shopping'>('daily');
   const [menuSelectedDay, setMenuSelectedDay] = useState<number>(0);
   const [expandedMeal, setExpandedMeal] = useState<number>(0);
@@ -451,34 +451,6 @@ export default function App() {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [isSearchingRestaurants, setIsSearchingRestaurants] = useState(false);
-  const [restaurantLocation, setRestaurantLocation] = useState('');
-  const [restaurantFilters, setRestaurantFilters] = useState({
-    allergies: true,
-    dietType: true,
-    other: ''
-  });
-  const [restaurantSort, setRestaurantSort] = useState<'rating' | 'price'>('rating');
-  const [restaurantSortOrder, setRestaurantSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [restaurantPage, setRestaurantPage] = useState(1);
-  const [resultsLimit, setResultsLimit] = useState(15);
-  const resultsPerPage = 5;
-
-  const sortedRestaurants = useMemo(() => {
-    return [...restaurants].sort((a, b) => {
-      let comparison = 0;
-      if (restaurantSort === 'rating') comparison = b.rating - a.rating;
-      else if (restaurantSort === 'price') comparison = a.priceLevel - b.priceLevel;
-      
-      return restaurantSortOrder === 'desc' ? comparison : -comparison;
-    });
-  }, [restaurants, restaurantSort, restaurantSortOrder]);
-
-  const displayedRestaurants = useMemo(() => {
-    const start = (restaurantPage - 1) * resultsPerPage;
-    return sortedRestaurants.slice(start, start + resultsPerPage);
-  }, [sortedRestaurants, restaurantPage]);
 
   useEffect(() => {
     const testConnection = async () => {
@@ -1436,16 +1408,6 @@ export default function App() {
 
     setProfile(editProfile);
     
-    // Reset restaurant search on profile update
-    setRestaurants([]);
-    setRestaurantLocation('');
-    setRestaurantPage(1);
-
-    // If free meal is disabled, redirect from restaurants tab
-    if (!editProfile.freeMealEnabled && activeTab === 'restaurants') {
-      setActiveTab('today');
-    }
-
     const newGoals = updateGoalsForProfile(editProfile, weightVal);
 
     // Auto-regenerate menu if diet relevant fields changed
@@ -1741,28 +1703,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
     }
   };
 
-  const handleSearchRestaurants = async (e?: React.FormEvent, overrideLocation?: string) => {
-    if (e) e.preventDefault();
-    setIsSearchingRestaurants(true);
-    setAppError(null);
-    try {
-      const location = overrideLocation || restaurantLocation || 'mi ciudad';
-      const prefs = [
-        restaurantFilters.dietType ? `Dieta: ${profile.dietType}` : '',
-        restaurantFilters.allergies ? `Alergias: ${profile.allergies}` : '',
-        restaurantFilters.other ? `Otros filtros: ${restaurantFilters.other}` : ''
-      ].filter(Boolean).join(', ');
-      
-      const results = await findRestaurants(location, prefs);
-      setRestaurants(results);
-      setRestaurantPage(1);
-      setResultsLimit(15);
-    } catch (error: any) {
-      setAppError(error.message);
-    } finally {
-      setIsSearchingRestaurants(false);
-    }
-  };
 
   const handleLogout = async () => {
     try {
@@ -2733,245 +2673,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                  </div>
                  </div>
               ) : null}
-            </motion.div>
-          )}
-
-          {activeTab === 'restaurants' && profile.freeMealEnabled && (
-            <motion.div
-              key="restaurants"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-8 pb-32"
-            >
-              {/* Encouragement Card */}
-              <div className={`${themeStyles.bento} relative overflow-hidden`}>
-                <div className={`absolute -top-12 -right-12 w-32 h-32 ${themeStyles.accentBg} rounded-full blur-3xl animate-pulse opacity-10`}></div>
-                <div className="relative z-10 p-2">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`p-2 ${themeStyles.accentMuted} rounded-xl border ${themeStyles.accentBorder}`}>
-                      <Star className={`w-6 h-6 ${themeStyles.accent}`} />
-                    </div>
-                    <h2 className={`text-xl font-display font-black ${themeStyles.textMain} uppercase tracking-tight`}>¡Tu comida libre, {profile.name || 'campeón'}!</h2>
-                  </div>
-                  <p className={`${themeStyles.textMuted} text-sm leading-relaxed`}>
-                    Disfruta de tu momento. He buscado los mejores sitios que se adaptan a tus preferencias para que tu comida libre sea espectacular.
-                  </p>
-                </div>
-              </div>
-
-              {/* Search Section */}
-              <div className={`${themeStyles.card} p-8 space-y-6`}>
-                <form onSubmit={handleSearchRestaurants} className="space-y-4 max-w-xl mx-auto">
-                  <div className="relative">
-                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-                    <input 
-                      type="text"
-                      value={restaurantLocation}
-                      onChange={(e) => setRestaurantLocation(e.target.value)}
-                      placeholder="Indica tu ubicación (ej: Madrid, Chueca...)"
-                      className={`${themeStyles.input} w-full rounded-2xl pl-12 pr-4 py-4 text-sm transition-all`}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className={`flex items-center justify-between p-4 ${themeStyles.iconBg} rounded-xl border ${themeStyles.border}`}>
-                      <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Dieta ({profile.dietType})</span>
-                      <button 
-                        type="button"
-                        onClick={() => setRestaurantFilters({...restaurantFilters, dietType: !restaurantFilters.dietType})}
-                        className={`w-10 h-2.5 rounded-full transition-colors relative ${restaurantFilters.dietType ? themeStyles.accentBg : 'bg-zinc-700'}`}
-                      >
-                        <div className={`absolute -top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${restaurantFilters.dietType ? 'left-6' : 'left-0'}`} />
-                      </button>
-                    </div>
-                    <div className={`flex items-center justify-between p-4 ${themeStyles.iconBg} rounded-xl border ${themeStyles.border}`}>
-                      <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Alergias ({profile.allergies.length > 0 ? profile.allergies.join(', ') : 'No'})</span>
-                      <button 
-                        type="button"
-                        onClick={() => setRestaurantFilters({...restaurantFilters, allergies: !restaurantFilters.allergies})}
-                        className={`w-10 h-2.5 rounded-full transition-colors relative ${restaurantFilters.allergies ? themeStyles.accentBg : 'bg-zinc-700'}`}
-                      >
-                        <div className={`absolute -top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${restaurantFilters.allergies ? 'left-6' : 'left-0'}`} />
-                      </button>
-                    </div>
-                  </div>
-                  <input 
-                    type="text"
-                    value={restaurantFilters.other}
-                    onChange={(e) => setRestaurantFilters({...restaurantFilters, other: e.target.value})}
-                    placeholder="Otros filtros (ej: terraza, barato, romántico...)"
-                    className={`${themeStyles.input} w-full rounded-xl px-4 py-3 text-xs transition-all`}
-                  />
-
-                  <button 
-                    type="submit"
-                    disabled={isSearchingRestaurants}
-                    className={`${themeStyles.buttonPrimary} w-full font-black uppercase tracking-widest py-4 rounded-2xl transition-all flex items-center justify-center gap-2 text-xs`}
-                  >
-                    {isSearchingRestaurants ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-                    {isSearchingRestaurants ? 'Buscando...' : 'Buscar Restaurantes'}
-                  </button>
-                </form>
-              </div>
-
-              {/* Sorting Section */}
-              {restaurants.length > 0 && (
-                <div className="space-y-3 px-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Ordenar resultados por:</span>
-                    <button
-                      onClick={() => setRestaurantSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                      className={`flex items-center gap-1.5 text-[10px] font-black ${themeStyles.accent} uppercase tracking-widest hover:opacity-80 transition-colors`}
-                    >
-                      {restaurantSortOrder === 'desc' ? (
-                        <>Descendente <TrendingUp className="w-3 h-3 rotate-180" /></>
-                      ) : (
-                        <>Ascendente <TrendingUp className="w-3 h-3" /></>
-                      )}
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      onClick={() => setRestaurantSort('rating')}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all ${restaurantSort === 'rating' ? `${themeStyles.accentBg} text-zinc-950 ${themeStyles.accentBorder}` : `${themeStyles.iconBg} ${themeStyles.textMuted} ${themeStyles.border} hover:${themeStyles.accentBorder}`}`}
-                    >
-                      Valoración
-                    </button>
-                    <button
-                      onClick={() => setRestaurantSort('price')}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest border transition-all ${restaurantSort === 'price' ? `${themeStyles.accentBg} text-zinc-950 ${themeStyles.accentBorder}` : `${themeStyles.iconBg} ${themeStyles.textMuted} ${themeStyles.border} hover:${themeStyles.accentBorder}`}`}
-                    >
-                      Precio
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Results */}
-              <div className="space-y-4">
-                {isSearchingRestaurants ? (
-                  <div className={`${themeStyles.card} rounded-[2.5rem] p-12 text-center`}>
-                    <div className="relative w-20 h-20 mx-auto mb-6">
-                      <motion.div
-                        className={`absolute inset-0 rounded-2xl ${themeStyles.accentMuted}`}
-                        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.2, 0.5] }}
-                        transition={{ repeat: Infinity, duration: 2 }}
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <MapPin className={`w-8 h-8 ${themeStyles.accent}`} />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <p className={`${themeStyles.textMain} font-bold`}>Buscando los mejores sitios...</p>
-                      <motion.div 
-                        className={`${themeStyles.textMuted} text-xs font-mono h-4`}
-                        animate={{ opacity: [0, 1, 0] }}
-                        transition={{ repeat: Infinity, duration: 1.5 }}
-                      >
-                        {`> Consultando guía gastronómica...`}
-                      </motion.div>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {restaurants.length > 0 && (
-                      <div className="flex items-center justify-between px-2">
-                        <h3 className={`text-sm font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Resultados encontrados</h3>
-                        <span className={`text-[10px] font-bold ${themeStyles.accentMuted} ${themeStyles.accent} px-2 py-1 rounded-full border ${themeStyles.accentBorder}`}>{restaurants.length} locales</span>
-                      </div>
-                    )}
-
-                    <div className="space-y-4">
-                      {displayedRestaurants.map((res, i) => (
-                        <motion.div 
-                          key={i}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.05 }}
-                          className={`${themeStyles.card} rounded-3xl p-5 md:p-6 transition-colors group`}
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <h4 className={`text-lg font-bold ${themeStyles.textMain} group-hover:${themeStyles.accent} transition-colors`}>{res.name}</h4>
-                            <div className="flex items-center gap-1 bg-amber-400/10 text-amber-400 px-2 py-1 rounded-lg border border-amber-400/20">
-                              <Star className="w-3 h-3 fill-current" />
-                              <span className="text-xs font-black">{res.rating}</span>
-                            </div>
-                          </div>
-                          <div className={`flex flex-wrap items-center gap-x-4 gap-y-2 ${themeStyles.textMuted} text-xs mb-3`}>
-                            <div className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              <span className="truncate max-w-[150px]">{res.address}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <TrendingUp className="w-3 h-3" />
-                              <span>{res.distance?.toFixed(1)} km</span>
-                            </div>
-                            <div className="flex items-center gap-0.5 text-amber-400 font-bold">
-                              {Array.from({ length: res.priceLevel }).map((_, i) => (
-                                <span key={i}>€</span>
-                              ))}
-                              <span className="opacity-30">
-                                {Array.from({ length: 4 - res.priceLevel }).map((_, i) => (
-                                  <span key={i}>€</span>
-                                ))}
-                              </span>
-                            </div>
-                          </div>
-                          <p className={`${themeStyles.textMuted} text-sm mb-4 leading-relaxed italic`}>"{res.description}"</p>
-                          <div className="flex items-center justify-between">
-                            <span className={`text-[10px] font-bold ${themeStyles.iconBg} ${themeStyles.textMuted} px-3 py-1.5 rounded-full uppercase tracking-widest border ${themeStyles.border}`}>
-                              {res.specialty}
-                            </span>
-                            <button 
-                              onClick={() => window.open(`https://www.google.com/maps/search/${encodeURIComponent(res.name + ' ' + res.address)}`, '_blank')}
-                              className={`${themeStyles.accent} hover:${themeStyles.accent} text-xs font-bold flex items-center gap-1 transition-colors`}
-                            >
-                              Ver en Maps
-                              <TrendingUp className="w-3 h-3 rotate-45" />
-                            </button>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-
-                    {restaurants.length > 0 && (
-                      <div className="flex flex-col items-center gap-6 py-8">
-                        {/* Pagination Controls */}
-                        <div className="flex items-center gap-2">
-                          {Array.from({ length: Math.ceil(Math.min(resultsLimit, restaurants.length) / resultsPerPage) }).map((_, i) => (
-                            <button
-                              key={i}
-                              onClick={() => setRestaurantPage(i + 1)}
-                              className={`w-8 h-8 rounded-xl text-xs font-bold transition-all border ${restaurantPage === i + 1 ? `${themeStyles.buttonPrimary}` : `${themeStyles.iconBg} ${themeStyles.textMuted} ${themeStyles.border} hover:${themeStyles.accentBorder}`}`}
-                            >
-                              {i + 1}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Load More Button */}
-                        {restaurantPage === 3 && restaurants.length > resultsLimit && (
-                          <button
-                            onClick={() => setResultsLimit(prev => prev + 15)}
-                            className={`${themeStyles.buttonSecondary} text-[10px] font-bold uppercase tracking-widest px-6 py-3 rounded-2xl flex items-center gap-2`}
-                          >
-                            <Plus className="w-4 h-4" />
-                            Cargar más resultados
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {!isSearchingRestaurants && restaurants.length === 0 && (
-                      <div className="text-center py-12 bg-zinc-900/20 rounded-3xl border border-white/5 border-dashed">
-                        <Bot className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
-                        <p className="text-zinc-500 text-sm">Indica una ubicación y pulsa buscar para encontrar sitios increíbles.</p>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
             </motion.div>
           )}
 
