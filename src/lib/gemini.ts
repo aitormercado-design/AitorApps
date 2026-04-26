@@ -352,6 +352,7 @@ Ejemplo de estructura correcta:
       model: "gemini-2.5-flash",
       contents: userPrompt,
       config: {
+        thinkingConfig: { thinkingBudget: 0 },
         maxOutputTokens: 32000,
         systemInstruction,
       },
@@ -362,8 +363,6 @@ Ejemplo de estructura correcta:
     );
 
     const response = await Promise.race([apiPromise, timeoutPromise]);
-    const meta = response.usageMetadata;
-    alert(`TOKENS — prompt: ${meta?.promptTokenCount} | output: ${meta?.candidatesTokenCount} | total: ${meta?.totalTokenCount}`);
     const text = response.text;
     if (!text) throw new Error("Sin respuesta del modelo.");
 
