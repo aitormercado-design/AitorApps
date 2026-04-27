@@ -440,7 +440,8 @@ export default function App() {
   const [progressMsgIdx, setProgressMsgIdx] = useState(0);
   const [shoppingList, setShoppingList] = useState<ShoppingList | null>(null);
   const [isGeneratingShoppingList, setIsGeneratingShoppingList] = useState(false);
-  const [appError, setAppError] = useState<string | null>(null);
+  const [appError, setAppError] = useState<{ message: string; timestamp: number } | null>(null);
+  const showError = (message: string) => setAppError({ message, timestamp: Date.now() });
 
   // Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -461,7 +462,7 @@ export default function App() {
       } catch (error) {
         if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('unavailable'))) {
           console.error("Please check your Firebase configuration. The client is offline or the database is unavailable.");
-          setAppError("Error de conexión con la base de datos. Por favor, recarga la página o comprueba tu conexión a internet.");
+          showError("Error de conexión con la base de datos. Por favor, recarga la página o comprueba tu conexión a internet.");
         }
       }
     };
@@ -691,6 +692,25 @@ export default function App() {
       }
     }
   }, [workoutPlan, user, isDataLoaded]);
+
+  // Auto-dismiss error toast: 10s for rate-limit, 6s for everything else
+  useEffect(() => {
+    if (!appError) return;
+    const delay = appError.message.includes('Límite de consultas') ? 10000 : 6000;
+    const timer = setTimeout(() => setAppError(null), delay);
+    return () => clearTimeout(timer);
+  }, [appError]);
+
+  // Clear stale errors when PWA returns to foreground
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && appError && Date.now() - appError.timestamp > 30000) {
+        setAppError(null);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [appError]);
 
   // Calculate today's totals
   const todaysMeals = useMemo(() => {
@@ -1076,7 +1096,7 @@ export default function App() {
       setEditingMeal(newMeal);
     } catch (error) {
       console.error("Error in handleTextFoodSubmit:", error);
-      setAppError(error instanceof Error ? error.message : "Error al analizar el texto");
+      showError(error instanceof Error ? error.message : "Error al analizar el texto");
     } finally {
       setIsAnalyzing(false);
       setIsCapturing(false);
@@ -1120,7 +1140,7 @@ export default function App() {
       setEditingMeal(newMeal);
     } catch (error) {
       console.error("Error in handleFileChange:", error);
-      setAppError(error instanceof Error ? error.message : "Error al analizar la imagen");
+      showError(error instanceof Error ? error.message : "Error al analizar la imagen");
     } finally {
       setIsAnalyzing(false);
       setIsCapturing(false);
@@ -1228,7 +1248,7 @@ export default function App() {
         ...newMacros
       });
     } catch (error) {
-      setAppError(error instanceof Error ? error.message : "Error al recalcular macros. Inténtalo de nuevo.");
+      showError(error instanceof Error ? error.message : "Error al recalcular macros. Inténtalo de nuevo.");
     } finally {
       setIsRecalculating(false);
     }
@@ -1309,7 +1329,7 @@ export default function App() {
       const menu = await generateWeeklyMenu(activeProfile, currentWeight);
       setGeneratedMenu(menu);
     } catch (error: any) {
-      setAppError(error.message || 'Error al generar el plan. Inténtalo de nuevo.');
+      showError(error.message || 'Error al generar el plan. Inténtalo de nuevo.');
     } finally {
       setIsGeneratingMenu(false);
     }
@@ -1333,7 +1353,7 @@ export default function App() {
       setShoppingList(list);
     } catch (error) {
       console.error("Error generating shopping list:", error);
-      setAppError("Error al generar la lista de la compra. Inténtalo de nuevo.");
+      showError("Error al generar la lista de la compra. Inténtalo de nuevo.");
     } finally {
       setIsGeneratingShoppingList(false);
     }
@@ -1508,7 +1528,7 @@ export default function App() {
       setWorkoutPlan(plan);
     } catch (error) {
       console.error("Error generating workout:", error);
-      setAppError("Error al generar tu rutina de entrenamiento.");
+      showError("Error al generar tu rutina de entrenamiento.");
     } finally {
       setIsGeneratingWorkout(false);
     }
@@ -1568,7 +1588,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
       }
     } catch (error) {
       console.error("Error regenerating table:", error);
-      setAppError("Error al regenerar los ejercicios.");
+      showError("Error al regenerar los ejercicios.");
     } finally {
       setIsGeneratingWorkout(false);
     }
@@ -2289,6 +2309,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       type="text"
                       placeholder="Ej: He comido arroz con pollo..."
                       className={`w-full ${themeStyles.input} rounded-2xl pl-5 pr-14 py-5 transition-all text-base shadow-inner`}
+                      onFocus={() => setAppError(null)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           handleTextFoodSubmit(e.currentTarget.value);
@@ -2310,7 +2331,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     </button>
                   </div>
                   <button 
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => { setAppError(null); fileInputRef.current?.click(); }}
                     className={`w-full flex items-center justify-center gap-3 ${themeStyles.buttonSecondary} p-5 rounded-2xl transition-all border group relative z-10`}
                   >
                     <Camera className={`w-5 h-5 ${themeStyles.accent} group-hover:scale-110 transition-transform`} />
@@ -4180,7 +4201,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           >
             <div className="bg-rose-500 text-white px-6 py-4 rounded-2xl shadow-2xl font-medium text-sm flex items-center gap-3 pointer-events-auto max-w-md w-full border border-rose-400/50">
               <AlertTriangle className="w-5 h-5 shrink-0" />
-              <p className="flex-1">{appError}</p>
+              <p className="flex-1">{appError.message}</p>
               <button 
                 onClick={() => setAppError(null)}
                 className="p-1 hover:bg-rose-600 rounded-lg transition-colors shrink-0"
