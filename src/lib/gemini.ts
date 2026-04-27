@@ -47,7 +47,7 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
       : `Analiza esta imagen de comida. Devuelve ÚNICAMENTE JSON válido.`;
 
     const apiPromise = ai.models.generateContent({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType } },
@@ -55,7 +55,7 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
         ],
       },
       config: {
-        thinkingConfig: { thinkingBudget: 2048 },
+        thinkingConfig: { thinkingBudget: 1024 },
         maxOutputTokens: 2048,
         systemInstruction: `Eres un experto nutricionista especializado en nutrición deportiva y gestión de la DIABETES. Actúa como un coach empático y motivador. Analiza imágenes de comida y estima con precisión el contenido nutricional y el peso. Evalúa la calidad nutricional (NutriScore A-E). Si el usuario es diabético, enfócate en la estabilidad de la glucosa. Si el nombre del usuario está en el contexto, úsalo. Desglosa los ingredientes principales con sus gramos estimados.
 
@@ -94,10 +94,10 @@ export async function analyzeFoodText(foodDescription: string, contextStr?: stri
       : `Alimento: "${foodDescription}". Devuelve ÚNICAMENTE JSON válido.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
-        thinkingConfig: { thinkingBudget: 2048 },
+        thinkingConfig: { thinkingBudget: 1024 },
         maxOutputTokens: 2048,
         systemInstruction: `Eres un experto nutricionista deportivo y coach empático y motivador. Estima con precisión el contenido nutricional del alimento descrito. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él.
 
