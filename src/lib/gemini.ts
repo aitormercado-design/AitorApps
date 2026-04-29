@@ -5,6 +5,19 @@ const ai = new GoogleGenAI({
   apiKey: (import.meta.env.VITE_GEMINI_API_KEY as string) || (process.env.GEMINI_API_KEY as string) || '',
 });
 
+async function callWithRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 2000): Promise<T> {
+  try {
+    return await fn();
+  } catch (error: any) {
+    const msg: string = error?.message ?? '';
+    if (retries > 0 && (msg.includes('UNAVAILABLE') || msg.includes('503') || msg.includes('overloaded'))) {
+      await new Promise(r => setTimeout(r, delayMs));
+      return callWithRetry(fn, retries - 1, delayMs);
+    }
+    throw error;
+  }
+}
+
 function friendlyGeminiError(error: any, fallback: string): Error {
   const msg: string = error?.message ?? '';
   if (msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429') || msg.includes('quota') || msg.includes('Quota')) {
@@ -44,34 +57,31 @@ export type NutritionalInfo = {
 };
 
 export async function analyzeFoodImage(base64Image: string, mimeType: string, contextStr?: string): Promise<NutritionalInfo> {
-  try {
-    const prompt = contextStr
-      ? `Analiza esta imagen de comida. Contexto del usuario: "${contextStr}". Devuelve ÚNICAMENTE JSON válido.`
-      : `Analiza esta imagen de comida. Devuelve ÚNICAMENTE JSON válido.`;
+  const prompt = contextStr
+    ? `Analiza esta imagen de comida. Contexto del usuario: "${contextStr}". Devuelve ÚNICAMENTE JSON válido.`
+    : `Analiza esta imagen de comida. Devuelve ÚNICAMENTE JSON válido.`;
 
-    const apiPromise = ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: {
-        parts: [
-          { inlineData: { data: base64Image, mimeType } },
-          { text: prompt },
-        ],
-      },
-      config: {
-        thinkingConfig: { thinkingBudget: 1024 },
-        maxOutputTokens: 8192,
-        systemInstruction: `Eres un experto nutricionista especializado en nutrición deportiva y gestión de la DIABETES. Actúa como un coach empático y motivador. Analiza imágenes de comida y estima con precisión el contenido nutricional y el peso. Evalúa la calidad nutricional (NutriScore A-E). Si el usuario es diabético, enfócate en la estabilidad de la glucosa. Si el nombre del usuario está en el contexto, úsalo. Desglosa los ingredientes principales con sus gramos estimados.
+  const systemInstruction = `Eres un experto nutricionista especializado en nutrición deportiva y gestión de la DIABETES. Actúa como un coach empático y motivador. Analiza imágenes de comida y estima con precisión el contenido nutricional y el peso. Evalúa la calidad nutricional (NutriScore A-E). Si el usuario es diabético, enfócate en la estabilidad de la glucosa. Si el nombre del usuario está en el contexto, úsalo. Desglosa los ingredientes principales con sus gramos estimados.
 
 Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo exacto del formato:
-{"foodName":"Arroz con pollo","totalWeight":350,"calories":450,"protein":38,"carbs":52,"fat":12,"ingredients":[{"name":"arroz","amount":"150g"},{"name":"pollo","amount":"150g"},{"name":"aceite","amount":"10g"}],"confidence":"alta","confidenceMessage":"Análisis completado","interpretation":"Plato equilibrado","coachMessage":"Buena elección","actionableRecommendation":"Añade verduras","nutriScore":"B"}`,
-      },
-    });
+{"foodName":"Arroz con pollo","totalWeight":350,"calories":450,"protein":38,"carbs":52,"fat":12,"ingredients":[{"name":"arroz","amount":"150g"},{"name":"pollo","amount":"150g"},{"name":"aceite","amount":"10g"}],"confidence":"alta","confidenceMessage":"Análisis completado","interpretation":"Plato equilibrado","coachMessage":"Buena elección","actionableRecommendation":"Añade verduras","nutriScore":"B"}`;
 
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("El análisis está tardando demasiado. Por favor, comprueba tu conexión a internet e inténtalo de nuevo.")), 45000);
-    });
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error("El análisis está tardando demasiado. Por favor, comprueba tu conexión a internet e inténtalo de nuevo.")), 45000)
+  );
 
-    const response = await Promise.race([apiPromise, timeoutPromise]);
+  try {
+    const response = await callWithRetry(() =>
+      Promise.race([
+        ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: { parts: [{ inlineData: { data: base64Image, mimeType } }, { text: prompt }] },
+          config: { maxOutputTokens: 4096, systemInstruction },
+        }),
+        timeoutPromise,
+      ])
+    );
+
     const finishReason = response.candidates?.[0]?.finishReason;
     if (finishReason && finishReason !== 'STOP') {
       throw new Error(`La respuesta fue interrumpida (${finishReason}). Inténtalo de nuevo.`);
@@ -79,14 +89,8 @@ Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo ex
     const text = response.text;
     if (!text) throw new Error("No se recibió respuesta del modelo.");
 
-    let cleanText = text;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      cleanText = jsonMatch[0];
-    } else {
-      cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-    }
-
+    const cleanText = jsonMatch ? jsonMatch[0] : text.replace(/```json\n?|\n?```/g, '').trim();
     return JSON.parse(cleanText) as NutritionalInfo;
   } catch (error: any) {
     console.error("Error in analyzeFoodImage:", error);
@@ -95,23 +99,24 @@ Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo ex
 }
 
 export async function analyzeFoodText(foodDescription: string, contextStr?: string): Promise<NutritionalInfo> {
-  try {
-    const prompt = contextStr
-      ? `Alimento: "${foodDescription}". Contexto del usuario: "${contextStr}". Devuelve ÚNICAMENTE JSON válido.`
-      : `Alimento: "${foodDescription}". Devuelve ÚNICAMENTE JSON válido.`;
+  const prompt = contextStr
+    ? `Alimento: "${foodDescription}". Contexto del usuario: "${contextStr}". Devuelve ÚNICAMENTE JSON válido.`
+    : `Alimento: "${foodDescription}". Devuelve ÚNICAMENTE JSON válido.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        thinkingConfig: { thinkingBudget: 1024 },
-        maxOutputTokens: 8192,
-        systemInstruction: `Eres un experto nutricionista deportivo y coach empático y motivador. Estima con precisión el contenido nutricional del alimento descrito. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él.
+  try {
+    const response = await callWithRetry(() =>
+      ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          maxOutputTokens: 4096,
+          systemInstruction: `Eres un experto nutricionista deportivo y coach empático y motivador. Estima con precisión el contenido nutricional del alimento descrito. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él.
 
 Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo exacto del formato:
 {"foodName":"Arroz con pollo","totalWeight":350,"calories":450,"protein":38,"carbs":52,"fat":12,"ingredients":[{"name":"arroz","amount":"150g"},{"name":"pollo","amount":"150g"},{"name":"aceite","amount":"10g"}],"confidence":"alta","confidenceMessage":"Análisis completado","interpretation":"Plato equilibrado","coachMessage":"Buena elección","actionableRecommendation":"Añade verduras","nutriScore":"B"}`,
-      },
-    });
+        },
+      })
+    );
 
     const finishReason = response.candidates?.[0]?.finishReason;
     if (finishReason && finishReason !== 'STOP') {
@@ -120,14 +125,8 @@ Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo ex
     const text = response.text;
     if (!text) throw new Error("No se recibió respuesta del modelo.");
 
-    let cleanText = text;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      cleanText = jsonMatch[0];
-    } else {
-      cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
-    }
-
+    const cleanText = jsonMatch ? jsonMatch[0] : text.replace(/```json\n?|\n?```/g, '').trim();
     return JSON.parse(cleanText) as NutritionalInfo;
   } catch (error: any) {
     console.error("Error analyzing food text:", error);
