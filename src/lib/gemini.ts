@@ -29,10 +29,18 @@ function friendlyGeminiError(error: any, fallback: string): Error {
   if (msg.includes('UNAVAILABLE') || msg.includes('503') || msg.includes('overloaded')) {
     return new Error('El servicio no está disponible ahora. Inténtalo en unos segundos.');
   }
+  if (msg.includes('PERMISSION_DENIED') || msg.includes('403')) {
+    return new Error('Sin permiso para usar este modelo. Revisa la configuración de la API key.');
+  }
+  if (msg.includes('NOT_FOUND') || msg.includes('404')) {
+    return new Error('Modelo no encontrado. Contacta con soporte.');
+  }
   if (msg.includes('API key not valid') || msg.includes('API_KEY_INVALID')) {
     return new Error('La clave de API de Gemini no es válida. Por favor, revísala en los secretos.');
   }
-  return new Error(fallback);
+  // Temporary: surface error type for diagnosis
+  const code = msg.match(/\b[A-Z_]{4,}\b/)?.[0] ?? 'UNKNOWN';
+  return new Error(`${fallback} [${code}]`);
 }
 
 export type NutritionalInfo = {
