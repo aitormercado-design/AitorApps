@@ -309,7 +309,7 @@ Ejemplo:
 {"d":[{"n":"Lunes","k":2900,"p":252,"c":295,"g":81,"m":[{"t":"Desayuno","n":"Avena con whey","k":600,"p":45,"c":75,"g":18,"i":"avena,whey,leche"},{"t":"Almuerzo","n":"Pollo con arroz","k":750,"p":68,"c":80,"g":20,"i":"pollo,arroz,brócoli,aceite"},{"t":"Merienda","n":"Yogur con fruta","k":300,"p":20,"c":45,"g":8,"i":"yogur,plátano,nueces"},{"t":"Cena","n":"Salmón con verduras","k":650,"p":55,"c":40,"g":28,"i":"salmón,espinacas,patata,limón"}]}]}`;
 
     const apiPromise = ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       contents: userPrompt,
       config: {
         thinkingConfig: { thinkingBudget: 1024 },
@@ -452,7 +452,7 @@ Ejemplo de estructura:
 {"secciones":[{"nombre":"Frutas y verduras","items":[{"nombre":"Plátano","cantidad":"7 unidades"}]},{"nombre":"Carnes y pescados","items":[{"nombre":"Pechuga de pollo","cantidad":"1kg (2 pechugas)"}]}],"presupuesto_estimado":"75-90€"}`;
 
     const apiPromise = ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       contents: userPrompt,
       config: {
         thinkingConfig: { thinkingBudget: 512 },
@@ -502,7 +502,7 @@ export async function generateWorkoutPlan(profileStr: string): Promise<string> {
     const trainingDays = data.trainingDaysPerWeek || 3;
     
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       contents: `Genera una rutina de entrenamiento semanal personalizada para este perfil: ${profileStr}.
       TIPO DE ENTRENAMIENTO: ${data.workoutType === 'home' ? 'En casa sin equipamiento (entrenamiento con peso corporal)' : 'En el Gimnasio (GYM) usando pesas y máquinas'}.
       REQUISITOS OBLIGATORIOS:
