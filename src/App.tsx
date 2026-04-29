@@ -5,7 +5,7 @@ import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, 
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExerciseDelta } from './components/ExerciseDelta';
-import { analyzeFoodText, chatWithCoach, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, recalculateFoodMacros } from './lib/groq';
+import { analyzeFoodText, chatWithCoach, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList } from './lib/groq';
 import type { ChatMessage, CoachUserContext } from './lib/groq';
 import { analyzeFoodImage } from './lib/openrouter';
 import type { NutritionalInfo, WeeklyMenu, ShoppingList } from './types/nutrition';
@@ -434,7 +434,6 @@ export default function App() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const [portionMultiplier, setPortionMultiplier] = useState(1);
-  const [isRecalculating, setIsRecalculating] = useState(false);
   const mealsListenerRef = useRef<(() => void) | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuTabsRef = useRef<HTMLDivElement>(null);
@@ -1227,35 +1226,6 @@ export default function App() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
-
-  const handleRecalculateMacros = async () => {
-    if (!editingMeal || !editingMeal.foodName) return;
-    setIsRecalculating(true);
-    try {
-      const remainingCalories = goals.calories - totals.calories;
-      const remainingProtein = goals.protein - totals.protein;
-      const remainingCarbs = goals.carbs - totals.carbs;
-      const remainingFat = goals.fat - totals.fat;
-      
-      let foodDescription = editingMeal.foodName;
-      if (editingMeal.ingredients && editingMeal.ingredients.length > 0) {
-        const ingredientsList = editingMeal.ingredients.map(i => `${i.name}: ${i.amount}`).join(', ');
-        foodDescription = `${editingMeal.foodName} (Ingredientes: ${ingredientsList})`;
-      }
-
-      const contextStr = `Usuario: ${profile.name || 'Usuario'}. Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas. Dieta: ${profile.dietType}.`;
-
-      const newMacros = await recalculateFoodMacros(foodDescription, contextStr);
-      setEditingMeal({
-        ...editingMeal,
-        ...newMacros
-      });
-    } catch (error) {
-      showError(error instanceof Error ? error.message : "Error al recalcular macros. Inténtalo de nuevo.");
-    } finally {
-      setIsRecalculating(false);
-    }
   };
 
   const removeMeal = (id: string) => {
@@ -4061,46 +4031,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       </div>
                     )}
                     
-                    {/* Ingredients Breakdown */}
-                    {editingMeal.ingredients && editingMeal.ingredients.length > 0 && (
-                      <div className="bg-zinc-950/50 rounded-2xl p-4 border border-white/5">
-                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-3">Desglose de Ingredientes</span>
-                        <div className="space-y-2">
-                          {editingMeal.ingredients.map((ing, idx) => (
-                            <div key={idx} className="flex justify-between items-center text-xs gap-3">
-                              <span className="text-zinc-300 flex-1 truncate">{ing.name}</span>
-                              <input
-                                type="text"
-                                value={ing.amount}
-                                onChange={(e) => {
-                                  const newIngredients = [...editingMeal.ingredients!];
-                                  newIngredients[idx] = { ...ing, amount: e.target.value };
-                                  setEditingMeal({ ...editingMeal, ingredients: newIngredients });
-                                }}
-                                className={`w-24 bg-zinc-900 border border-white/10 rounded-lg px-2 py-1.5 text-right ${themeStyles.accent} font-mono font-bold focus:outline-none focus:${themeStyles.accentBorder} transition-colors`}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="space-y-2 mt-4">
-                      <button
-                        type="button"
-                        onClick={handleRecalculateMacros}
-                        disabled={isRecalculating || !editingMeal.foodName}
-                        className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white p-3 rounded-xl transition-colors border border-white/5 flex items-center justify-center gap-2 text-sm font-medium"
-                      >
-                        {isRecalculating ? <Loader2 className={`w-4 h-4 animate-spin ${themeStyles.accent}`} /> : <RefreshCw className={`w-4 h-4 ${themeStyles.accent}`} />}
-                        Recalcular Calorías y Macros
-                      </button>
-                      <p className="text-[10px] text-zinc-500 text-center px-4">
-                        Si modificas el nombre de la comida o los gramos de los ingredientes, pulsa este botón para recalcular los datos nutricionales.
-                      </p>
-                    </div>
-
-
                   </div>
                 </div>
 
