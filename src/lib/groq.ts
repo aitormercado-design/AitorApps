@@ -1,5 +1,6 @@
 import Groq from 'groq-sdk';
-import type { NutritionalInfo, ShoppingList } from '../types/nutrition';
+import type { NutritionalInfo, ShoppingList, WeeklyMenu } from '../types/nutrition';
+import { calculateDailyCalories } from '../utils/nutrition';
 
 const groq = new Groq({
   apiKey: (import.meta.env.VITE_GROQ_API_KEY as string) || '',
@@ -169,5 +170,148 @@ Formato exacto:
   } catch (error: any) {
     console.error('Error generating shopping list:', error);
     throw friendlyGroqError(error, 'No se pudo generar la lista de la compra. Inténtalo de nuevo.');
+  }
+}
+
+export async function generateWeeklyMenu(profile: any, currentWeight: number): Promise<WeeklyMenu> {
+  const targets = calculateDailyCalories(profile, currentWeight);
+  const allergiesStr = Array.isArray(profile.allergies) && profile.allergies.length > 0
+    ? profile.allergies.join(', ')
+    : 'Ninguna';
+
+  const adjustedTargets = { ...targets };
+  if (profile.diabetesType !== 'none' && adjustedTargets.carbs > 240) {
+    const excessKcal = (adjustedTargets.carbs - 240) * 4;
+    adjustedTargets.carbs = 240;
+    adjustedTargets.fat = Math.round(adjustedTargets.fat + excessKcal / 9);
+  }
+
+  const userPrompt = `Genera el plan nutricional con estos datos:
+
+PERFIL CALCULADO (no recalcules esto, úsalo tal cual):
+- Calorías diarias objetivo: ${adjustedTargets.calories} kcal
+- Proteína diaria: ${adjustedTargets.protein}g
+- Carbohidratos diarios: ${adjustedTargets.carbs}g${profile.diabetesType !== 'none' ? ` (máximo absoluto — diabetes)` : ''}
+- Grasa diaria: ${adjustedTargets.fat}g
+
+DATOS DEL USUARIO:
+- Edad: ${profile.age} | Sexo: ${profile.gender} | Peso: ${currentWeight}kg | Altura: ${profile.height}cm
+- Objetivo: ${profile.goal}
+- Días de gimnasio esta semana: ${profile.trainingDaysPerWeek} (distribúyelos a tu criterio)
+- Condiciones médicas: ${profile.diabetesType !== 'none' ? `Diabetes tipo ${profile.diabetesType}` : 'Ninguna'}
+- Alergias absolutas: ${allergiesStr}
+- Alimentos que no le gustan: ${profile.dislikedFoods || 'Ninguno'}
+- Supermercado de referencia: ${profile.favoriteSupermarket || 'Cualquiera'}
+
+COMIDA LIBRE:
+- Habilitada: ${profile.freeMealEnabled ? 'Sí' : 'No'}
+- Día: ${profile.freeMealDay || ''}
+- Tipo: ${profile.freeMealType || ''}`;
+
+  const diabetesRule = profile.diabetesType !== 'none'
+    ? `- RESTRICCIÓN ABSOLUTA DIABETES tipo ${profile.diabetesType}: NINGUNA comida individual puede superar 60g de carbohidratos. Este límite es INVIOLABLE. El total diario de ${adjustedTargets.carbs}g repartido en máximo 60g por ingesta. Alimentos de índice glucémico bajo.`
+    : '';
+
+  const freeMealRule = profile.freeMealEnabled
+    ? `- Comida libre el ${profile.freeMealDay} en ${profile.freeMealType}: usa exactamente {"t":"${profile.freeMealType}","n":"COMIDA LIBRE","k":0,"p":0,"c":0,"g":0,"i":"libre"}. Distribución ese día: libre=50%, desayuno=18%, almuerzo=21%, merienda=11%.`
+    : '';
+
+  const systemPrompt = `Eres un sistema de planificación nutricional clínica.
+
+Reglas nutricionales:
+- Alergias: exclusión absoluta, sin excepciones.${diabetesRule ? '\n' + diabetesRule : ''}
+- Calorías diarias: entre 97%-103% del objetivo. Macros con ±5% de tolerancia.
+- Días de gimnasio: proteína +15%, carbohidratos reducidos equivalente.${freeMealRule ? '\n' + freeMealRule : ''}
+- Genera exactamente 7 días en orden Lunes→Domingo, cada día con exactamente 4 comidas: Desayuno, Almuerzo, Merienda, Cena.
+- Todos los valores numéricos son enteros sin decimales.
+
+Estructura del JSON — usa EXACTAMENTE estas claves abreviadas:
+- "d": array de 7 días
+- Cada día: "n" (nombre), "k" (kcal), "p" (proteína g), "c" (carbs g), "g" (grasa g), "m" (array de comidas)
+- Cada comida: "t" (tipo), "n" (nombre plato), "k" (kcal), "p" (proteína g), "c" (carbs g), "g" (grasa g), "i" (máx 4 ingredientes separados por coma, sin cantidades)`;
+
+  try {
+    const completion = await Promise.race([
+      groq.chat.completions.create({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 8192,
+        response_format: { type: 'json_object' },
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('El plan está tardando demasiado. Inténtalo de nuevo.')), 120000)
+      ),
+    ]);
+
+    const text = completion.choices[0].message.content;
+    if (!text) throw new Error('Sin respuesta del modelo.');
+
+    const parsed = JSON.parse(text);
+    const legacyDays: any[] = [];
+
+    if (Array.isArray(parsed?.d)) {
+      for (const day of parsed.d) {
+        const mealList = Array.isArray(day.m) ? day.m.map((meal: any) => ({
+          type: meal.t,
+          description: meal.n,
+          calories: meal.k,
+          proteinas: meal.p,
+          carbohidratos: meal.c,
+          grasas: meal.g,
+          ingredientes: meal.i,
+        })) : [];
+        legacyDays.push({
+          day: day.n,
+          calorias: day.k,
+          proteinas: day.p,
+          carbohidratos: day.c,
+          grasas: day.g,
+          meals: mealList,
+        });
+      }
+    } else if (parsed?.weeklyPlan || Array.isArray(parsed?.days)) {
+      const dayOrder = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+      const dayNamesEs: Record<string, string> = {
+        monday:'Lunes', tuesday:'Martes', wednesday:'Miércoles',
+        thursday:'Jueves', friday:'Viernes', saturday:'Sábado', sunday:'Domingo',
+      };
+      const source = parsed.weeklyPlan ?? {};
+      const daysArray: any[] = Array.isArray(parsed.days) ? parsed.days : [];
+
+      for (const key of dayOrder) {
+        const day = source[key] ?? daysArray.find(
+          (d: any) => d.nombre?.toLowerCase() === dayNamesEs[key].toLowerCase()
+                   || d.day?.toLowerCase() === dayNamesEs[key].toLowerCase()
+        );
+        if (!day) continue;
+        const meals = day.meals ?? day.m ?? [];
+        const mealList = meals.map((meal: any) => ({
+          type: meal.tipo ?? meal.type ?? meal.t,
+          description: meal.descripcion ?? meal.description ?? meal.n,
+          calories: meal.calorias ?? meal.calories ?? meal.k,
+          proteinas: meal.proteinas ?? meal.p,
+          carbohidratos: meal.carbohidratos ?? meal.c,
+          grasas: meal.grasas ?? meal.g,
+          ingredientes: meal.ingredientes ?? meal.i,
+        }));
+        legacyDays.push({
+          day: day.nombre ?? day.day ?? dayNamesEs[key],
+          calorias: day.calorias ?? day.calories ?? day.k,
+          proteinas: day.proteinas ?? day.p,
+          carbohidratos: day.carbohidratos ?? day.c,
+          grasas: day.grasas ?? day.g,
+          meals: mealList,
+        });
+      }
+    }
+
+    return { days: legacyDays, recommendations: 'Disfruta de tu plan de comidas.' };
+  } catch (error: any) {
+    console.error('Error generating menu:', error);
+    throw friendlyGroqError(error, 'No se pudo generar el menú. Inténtalo de nuevo.');
   }
 }
