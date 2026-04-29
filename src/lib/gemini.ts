@@ -74,7 +74,7 @@ Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo ex
     const response = await callWithRetry(() =>
       Promise.race([
         ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-2.0-flash",
           contents: { parts: [{ inlineData: { data: base64Image, mimeType } }, { text: prompt }] },
           config: { maxOutputTokens: 4096, systemInstruction },
         }),
@@ -106,7 +106,7 @@ export async function analyzeFoodText(foodDescription: string, contextStr?: stri
   try {
     const response = await callWithRetry(() =>
       ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.0-flash",
         contents: prompt,
         config: {
           maxOutputTokens: 4096,
