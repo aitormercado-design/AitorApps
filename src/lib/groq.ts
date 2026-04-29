@@ -381,3 +381,34 @@ Separa cada día con ---. No añadas introducción ni conclusión fuera de los d
     throw friendlyGroqError(error, 'No se pudo generar la rutina. Inténtalo de nuevo.');
   }
 }
+
+export async function recalculateFoodMacros(foodDescription: string, contextStr?: string): Promise<Partial<NutritionalInfo>> {
+  const systemPrompt = `Eres un experto nutricionista deportivo y coach empático y motivador. Estima con precisión el contenido nutricional del alimento descrito. Presta especial atención al tamaño de la porción y al método de preparación. Si el nombre del usuario está en el contexto, úsalo.
+
+Responde ÚNICAMENTE con JSON válido con exactamente estos campos:
+{"calories": number, "protein": number, "carbs": number, "fat": number, "interpretation": string, "coachMessage": string, "actionableRecommendation": string}`;
+
+  const userPrompt = contextStr
+    ? `Estima el valor nutricional de: "${foodDescription}". Contexto: "${contextStr}".`
+    : `Estima el valor nutricional de: "${foodDescription}".`;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.5,
+      max_tokens: 1024,
+      response_format: { type: 'json_object' },
+    });
+
+    const text = completion.choices[0].message.content;
+    if (!text) throw new Error('No se recibió respuesta del modelo.');
+    return JSON.parse(text);
+  } catch (error: any) {
+    console.error('Error recalculating macros:', error);
+    throw friendlyGroqError(error, 'No se pudo recalcular. Inténtalo de nuevo.');
+  }
+}

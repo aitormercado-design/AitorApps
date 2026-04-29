@@ -5,7 +5,11 @@ import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, 
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExerciseDelta } from './components/ExerciseDelta';
-import { analyzeFoodImage, analyzeFoodText, NutritionalInfo, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, chatWithCoach, recalculateFoodMacros, extractIngredients, WeeklyMenu, ShoppingList } from './lib/gemini';
+import { analyzeFoodText, chatWithCoach, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, recalculateFoodMacros } from './lib/groq';
+import type { ChatMessage, CoachUserContext } from './lib/groq';
+import { analyzeFoodImage } from './lib/openrouter';
+import type { NutritionalInfo, WeeklyMenu, ShoppingList } from './types/nutrition';
+import { extractIngredients } from './utils/nutrition';
 import { calcularBMR } from './utils/nutrition';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer, onSnapshot } from 'firebase/firestore';
@@ -1365,23 +1369,45 @@ export default function App() {
 
     const newUserMessage = currentChatMessage;
     const newMessages = [...chatMessages, { role: 'user' as const, parts: [{ text: newUserMessage }] }];
-    setChatMessages(newMessages);
+    setChatMessages([...newMessages, { role: 'model' as const, parts: [{ text: '' }] }]);
     setCurrentChatMessage('');
     setIsChatLoading(true);
 
     try {
-      const contextStr = `Usuario: ${profile.name || 'Usuario'}.
-- Edad: ${profile.age}, Peso: ${weights.length > 0 ? weights[weights.length - 1].weight : 'N/A'}kg, Altura: ${profile.height}cm, Género: ${profile.gender}
-- Dieta: ${profile.dietType}, Alergias: ${profile.allergies || 'Ninguna'}, No le gusta: ${profile.dislikedFoods || 'Nada'}
-- Calorías objetivo: ${goals.calories} kcal (P: ${goals.protein}g, C: ${goals.carbs}g, G: ${goals.fat}g)
-- Consumido hoy: ${Math.round(totals.calories)} kcal (P: ${Math.round(totals.protein)}g, C: ${Math.round(totals.carbs)}g, G: ${Math.round(totals.fat)}g)
-- Menú semanal actual: ${generatedMenu ? 'Sí, generado' : 'No generado'}`;
+      const conversationHistory: ChatMessage[] = newMessages.map(m => ({
+        role: m.role === 'model' ? 'assistant' : 'user',
+        content: m.parts.map(p => p.text).join(''),
+      }));
 
-      const responseText = await chatWithCoach(newMessages, contextStr);
-      setChatMessages(prev => [...prev, { role: 'model', parts: [{ text: responseText }] }]);
+      const currentWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+      const userContext: CoachUserContext = {
+        profile: { ...profile, currentWeight },
+        goals,
+        mealsToday: todaysMeals,
+        caloriesConsumedToday: totals.calories,
+      };
+
+      await chatWithCoach(conversationHistory, userContext, (chunk) => {
+        setChatMessages(prev => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === 'model') {
+            updated[updated.length - 1] = { ...last, parts: [{ text: last.parts[0].text + chunk }] };
+          }
+          return updated;
+        });
+      });
     } catch (error) {
-      console.error("Chat error:", error);
-      setChatMessages(prev => [...prev, { role: 'model', parts: [{ text: "Hubo un error de conexión. Inténtalo de nuevo." }] }]);
+      console.error('Chat error:', error);
+      setChatMessages(prev => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last?.role === 'model' && last.parts[0].text === '') {
+          updated[updated.length - 1] = { role: 'model', parts: [{ text: 'Hubo un error de conexión. Inténtalo de nuevo.' }] };
+          return updated;
+        }
+        return [...prev, { role: 'model', parts: [{ text: 'Hubo un error de conexión. Inténtalo de nuevo.' }] }];
+      });
     } finally {
       setIsChatLoading(false);
     }
@@ -1582,7 +1608,13 @@ ${tableContent}
 
 Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero con ejercicios diferentes o variaciones que mantengan el estímulo. NO incluyas ninguna explicación, solo la tabla Markdown.`;
 
-      const result = await chatWithCoach([{ role: 'user', parts: [{ text: prompt }] }], "");
+      let result = '';
+      const currentWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+      await chatWithCoach(
+        [{ role: 'user', content: prompt }],
+        { profile: { ...profile, currentWeight }, goals, mealsToday: todaysMeals, caloriesConsumedToday: totals.calories },
+        (chunk) => { result += chunk; }
+      );
       if (result) {
         setWorkoutPlan(prev => prev ? prev.replace(tableContent, result) : result);
       }
