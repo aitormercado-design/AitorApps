@@ -38,9 +38,7 @@ function friendlyGeminiError(error: any, fallback: string): Error {
   if (msg.includes('API key not valid') || msg.includes('API_KEY_INVALID')) {
     return new Error('La clave de API de Gemini no es válida. Por favor, revísala en los secretos.');
   }
-  // Temporary: surface error type for diagnosis
-  const code = msg.match(/\b[A-Z_]{4,}\b/)?.[0] ?? 'UNKNOWN';
-  return new Error(`${fallback} [${code}]`);
+  return new Error(fallback);
 }
 
 export type NutritionalInfo = {
@@ -82,7 +80,7 @@ Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo ex
     const response = await callWithRetry(() =>
       Promise.race([
         ai.models.generateContent({
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-1.5-flash",
           contents: { parts: [{ inlineData: { data: base64Image, mimeType } }, { text: prompt }] },
           config: { maxOutputTokens: 4096, systemInstruction },
         }),
@@ -114,7 +112,7 @@ export async function analyzeFoodText(foodDescription: string, contextStr?: stri
   try {
     const response = await callWithRetry(() =>
       ai.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-1.5-flash",
         contents: prompt,
         config: {
           maxOutputTokens: 4096,
@@ -149,7 +147,7 @@ export async function recalculateFoodMacros(foodDescription: string, contextStr?
       : `Estima el valor nutricional de este alimento: "${foodDescription}". Calcula un NutriScore (A-E) basado en la densidad nutricional. Devuelve un objeto JSON.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-1.5-flash",
       contents: prompt,
       config: {
         systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es estimar de forma precisa el contenido nutricional (calorías y macronutrientes) del alimento descrito. Es CRÍTICO que prestes especial atención al tamaño de las porciones descritas y a los métodos de preparación. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él de forma personal. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida, teniendo en cuenta el contexto.",
@@ -535,7 +533,7 @@ export async function generateWorkoutPlan(profileStr: string): Promise<string> {
 export async function chatWithCoach(messages: {role: 'user' | 'model', parts: {text: string}[]}[], contextStr: string): Promise<string> {
   try {
     const stream = await ai.models.generateContentStream({
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-1.5-flash",
       contents: messages,
       config: {
         systemInstruction: `Eres un auténtico experto en fitness, fisiología del ejercicio y nutrición clínica (diabetes). Actúas como un coach motivador 24/7.
