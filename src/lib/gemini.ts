@@ -7,11 +7,14 @@ const ai = new GoogleGenAI({
 
 function friendlyGeminiError(error: any, fallback: string): Error {
   const msg: string = error?.message ?? '';
-  if (msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429')) {
+  if (msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429') || msg.includes('quota') || msg.includes('Quota')) {
     return new Error('Límite de consultas alcanzado. Espera un momento e inténtalo de nuevo.');
   }
-  if (msg.includes('TIMEOUT') || msg.includes('tardando demasiado')) {
+  if (msg.includes('TIMEOUT') || msg.includes('tardando demasiado') || msg.includes('DEADLINE_EXCEEDED')) {
     return new Error('La consulta tardó demasiado. Inténtalo de nuevo.');
+  }
+  if (msg.includes('UNAVAILABLE') || msg.includes('503') || msg.includes('overloaded')) {
+    return new Error('El servicio no está disponible ahora. Inténtalo en unos segundos.');
   }
   if (msg.includes('API key not valid') || msg.includes('API_KEY_INVALID')) {
     return new Error('La clave de API de Gemini no es válida. Por favor, revísala en los secretos.');
@@ -56,7 +59,7 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
       },
       config: {
         thinkingConfig: { thinkingBudget: 1024 },
-        maxOutputTokens: 2048,
+        maxOutputTokens: 8192,
         systemInstruction: `Eres un experto nutricionista especializado en nutrición deportiva y gestión de la DIABETES. Actúa como un coach empático y motivador. Analiza imágenes de comida y estima con precisión el contenido nutricional y el peso. Evalúa la calidad nutricional (NutriScore A-E). Si el usuario es diabético, enfócate en la estabilidad de la glucosa. Si el nombre del usuario está en el contexto, úsalo. Desglosa los ingredientes principales con sus gramos estimados.
 
 Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo exacto del formato:
@@ -69,6 +72,10 @@ Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo ex
     });
 
     const response = await Promise.race([apiPromise, timeoutPromise]);
+    const finishReason = response.candidates?.[0]?.finishReason;
+    if (finishReason && finishReason !== 'STOP') {
+      throw new Error(`La respuesta fue interrumpida (${finishReason}). Inténtalo de nuevo.`);
+    }
     const text = response.text;
     if (!text) throw new Error("No se recibió respuesta del modelo.");
 
@@ -98,7 +105,7 @@ export async function analyzeFoodText(foodDescription: string, contextStr?: stri
       contents: prompt,
       config: {
         thinkingConfig: { thinkingBudget: 1024 },
-        maxOutputTokens: 2048,
+        maxOutputTokens: 8192,
         systemInstruction: `Eres un experto nutricionista deportivo y coach empático y motivador. Estima con precisión el contenido nutricional del alimento descrito. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él.
 
 Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo exacto del formato:
@@ -106,6 +113,10 @@ Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo ex
       },
     });
 
+    const finishReason = response.candidates?.[0]?.finishReason;
+    if (finishReason && finishReason !== 'STOP') {
+      throw new Error(`La respuesta fue interrumpida (${finishReason}). Inténtalo de nuevo.`);
+    }
     const text = response.text;
     if (!text) throw new Error("No se recibió respuesta del modelo.");
 
