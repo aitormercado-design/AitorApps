@@ -3,6 +3,7 @@ import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, L
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
+import { useCooldown } from './hooks/useCooldown';
 import remarkGfm from 'remark-gfm';
 import { ExerciseDelta } from './components/ExerciseDelta';
 import { analyzeFoodText, chatWithCoach, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList } from './lib/groq';
@@ -434,6 +435,13 @@ export default function App() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const [portionMultiplier, setPortionMultiplier] = useState(1);
+
+  const menuCooldown     = useCooldown(60);
+  const workoutCooldown  = useCooldown(60);
+  const shoppingCooldown = useCooldown(30);
+  const textFoodCooldown = useCooldown(8);
+  const imageFoodCooldown = useCooldown(8);
+  const chatCooldown     = useCooldown(3);
   const mealsListenerRef = useRef<(() => void) | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuTabsRef = useRef<HTMLDivElement>(null);
@@ -2313,31 +2321,45 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       className={`w-full ${themeStyles.input} rounded-2xl pl-5 pr-14 py-5 transition-all text-base shadow-inner`}
                       onFocus={() => setAppError(null)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                        if (e.key === 'Enter' && !textFoodCooldown.isActive) {
+                          textFoodCooldown.start();
                           handleTextFoodSubmit(e.currentTarget.value);
                           e.currentTarget.value = '';
                         }
                       }}
                     />
-                    <button 
-                      className={`absolute right-2.5 top-2.5 bottom-2.5 ${themeStyles.buttonPrimary} px-5 rounded-xl transition-colors flex items-center justify-center shadow-lg`}
+                    <button
+                      disabled={textFoodCooldown.isActive}
+                      className={`absolute right-2.5 top-2.5 bottom-2.5 ${themeStyles.buttonPrimary} px-5 rounded-xl transition-colors flex items-center justify-center shadow-lg disabled:opacity-50`}
                       onClick={() => {
+                        if (textFoodCooldown.isActive) return;
                         const input = document.querySelector('input[placeholder="Ej: He comido arroz con pollo..."]') as HTMLInputElement;
                         if (input && input.value) {
+                          textFoodCooldown.start();
                           handleTextFoodSubmit(input.value);
                           input.value = '';
                         }
                       }}
                     >
-                      <Send className="w-5 h-5" />
+                      {textFoodCooldown.isActive
+                        ? <span className="text-xs font-mono font-bold">{textFoodCooldown.remaining}s</span>
+                        : <Send className="w-5 h-5" />}
                     </button>
                   </div>
-                  <button 
-                    onClick={() => { setAppError(null); fileInputRef.current?.click(); }}
-                    className={`w-full flex items-center justify-center gap-3 ${themeStyles.buttonSecondary} p-5 rounded-2xl transition-all border group relative z-10`}
+                  <button
+                    disabled={imageFoodCooldown.isActive}
+                    onClick={() => {
+                      if (imageFoodCooldown.isActive) return;
+                      imageFoodCooldown.start();
+                      setAppError(null);
+                      fileInputRef.current?.click();
+                    }}
+                    className={`w-full flex items-center justify-center gap-3 ${themeStyles.buttonSecondary} p-5 rounded-2xl transition-all border group relative z-10 disabled:opacity-50`}
                   >
                     <Camera className={`w-5 h-5 ${themeStyles.accent} group-hover:scale-110 transition-transform`} />
-                    <span className="text-sm font-black uppercase tracking-widest">Escanear comida</span>
+                    <span className="text-sm font-black uppercase tracking-widest">
+                      {imageFoodCooldown.isActive ? `Espera ${imageFoodCooldown.remaining}s` : 'Escanear comida'}
+                    </span>
                   </button>
                 </div>
 
@@ -2478,11 +2500,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             </p>
                           </div>
                           <button
-                            onClick={() => handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70)}
-                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} ${themeStyles.textMuted} text-[9px] font-black uppercase tracking-widest hover:${themeStyles.textMain} transition-all`}
+                            disabled={menuCooldown.isActive || isGeneratingMenu}
+                            onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} ${themeStyles.textMuted} text-[9px] font-black uppercase tracking-widest hover:${themeStyles.textMain} transition-all disabled:opacity-50`}
                           >
                             <RefreshCw className="w-3 h-3" />
-                            Regenerar
+                            {menuCooldown.isActive ? `Espera ${menuCooldown.remaining}s` : 'Regenerar'}
                           </button>
                         </div>
 
@@ -2584,10 +2607,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className="text-center py-8">
                         <p className={`${themeStyles.textMuted} text-center py-8`}>Genera tu menú semanal y lista de la compra adaptados a tus preferencias.</p>
                         <button
-                          onClick={() => handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70)}
-                          className={`${themeStyles.buttonPrimary} px-6 py-2 rounded-xl font-bold uppercase tracking-wider text-xs`}
+                          disabled={menuCooldown.isActive || isGeneratingMenu}
+                          onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
+                          className={`${themeStyles.buttonPrimary} px-6 py-2 rounded-xl font-bold uppercase tracking-wider text-xs disabled:opacity-50`}
                         >
-                          Generar Plan
+                          {menuCooldown.isActive ? `Espera ${menuCooldown.remaining}s` : isGeneratingMenu ? 'Generando...' : 'Generar Plan'}
                         </button>
                       </div>
                     )}
@@ -2608,12 +2632,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                          <h2 className={`text-xl font-bold ${themeStyles.textMain}`}>Lista de la Compra</h2>
                          {generatedMenu && (
                            <button
-                             onClick={handleGenerateShoppingList}
-                             disabled={isGeneratingShoppingList}
+                             onClick={() => { shoppingCooldown.start(); handleGenerateShoppingList(); }}
+                             disabled={shoppingCooldown.isActive || isGeneratingShoppingList}
                              className={`p-2 rounded-xl transition-colors disabled:opacity-50 ${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.textMain}`}
                              title="Regenerar lista de la compra"
                            >
-                             <RefreshCw className={`w-4 h-4 ${isGeneratingShoppingList ? 'animate-spin' : ''}`} />
+                             {shoppingCooldown.isActive
+                               ? <span className="text-xs font-mono font-bold w-4 text-center block">{shoppingCooldown.remaining}s</span>
+                               : <RefreshCw className={`w-4 h-4 ${isGeneratingShoppingList ? 'animate-spin' : ''}`} />}
                            </button>
                          )}
                        </div>
@@ -2653,13 +2679,13 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                        <p className={`${themeStyles.textMuted} text-[10px] uppercase font-bold tracking-widest px-4 mb-6`}>
                          Extrae los ingredientes del menú y crea tu lista para <span className={`${themeStyles.accent}`}>{profile.favoriteSupermarket}</span>
                        </p>
-                       <button 
-                         onClick={handleGenerateShoppingList}
-                         disabled={!generatedMenu}
-                         className={`${themeStyles.buttonPrimary} px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-[10px] mx-auto flex items-center gap-2`}
+                       <button
+                         onClick={() => { shoppingCooldown.start(); handleGenerateShoppingList(); }}
+                         disabled={!generatedMenu || shoppingCooldown.isActive}
+                         className={`${themeStyles.buttonPrimary} px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-[10px] mx-auto flex items-center gap-2 disabled:opacity-50`}
                        >
                          <ShoppingCart className="w-4 h-4" />
-                         Generar Lista
+                         {shoppingCooldown.isActive ? `Espera ${shoppingCooldown.remaining}s` : 'Generar Lista'}
                        </button>
                      </div>
                    ) : shoppingList.categories.length === 0 ? (
@@ -2751,13 +2777,13 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </button>
                       ))}
                     </div>
-                    <button 
-                      onClick={() => handleGenerateWorkout()}
-                      disabled={isGeneratingWorkout}
-                      className={`w-full ${themeStyles.buttonSecondary} font-bold uppercase tracking-widest py-3 rounded-xl transition-all text-[10px] flex items-center justify-center gap-2`}
+                    <button
+                      onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
+                      disabled={workoutCooldown.isActive || isGeneratingWorkout}
+                      className={`w-full ${themeStyles.buttonSecondary} font-bold uppercase tracking-widest py-3 rounded-xl transition-all text-[10px] flex items-center justify-center gap-2 disabled:opacity-50`}
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingWorkout ? 'animate-spin' : ''}`} />
-                      Regenerar Plan Completo
+                      {workoutCooldown.isActive ? `Espera ${workoutCooldown.remaining}s` : 'Regenerar Plan Completo'}
                     </button>
                   </div>
                 )}
@@ -2902,11 +2928,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                 <p className={`text-xs ${themeStyles.textMuted} max-w-xs mx-auto leading-relaxed font-medium`}>
                                   El plan generado no sigue el formato esperado. Intenta regenerarlo.
                                 </p>
-                                <button 
-                                  onClick={() => handleGenerateWorkout()}
-                                  className={`mt-4 px-8 py-3 rounded-xl ${themeStyles.accentBg} text-zinc-950 text-[10px] font-black uppercase tracking-widest shadow-lg`}
+                                <button
+                                  onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
+                                  disabled={workoutCooldown.isActive}
+                                  className={`mt-4 px-8 py-3 rounded-xl ${themeStyles.accentBg} text-zinc-950 text-[10px] font-black uppercase tracking-widest shadow-lg disabled:opacity-50`}
                                 >
-                                  Reintentar Generación
+                                  {workoutCooldown.isActive ? `Espera ${workoutCooldown.remaining}s` : 'Reintentar Generación'}
                                 </button>
                               </div>
                             );
@@ -3342,11 +3369,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     </div>
                     <h3 className="text-2xl font-display font-black text-white uppercase tracking-tight mb-3">No tienes un plan activo</h3>
                     <p className="text-zinc-500 text-sm mb-8 max-w-xs mx-auto leading-relaxed">Genera tu primera rutina personalizada basada en tu perfil anatómico y objetivos deportivos.</p>
-                    <button 
-                      onClick={() => handleGenerateWorkout()}
-                      className={`${themeStyles.accentBg} text-zinc-950 font-black uppercase tracking-widest px-10 py-5 rounded-2xl hover:${themeStyles.accentBg} transition-all shadow-xl hover:scale-105 active:scale-95`}
+                    <button
+                      onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
+                      disabled={workoutCooldown.isActive}
+                      className={`${themeStyles.accentBg} text-zinc-950 font-black uppercase tracking-widest px-10 py-5 rounded-2xl transition-all shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100`}
                     >
-                      Generar Rutina
+                      {workoutCooldown.isActive ? `Espera ${workoutCooldown.remaining}s` : 'Generar Rutina'}
                     </button>
                   </div>
                 )}
@@ -3937,7 +3965,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               )}
             </div>
 
-            <form onSubmit={handleSendMessage} className="p-4 border-t border-zinc-800 bg-zinc-950/50 flex gap-2">
+            <form onSubmit={(e) => { chatCooldown.start(); handleSendMessage(e); }} className="p-4 border-t border-zinc-800 bg-zinc-950/50 flex gap-2">
               <input
                 type="text"
                 value={currentChatMessage}
@@ -3945,12 +3973,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 placeholder="Pregúntame lo que quieras..."
                 className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
               />
-              <button 
+              <button
                 type="submit"
-                disabled={!currentChatMessage.trim() || isChatLoading}
+                disabled={!currentChatMessage.trim() || isChatLoading || chatCooldown.isActive}
                 className="bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white p-2 rounded-xl transition-colors shrink-0 flex items-center justify-center w-10 h-10"
               >
-                <Send className="w-4 h-4" />
+                {chatCooldown.isActive
+                  ? <span className="text-xs font-mono font-bold">{chatCooldown.remaining}</span>
+                  : <Send className="w-4 h-4" />}
               </button>
             </form>
           </motion.div>
