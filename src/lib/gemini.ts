@@ -1,9 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { calcularBMR } from '../utils/nutrition';
 
-const ai = new GoogleGenAI({
-  apiKey: (import.meta.env.VITE_GEMINI_API_KEY as string) || (process.env.GEMINI_API_KEY as string) || '',
-});
+const _apiKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || (process.env.GEMINI_API_KEY as string) || '';
+// DEBUG TEMPORAL - BORRAR
+if (typeof window !== 'undefined') alert(`KEY: ${_apiKey.slice(0, 10)}...${_apiKey.slice(-4)}`);
+const ai = new GoogleGenAI({ apiKey: _apiKey });
 
 async function callWithRetry<T>(fn: () => Promise<T>, retries = 2, delayMs = 2000): Promise<T> {
   try {
