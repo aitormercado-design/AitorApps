@@ -80,7 +80,7 @@ Devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown. Ejemplo ex
     const response = await callWithRetry(() =>
       Promise.race([
         ai.models.generateContent({
-          model: "gemini-2.0-flash",
+          model: "gemini-2.5-flash",
           contents: { parts: [{ inlineData: { data: base64Image, mimeType } }, { text: prompt }] },
           config: { maxOutputTokens: 4096, systemInstruction },
         }),
@@ -112,7 +112,7 @@ export async function analyzeFoodText(foodDescription: string, contextStr?: stri
   try {
     const response = await callWithRetry(() =>
       ai.models.generateContent({
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           maxOutputTokens: 4096,
@@ -147,7 +147,7 @@ export async function recalculateFoodMacros(foodDescription: string, contextStr?
       : `Estima el valor nutricional de este alimento: "${foodDescription}". Calcula un NutriScore (A-E) basado en la densidad nutricional. Devuelve un objeto JSON.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         systemInstruction: "Eres un experto nutricionista deportivo y un coach muy empático, positivo y motivador. Tu tarea es estimar de forma precisa el contenido nutricional (calorías y macronutrientes) del alimento descrito. Es CRÍTICO que prestes especial atención al tamaño de las porciones descritas y a los métodos de preparación. Proporciona una interpretación rápida (ej. 'Comida equilibrada', 'Alta en grasas'). Escribe un mensaje de coach muy cercano, comprensivo y motivador (coachMessage) sin tecnicismos, enfocado en animar al usuario y no ser estricto ni condescendiente. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él de forma personal. Da una recomendación accionable inmediata (actionableRecommendation) sobre qué hacer en la próxima comida, teniendo en cuenta el contexto.",
@@ -309,7 +309,7 @@ Ejemplo:
 {"d":[{"n":"Lunes","k":2900,"p":252,"c":295,"g":81,"m":[{"t":"Desayuno","n":"Avena con whey","k":600,"p":45,"c":75,"g":18,"i":"avena,whey,leche"},{"t":"Almuerzo","n":"Pollo con arroz","k":750,"p":68,"c":80,"g":20,"i":"pollo,arroz,brócoli,aceite"},{"t":"Merienda","n":"Yogur con fruta","k":300,"p":20,"c":45,"g":8,"i":"yogur,plátano,nueces"},{"t":"Cena","n":"Salmón con verduras","k":650,"p":55,"c":40,"g":28,"i":"salmón,espinacas,patata,limón"}]}]}`;
 
     const apiPromise = ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: userPrompt,
       config: {
         maxOutputTokens: 8192,
@@ -451,7 +451,7 @@ Ejemplo de estructura:
 {"secciones":[{"nombre":"Frutas y verduras","items":[{"nombre":"Plátano","cantidad":"7 unidades"}]},{"nombre":"Carnes y pescados","items":[{"nombre":"Pechuga de pollo","cantidad":"1kg (2 pechugas)"}]}],"presupuesto_estimado":"75-90€"}`;
 
     const apiPromise = ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: userPrompt,
       config: {
         maxOutputTokens: 8192,
@@ -500,7 +500,7 @@ export async function generateWorkoutPlan(profileStr: string): Promise<string> {
     const trainingDays = data.trainingDaysPerWeek || 3;
     
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: `Genera una rutina de entrenamiento semanal personalizada para este perfil: ${profileStr}.
       TIPO DE ENTRENAMIENTO: ${data.workoutType === 'home' ? 'En casa sin equipamiento (entrenamiento con peso corporal)' : 'En el Gimnasio (GYM) usando pesas y máquinas'}.
       REQUISITOS OBLIGATORIOS:
@@ -531,7 +531,7 @@ export async function generateWorkoutPlan(profileStr: string): Promise<string> {
 export async function chatWithCoach(messages: {role: 'user' | 'model', parts: {text: string}[]}[], contextStr: string): Promise<string> {
   try {
     const stream = await ai.models.generateContentStream({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       contents: messages,
       config: {
         systemInstruction: `Eres un auténtico experto en fitness, fisiología del ejercicio y nutrición clínica (diabetes). Actúas como un coach motivador 24/7.
