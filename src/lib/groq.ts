@@ -1,5 +1,5 @@
 import Groq from 'groq-sdk';
-import type { NutritionalInfo } from '../types/nutrition';
+import type { NutritionalInfo, ShoppingList } from '../types/nutrition';
 
 const groq = new Groq({
   apiKey: (import.meta.env.VITE_GROQ_API_KEY as string) || '',
@@ -113,5 +113,61 @@ Responde ÚNICAMENTE con JSON válido. Sin texto adicional. Sin markdown. El JSO
   } catch (error: any) {
     console.error('Error analyzing food text:', error);
     throw friendlyGroqError(error, 'No se pudo analizar el texto. Inténtalo de nuevo.');
+  }
+}
+
+const BUDGET_SUPERMARKETS = new Set(['mercadona', 'lidl', 'carrefour', 'alcampo']);
+
+export async function generateShoppingList(ingredients: any[], supermarket: string = 'Mercadona'): Promise<ShoppingList> {
+  const ingredientLines = ingredients
+    .filter(i => i.item)
+    .map(i => i.day ? `${i.item} [${i.day}]` : i.item)
+    .join('\n');
+
+  const includeBudget = BUDGET_SUPERMARKETS.has(supermarket.toLowerCase());
+
+  const systemPrompt = `Eres un asistente de compras experto. Organiza los ingredientes en secciones de supermercado y devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown.
+
+Reglas:
+- Consolida duplicados: mismo ingrediente varias veces = una sola entrada con cantidad total semanal
+- Cantidades en unidades comerciales reales (no "137g" sino "1 paquete 150g" o "7 unidades")
+- Omite secciones sin ítems
+- Secciones en este orden exacto: "Frutas y verduras", "Carnes y pescados", "Lácteos y huevos", "Cereales y legumbres", "Frutos secos y semillas", "Proteína y suplementos", "Aceites y condimentos", "Otros"${includeBudget ? `\n- Incluye "presupuesto_estimado" con coste semanal aproximado para ${supermarket}` : '\n- NO incluyas "presupuesto_estimado"'}
+
+Formato exacto:
+{"secciones":[{"nombre":"Frutas y verduras","items":[{"nombre":"Plátano","cantidad":"7 unidades"}]},{"nombre":"Carnes y pescados","items":[{"nombre":"Pechuga de pollo","cantidad":"1kg"}]}]${includeBudget ? ',"presupuesto_estimado":"75-90€"' : ''}}`;
+
+  const userPrompt = `Supermercado: ${supermarket} | Personas: 1 | Semana completa\n\nIngredientes del menú:\n${ingredientLines}`;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.4,
+      max_tokens: 4096,
+      response_format: { type: 'json_object' },
+    });
+
+    const text = completion.choices[0].message.content;
+    if (!text) throw new Error('No se recibió respuesta del modelo.');
+
+    const parsed = JSON.parse(text);
+    const categories = (parsed.secciones ?? [])
+      .map((sec: any) => ({
+        name: sec.nombre,
+        items: (sec.items ?? []).map((it: any) => ({
+          name: it.nombre,
+          amount: it.cantidad ?? '',
+        })),
+      }))
+      .filter((cat: any) => cat.items.length > 0);
+
+    return { categories, budget: parsed.presupuesto_estimado };
+  } catch (error: any) {
+    console.error('Error generating shopping list:', error);
+    throw friendlyGroqError(error, 'No se pudo generar la lista de la compra. Inténtalo de nuevo.');
   }
 }
