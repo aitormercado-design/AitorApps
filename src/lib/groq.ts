@@ -1,4 +1,5 @@
 import Groq from 'groq-sdk';
+import type { NutritionalInfo } from '../types/nutrition';
 
 const groq = new Groq({
   apiKey: (import.meta.env.VITE_GROQ_API_KEY as string) || '',
@@ -24,4 +25,34 @@ function friendlyGroqError(error: any, fallback: string): Error {
   return new Error(fallback);
 }
 
-export { groq, MODEL, friendlyGroqError };
+export async function analyzeFoodText(foodDescription: string, contextStr?: string): Promise<NutritionalInfo> {
+  const systemPrompt = `Eres un experto nutricionista deportivo y coach empático y motivador. Estima con precisión el contenido nutricional del alimento descrito. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él.
+
+Responde ÚNICAMENTE con JSON válido. Sin texto adicional. Sin markdown. El JSON debe seguir exactamente este formato:
+{"foodName":"Arroz con pollo","totalWeight":350,"calories":450,"protein":38,"carbs":52,"fat":12,"ingredients":[{"name":"arroz","amount":"150g"},{"name":"pollo","amount":"150g"},{"name":"aceite","amount":"10g"}],"confidence":"alta","confidenceMessage":"Análisis completado","interpretation":"Plato equilibrado","coachMessage":"Buena elección","actionableRecommendation":"Añade verduras","nutriScore":"B"}`;
+
+  const userPrompt = contextStr
+    ? `Alimento: "${foodDescription}". Contexto del usuario: "${contextStr}".`
+    : `Alimento: "${foodDescription}".`;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 8192,
+      response_format: { type: 'json_object' },
+    });
+
+    const text = completion.choices[0].message.content;
+    if (!text) throw new Error('No se recibió respuesta del modelo.');
+
+    return JSON.parse(text) as NutritionalInfo;
+  } catch (error: any) {
+    console.error('Error analyzing food text:', error);
+    throw friendlyGroqError(error, 'No se pudo analizar el texto. Inténtalo de nuevo.');
+  }
+}
