@@ -5,14 +5,14 @@ const ai = new GoogleGenAI({
   apiKey: (import.meta.env.VITE_GEMINI_API_KEY as string) || (process.env.GEMINI_API_KEY as string) || '',
 });
 
-async function callWithRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 2000): Promise<T> {
+async function callWithRetry<T>(fn: () => Promise<T>, retries = 2, delayMs = 2000): Promise<T> {
   try {
     return await fn();
   } catch (error: any) {
     const msg: string = error?.message ?? '';
     if (retries > 0 && (msg.includes('UNAVAILABLE') || msg.includes('503') || msg.includes('overloaded'))) {
       await new Promise(r => setTimeout(r, delayMs));
-      return callWithRetry(fn, retries - 1, delayMs);
+      return callWithRetry(fn, retries - 1, delayMs * 2);
     }
     throw error;
   }
