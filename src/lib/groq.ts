@@ -315,3 +315,69 @@ Estructura del JSON — usa EXACTAMENTE estas claves abreviadas:
     throw friendlyGroqError(error, 'No se pudo generar el menú. Inténtalo de nuevo.');
   }
 }
+
+export async function generateWorkoutPlan(profileStr: string): Promise<string> {
+  const data = JSON.parse(profileStr);
+  const trainingDays: number = data.trainingDaysPerWeek || 3;
+  const isHome = data.workoutType === 'home';
+  const hasDiabetes = data.diabetesType && data.diabetesType !== 'none';
+
+  const diabetesNotes = hasDiabetes
+    ? `\n- El usuario tiene diabetes tipo ${data.diabetesType}: mantén intensidad moderada (RPE 5-7), NUNCA en ayunas, incluye una nota breve de monitorización de glucosa al inicio del plan.`
+    : '';
+
+  const systemPrompt = `Eres un entrenador personal experto en fisiología del ejercicio y rendimiento deportivo.
+
+Perfil del usuario:
+- Edad: ${data.age} años | Sexo: ${data.gender} | Peso: ${data.weight ?? data.currentWeight ?? 'N/A'}kg | Altura: ${data.height}cm
+- Objetivo: ${data.gymGoal || data.goal || 'forma física general'}
+- Ubicación: ${isHome ? 'Entrenamiento en casa (sin equipamiento, solo peso corporal y material doméstico)' : 'Gimnasio (pesas libres, máquinas, poleas)'}
+- Días de entrenamiento por semana: ${trainingDays}${diabetesNotes}
+
+Reglas:
+- Ejercicios reales y específicos — nunca genéricos como "ejercicio de piernas"
+- Series, repeticiones y RPE por cada ejercicio
+- Progresión lógica entre días (no repitas el mismo grupo muscular consecutivo sin recuperación)
+- Calentamiento específico al foco del día (no genérico)
+- Vuelta a la calma en todos los días
+- Si trainingDays < 7, añade un día de descanso activo al final (estiramientos / movilidad)
+- ${isHome ? 'Solo ejercicios sin equipamiento o con silla/suelo/pared' : 'Aprovecha máquinas, poleas y peso libre del gimnasio'}
+
+Formato de salida — usa EXACTAMENTE esta estructura markdown:
+
+# DÍA 1 — [FOCO DE LA SESIÓN EN MAYÚSCULAS]
+## Calentamiento
+- Ejercicio: X series × Y reps (RPE Z)
+
+## Bloque principal
+- Ejercicio: X series × Y reps (RPE Z)
+
+## Vuelta a la calma
+- Ejercicio: X min / Y reps
+
+---
+
+# DÍA 2 — [FOCO]
+...
+
+Separa cada día con ---. No añadas introducción ni conclusión fuera de los días.`;
+
+  const userPrompt = `Genera un plan de entrenamiento semanal completo con exactamente ${trainingDays} días de entrenamiento activo.`;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 4096,
+    });
+
+    return completion.choices[0].message.content || 'No se pudo generar la rutina.';
+  } catch (error: any) {
+    console.error('Error generating workout:', error);
+    throw friendlyGroqError(error, 'No se pudo generar la rutina. Inténtalo de nuevo.');
+  }
+}
