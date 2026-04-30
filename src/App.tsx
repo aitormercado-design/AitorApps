@@ -10,8 +10,8 @@ import { analyzeFoodText, chatWithCoach, generateWeeklyMenu, generateWorkoutPlan
 import type { ChatMessage, CoachUserContext } from './lib/groq';
 import { analyzeFoodImage } from './lib/openrouter';
 import type { NutritionalInfo, WeeklyMenu, ShoppingList } from './types/nutrition';
-import { extractIngredients } from './utils/nutrition';
-import { calcularBMR } from './utils/nutrition';
+import { extractIngredients, calcularBMR } from './utils/nutrition';
+import { calculateMETCalories, ACTIVITY_OPTIONS } from './utils/metCalculator';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -109,7 +109,7 @@ type DailyHabits = {
     workoutDone?: boolean;
     workoutSessions?: number;
     completedExercises?: string[]; // IDs or names of exercise blocks completed
-    manualWorkout?: { activity: string, calories: number };
+    manualWorkout?: { activity: string; intensidad: 'suave' | 'moderada' | 'intensa'; durationMinutes: number; caloriesBurned: number };
     workoutCalories?: number;
     workoutSessionFocus?: string;
   };
@@ -373,12 +373,11 @@ export default function App() {
   const [evolutionPeriod, setEvolutionPeriod] = useState<'today' | 'weekly' | 'monthly' | 'quarterly' | 'semiannually' | 'annually'>('today');
   const [gymSubTab, setGymSubTab] = useState<'manual' | 'plan'>('plan');
   const [planSubTab, setPlanSubTab] = useState<'info' | 'ejercicios' | 'tips'>('ejercicios');
-  const [manualWorkoutCategory, setManualWorkoutCategory] = useState<'cardio'|'strength'|'mixed'|'other'>('mixed');
-  const [manualWorkoutName, setManualWorkoutName] = useState('');
+  const [manualWorkoutActivity, setManualWorkoutActivity] = useState<string>('Correr');
+  const [manualWorkoutIntensidad, setManualWorkoutIntensidad] = useState<'suave'|'moderada'|'intensa'>('moderada');
   const [manualWorkoutMinutes, setManualWorkoutMinutes] = useState('45');
   const [todayStr, setTodayStr] = useState(() => getLocalDateStr());
   const [manualWorkoutDate, setManualWorkoutDate] = useState(todayStr);
-  const [manualWorkoutCaloriesEdit, setManualWorkoutCaloriesEdit] = useState('');
   const [gymDay, setGymDay] = useState<string>('Día 1');
   const [gymRoutineDates, setGymRoutineDates] = useState<{[key: string]: string}>({});
   const [gymDayDone, setGymDayDone] = useState<{[dayLabel: string]: boolean}>({});
@@ -795,7 +794,7 @@ export default function App() {
       if (sectionsDone.has('cool')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
     }
     if (profile.gymEnabled && todayHabits.manualWorkout) {
-      burnedCalories += todayHabits.manualWorkout.calories;
+      burnedCalories += todayHabits.manualWorkout.caloriesBurnedBurned;
     }
 
     const gymDays = Math.min(7, Math.max(0, profile.trainingDaysPerWeek));
@@ -946,7 +945,7 @@ export default function App() {
           if (sectionsDone.has('cool')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
         }
         if (dayHabits?.manualWorkout) {
-          burnedCalories += dayHabits.manualWorkout.calories;
+          burnedCalories += dayHabits.manualWorkout.caloriesBurned;
         }
       }
     }
@@ -1035,7 +1034,7 @@ export default function App() {
           if (sectionsDone.has('cool')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'cool');
         }
         if (dayHabits?.manualWorkout) {
-          dayBurned += dayHabits.manualWorkout.calories;
+          dayBurned += dayHabits.manualWorkout.caloriesBurned;
         }
       }
       
@@ -3134,31 +3133,24 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className={`${themeStyles.card} rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border} space-y-6`}>
                         <div className="space-y-4 mb-6">
                           <h2 className={`text-2xl font-display font-black ${themeStyles.textMain} uppercase tracking-tighter`}>Entrenamiento Libre</h2>
-                          <p className={`${themeStyles.textMuted} text-xs font-medium`}>Si hoy hiciste algo distinto a tu plan, regístralo aquí y nuestro Coach calculará las calorías quemadas.</p>
+                          <p className={`${themeStyles.textMuted} text-xs font-medium`}>Registra cualquier actividad física extra. Las calorías se calculan automáticamente con valores MET según tu peso.</p>
                         </div>
                         
                         <form onSubmit={(e) => {
                           e.preventDefault();
-                          if (!manualWorkoutName || !manualWorkoutMinutes) return;
-                          
-                          const targetDateHabits = habits[manualWorkoutDate] || { water: 0, sleep: 0 };
-                          let isMain = false;
-                          if (manualWorkoutCategory === 'strength' || manualWorkoutCategory === 'other') isMain = true;
-                          const factorWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
                           const mins = parseFloat(manualWorkoutMinutes) || 0;
-                          
-                          const baseCaloriesPerMin = manualWorkoutCategory === 'cardio' ? 8 : manualWorkoutCategory === 'strength' ? 6 : 7;
-                          const factor = factorWeight / 70;
-                          const defaultBurned = Math.round(mins * baseCaloriesPerMin * factor);
-                          const finalBurned = manualWorkoutCaloriesEdit ? parseInt(manualWorkoutCaloriesEdit, 10) : defaultBurned;
-                          
+                          if (mins <= 0) return;
+                          const weightKg = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+                          const kcal = calculateMETCalories(manualWorkoutActivity, manualWorkoutIntensidad, mins, weightKg);
                           const newHabits = {
                             ...habits,
                             [manualWorkoutDate]: {
-                              ...targetDateHabits,
+                              ...(habits[manualWorkoutDate] || { water: 0, sleep: 0 }),
                               manualWorkout: {
-                                activity: `${manualWorkoutName} (${mins} min)`,
-                                calories: finalBurned
+                                activity: manualWorkoutActivity,
+                                intensidad: manualWorkoutIntensidad,
+                                durationMinutes: mins,
+                                caloriesBurned: kcal,
                               }
                             }
                           };
@@ -3166,12 +3158,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           if (user) {
                             setDoc(doc(db, 'users', user.uid, 'habits', manualWorkoutDate), newHabits[manualWorkoutDate]).catch(console.error);
                           }
-                          setManualWorkoutName('');
-                          setManualWorkoutCaloriesEdit('');
                         }} className="space-y-6">
+
+                          {/* 1. Fecha */}
                           <div className="space-y-2">
-                            <label className={`block text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Día de la Semana</label>
-                            <input 
+                            <label className={`block text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Fecha</label>
+                            <input
                               type="date"
                               value={manualWorkoutDate}
                               onChange={e => setManualWorkoutDate(e.target.value)}
@@ -3180,72 +3172,75 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             />
                           </div>
 
+                          {/* 2. Tipo de actividad */}
                           <div className="space-y-2">
-                            <label className={`block text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Actividad y Duración</label>
-                            <div className="flex flex-col md:flex-row gap-3">
-                              <input 
-                                type="text"
-                                placeholder="Ej: Correr, Senderismo..."
-                                value={manualWorkoutName}
-                                onChange={e => setManualWorkoutName(e.target.value)}
-                                className={`flex-1 ${themeStyles.iconBg} rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:${themeStyles.accentBorder} transition-all border ${themeStyles.border}`}
+                            <label className={`block text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Tipo de actividad</label>
+                            <select
+                              value={manualWorkoutActivity}
+                              onChange={e => setManualWorkoutActivity(e.target.value)}
+                              className={`w-full ${themeStyles.iconBg} rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:${themeStyles.accentBorder} transition-all border ${themeStyles.border} cursor-pointer`}
+                            >
+                              {ACTIVITY_OPTIONS.map(opt => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* 3. Duración */}
+                          <div className="space-y-2">
+                            <label className={`block text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Duración</label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                placeholder="45"
+                                min="5" max="300"
+                                value={manualWorkoutMinutes}
+                                onChange={e => setManualWorkoutMinutes(e.target.value)}
+                                className={`w-full ${themeStyles.iconBg} rounded-xl px-4 py-3 pr-14 text-sm focus:outline-none focus:ring-1 focus:${themeStyles.accentBorder} transition-all border ${themeStyles.border}`}
                                 required
                               />
-                              <div className="relative w-full md:w-32">
-                                <input 
-                                  type="number"
-                                  placeholder="45"
-                                  min="5" max="300"
-                                  value={manualWorkoutMinutes}
-                                  onChange={e => setManualWorkoutMinutes(e.target.value)}
-                                  className={`w-full ${themeStyles.iconBg} rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:ring-1 focus:${themeStyles.accentBorder} transition-all border ${themeStyles.border}`}
-                                  required
-                                />
-                                <span className={`absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold ${themeStyles.textMuted} uppercase tracking-tighter pointer-events-none`}>min</span>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <label className={`block text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Intensidad y Calorías (Calculadas o manual)</label>
-                            <div className="flex flex-col md:flex-row gap-3">
-                              <div className={`flex-1 grid grid-cols-2 lg:grid-cols-4 gap-2 ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border}`}>
-                                {[
-                                  { id: 'cardio', label: 'Cardio' },
-                                  { id: 'strength', label: 'Fuerza' },
-                                  { id: 'mixed', label: 'Mixto' },
-                                  { id: 'other', label: 'Suave' }
-                                ].map(cat => (
-                                  <button
-                                    key={cat.id}
-                                    type="button"
-                                    onClick={() => setManualWorkoutCategory(cat.id as any)}
-                                    className={`py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${manualWorkoutCategory === cat.id ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
-                                  >
-                                    {cat.label}
-                                  </button>
-                                ))}
-                              </div>
-                              <div className="relative w-full md:w-32 h-full">
-                                <input 
-                                  type="number"
-                                  placeholder={`${Math.round((parseFloat(manualWorkoutMinutes) || 0) * (manualWorkoutCategory === 'cardio' ? 8 : manualWorkoutCategory === 'strength' ? 6 : 7) * ((weights.length > 0 ? weights[weights.length - 1].weight : 70) / 70))}`}
-                                  value={manualWorkoutCaloriesEdit}
-                                  onChange={e => setManualWorkoutCaloriesEdit(e.target.value)}
-                                  className={`w-full h-[44px] ${themeStyles.iconBg} rounded-xl px-4 py-3 pr-10 text-sm focus:outline-none focus:ring-1 focus:${themeStyles.accentBorder} transition-all border ${themeStyles.border}`}
-                                />
-                                <span className={`absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold ${themeStyles.textMuted} uppercase tracking-tighter pointer-events-none`}>kcal</span>
-                              </div>
+                              <span className={`absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold ${themeStyles.textMuted} uppercase tracking-tighter pointer-events-none`}>min</span>
                             </div>
                           </div>
 
-                          <button 
-                            type="submit" 
-                            disabled={!manualWorkoutName || !manualWorkoutMinutes}
+                          {/* 4. Intensidad */}
+                          <div className="space-y-2">
+                            <label className={`block text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Intensidad</label>
+                            <div className={`grid grid-cols-3 gap-2 ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border}`}>
+                              {(['suave', 'moderada', 'intensa'] as const).map(level => (
+                                <button
+                                  key={level}
+                                  type="button"
+                                  onClick={() => setManualWorkoutIntensidad(level)}
+                                  className={`py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${manualWorkoutIntensidad === level ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                                >
+                                  {level}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 5. Kcal calculadas (solo lectura) */}
+                          {(() => {
+                            const mins = parseFloat(manualWorkoutMinutes) || 0;
+                            const weightKg = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+                            const kcal = mins > 0 ? calculateMETCalories(manualWorkoutActivity, manualWorkoutIntensidad, mins, weightKg) : 0;
+                            return kcal > 0 ? (
+                              <div className={`${themeStyles.iconBg} border ${themeStyles.accentBorder} rounded-2xl p-5 text-center space-y-1`}>
+                                <p className={`text-[9px] font-black ${themeStyles.textMuted} uppercase tracking-[0.2em]`}>Calorías estimadas</p>
+                                <p className={`text-4xl font-display font-black ${themeStyles.accent}`}>{kcal}</p>
+                                <p className={`text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider`}>kcal · basado en tu peso ({weightKg} kg)</p>
+                              </div>
+                            ) : null;
+                          })()}
+
+                          <button
+                            type="submit"
+                            disabled={!manualWorkoutMinutes || parseFloat(manualWorkoutMinutes) <= 0}
                             className={`${themeStyles.buttonPrimary} w-full md:w-auto md:min-w-[250px] mx-auto py-3 px-6 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
                           >
                             <Plus className="w-4 h-4" />
-                            Añadir Entrenamiento Libre
+                            Guardar Entrenamiento
                           </button>
                         </form>
                         
@@ -3258,26 +3253,23 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                    </div>
                                    <div>
                                       <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Ejercicio Extra</span>
-                                      <h4 className={`text-sm font-bold ${themeStyles.textMain} mt-1`}>{habits[todayStr].manualWorkout.activity}</h4>
+                                      <h4 className={`text-sm font-bold ${themeStyles.textMain} mt-1`}>{habits[todayStr].manualWorkout.activity} · {habits[todayStr].manualWorkout.durationMinutes ?? '?'} min · {habits[todayStr].manualWorkout.intensidad ?? ''}</h4>
                                    </div>
                                 </div>
                                 <div className="text-right flex flex-col items-end">
-                                   <span className={`text-xl font-display font-black ${themeStyles.accent}`}>+{habits[todayStr].manualWorkout.calories}</span>
+                                   <span className={`text-xl font-display font-black ${themeStyles.accent}`}>+{habits[todayStr].manualWorkout.caloriesBurned}</span>
                                    <span className={`text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest block`}>kcal</span>
                                 </div>
                              </div>
                              <div className="flex items-center gap-2 pt-4 border-t border-dashed border-zinc-500/20">
-                                <button 
+                                <button
                                   onClick={() => {
                                     const w = habits[todayStr].manualWorkout;
                                     if (w) {
-                                      setManualWorkoutName(w.activity.split(' (')[0]);
-                                      const minsMatch = w.activity.match(/\((\d+) min\)/);
-                                      if (minsMatch) setManualWorkoutMinutes(minsMatch[1]);
-                                      setManualWorkoutCaloriesEdit(w.calories.toString());
-                                      setManualWorkoutCategory('mixed');
-                                      const form = document.querySelector('form h2')?.parentElement;
-                                      form?.scrollIntoView({ behavior: 'smooth' });
+                                      setManualWorkoutActivity(w.activity);
+                                      setManualWorkoutIntensidad(w.intensidad ?? 'moderada');
+                                      setManualWorkoutMinutes(String(w.durationMinutes ?? 45));
+                                      setManualWorkoutDate(todayStr);
                                     }
                                   }}
                                   className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} text-[10px] font-black uppercase tracking-widest ${themeStyles.textMuted} hover:${themeStyles.accent} transition-all`}
