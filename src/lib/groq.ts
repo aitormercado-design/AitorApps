@@ -339,7 +339,6 @@ Reglas:
 - Progresión lógica entre días (no repitas el mismo grupo muscular consecutivo sin recuperación)
 - Calentamiento específico al foco del día (no genérico)
 - Vuelta a la calma en todos los días
-- Si trainingDays < 7, añade un día de descanso activo al final (estiramientos / movilidad)
 - ${isHome ? 'Solo ejercicios sin equipamiento o con silla/suelo/pared' : 'Aprovecha máquinas, poleas y peso libre del gimnasio'}
 - Cada sección de cada día lleva sus ejercicios en una tabla markdown de 3 columnas
 - El nombre de cada ejercicio debe ser un enlace de YouTube: [Nombre](https://www.youtube.com/results?search_query=Nombre+ejercicio+tutorial)

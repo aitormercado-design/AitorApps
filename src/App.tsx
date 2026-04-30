@@ -1611,9 +1611,9 @@ export default function App() {
       });
       const plan = await generateWorkoutPlan(profileStr);
       setWorkoutPlan(plan);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating workout:", error);
-      showError("Error al generar tu rutina de entrenamiento.");
+      showError(error?.message || "Error al generar tu rutina de entrenamiento.");
     } finally {
       setIsGeneratingWorkout(false);
     }
