@@ -723,6 +723,16 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [appError]);
 
+  useEffect(() => {
+    if (!workoutPlan) return;
+    const dates: {[key: string]: string} = {};
+    for (let i = 1; i <= (profile.trainingDaysPerWeek || 3); i++) {
+      dates[`Día ${i}`] = todayStr;
+    }
+    setGymRoutineDates(dates);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workoutPlan]);
+
   // Calculate today's totals
   const todaysMeals = useMemo(() => {
     const todayStart = new Date();
@@ -1456,23 +1466,23 @@ export default function App() {
       calculateExpertCalories(currentWeight, profile.gymGoal, 'warm') +
       calculateExpertCalories(currentWeight, profile.gymGoal, 'main') +
       calculateExpertCalories(currentWeight, profile.gymGoal, 'cool');
-    const existingCalories = habits[impactDate]?.workoutCalories ?? 0;
-    const newCalories = isDone
-      ? existingCalories + sessionCalories
-      : Math.max(0, existingCalories - sessionCalories);
-    const newHabits = {
-      ...habits,
-      [impactDate]: {
-        ...(habits[impactDate] || { water: 0, sleep: 0 }),
+    let savedEntry: any;
+    setHabits(prev => {
+      const existingCalories = prev[impactDate]?.workoutCalories ?? 0;
+      const newCalories = isDone
+        ? existingCalories + sessionCalories
+        : Math.max(0, existingCalories - sessionCalories);
+      savedEntry = {
+        ...(prev[impactDate] || { water: 0, sleep: 0 }),
         workoutDone: isDone,
-        completedExercises: isDone ? [] : (habits[impactDate]?.completedExercises || []),
+        completedExercises: isDone ? [] : (prev[impactDate]?.completedExercises || []),
         workoutCalories: newCalories,
         workoutSessionFocus: isDone ? translateGymGoal(profile.gymGoal) : '',
-      }
-    };
-    setHabits(newHabits);
+      };
+      return { ...prev, [impactDate]: savedEntry };
+    });
     if (user) {
-      setDoc(doc(db, 'users', user.uid, 'habits', impactDate), newHabits[impactDate]).catch(console.error);
+      setDoc(doc(db, 'users', user.uid, 'habits', impactDate), savedEntry).catch(console.error);
     }
   };
 
