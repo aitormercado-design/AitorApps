@@ -1452,18 +1452,21 @@ export default function App() {
   const handleToggleWorkoutAtDate = async (impactDate: string) => {
     const isDone = !habits[impactDate]?.workoutDone;
     const currentWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
-    const sessionCalories = isDone
-      ? calculateExpertCalories(currentWeight, profile.gymGoal, 'warm') +
-        calculateExpertCalories(currentWeight, profile.gymGoal, 'main') +
-        calculateExpertCalories(currentWeight, profile.gymGoal, 'cool')
-      : 0;
+    const sessionCalories =
+      calculateExpertCalories(currentWeight, profile.gymGoal, 'warm') +
+      calculateExpertCalories(currentWeight, profile.gymGoal, 'main') +
+      calculateExpertCalories(currentWeight, profile.gymGoal, 'cool');
+    const existingCalories = habits[impactDate]?.workoutCalories ?? 0;
+    const newCalories = isDone
+      ? existingCalories + sessionCalories
+      : Math.max(0, existingCalories - sessionCalories);
     const newHabits = {
       ...habits,
       [impactDate]: {
         ...(habits[impactDate] || { water: 0, sleep: 0 }),
         workoutDone: isDone,
         completedExercises: isDone ? [] : (habits[impactDate]?.completedExercises || []),
-        workoutCalories: sessionCalories,
+        workoutCalories: newCalories,
         workoutSessionFocus: isDone ? translateGymGoal(profile.gymGoal) : '',
       }
     };
@@ -1604,68 +1607,20 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
     }
   };
 
-  const getWorkoutSection = (text: string | null, subTab: 'intro' | 'exercises' | 'safety', day?: string) => {
+  const getWorkoutSection = (text: string | null, section: 'info' | 'exercises' | 'safety') => {
     if (!text) return '';
-    
-    // Normalize text
-    const normalizedText = text.replace(/\r\n/g, '\n');
-
-    if (subTab === 'exercises') {
-        // Improved extraction logic
-        const exercisesRegex = /##?\s*[^#\n]*(?:EJERCICIOS|RUTINA|DETALLE|TABLAS|CONTENIDO|RUTINAS|PROGRAMA|WORKOUT)[^#\n]*\n([\s\S]*?)(?=\n#|$)/i;
-        const match = normalizedText.match(exercisesRegex);
-        let exercisesContent = match ? match[1].trim() : '';
-
-        if (!exercisesContent) {
-            const h2ExercisesTags = ['EJERCICIOS', 'RUTINA', 'DETALLE', 'TABLAS', 'CONTENIDO', 'RUTINAS', 'PROGRAMA', 'WORKOUT'];
-            for (const tag of h2ExercisesTags) {
-                const regex = new RegExp(`##\\s*[^\\n]*${tag}[^\\n]*\\n`, 'i');
-                const fallbackMatch = normalizedText.match(regex);
-                if (fallbackMatch && fallbackMatch.index !== undefined) {
-                    const exercisesStart = fallbackMatch.index + fallbackMatch[0].length;
-                    const nextH2 = normalizedText.indexOf('\n## ', exercisesStart);
-                    exercisesContent = nextH2 !== -1 
-                        ? normalizedText.substring(exercisesStart, nextH2).trim() 
-                        : normalizedText.substring(exercisesStart).trim();
-                    break;
-                }
-            }
-        }
-
-        if (exercisesContent) {
-            return exercisesContent;
-        } else {
-            // Fallback: extract everything that looks like days/tables
-            return normalizedText
-                .replace(/##\s*(PRESENTACIÓN|PRESENTACION|INTRO|PLANIFICACIÓN|PLANIFICACION|SEGURIDAD|CONSEJOS)[\s\S]*?(?=\n##|$)/gi, '')
-                .trim();
-        }
+    const plan = text.replace(/\r\n/g, '\n');
+    const markerMap = { info: '## INFO', exercises: '## EJERCICIOS', safety: '## TIPS' };
+    const nextMap = { info: '## EJERCICIOS', exercises: '## TIPS', safety: '' };
+    const marker = markerMap[section];
+    const next = nextMap[section];
+    const startIdx = plan.indexOf(marker);
+    if (startIdx === -1) {
+      return section === 'info' ? plan : `Sección no disponible. Prueba a regenerar.`;
     }
-
-    const sectionTags = {
-      intro: ['PRESENTACIÓN', 'PRESENTACION', 'INTRO', 'BIENVENIDO', 'RESUMEN'],
-      safety: ['SEGURIDAD', 'CONSEJOS', 'TIPS', 'ESTIRAMIENTOS', 'CALENTAMIENTO']
-    };
-    
-    const tags = sectionTags[subTab as keyof typeof sectionTags] || [];
-    let content = '';
-
-    for (const tag of tags) {
-      const regex = new RegExp(`##\\s*[^\\n]*${tag}[^\\n]*\\n([\\s\\S]*?)(?=\\n##|$)`, 'i');
-      const match = normalizedText.match(regex);
-      if (match) {
-        content = match[1].trim();
-        break;
-      }
-    }
-
-    if (content) {
-      content = content.replace(/\|\s+\|/g, '|\n|');
-      content = content.replace(/([^:-])\|\|([^:-])/g, '$1|$2');
-      return content;
-    }
-    
-    return subTab === 'intro' ? normalizedText : `Sección ${subTab} no disponible. Prueba a regenerar.`;
+    const contentStart = plan.indexOf('\n', startIdx) + 1;
+    const endIdx = next ? plan.indexOf(next, contentStart) : -1;
+    return (endIdx === -1 ? plan.slice(contentStart) : plan.slice(contentStart, endIdx)).trim();
   };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
@@ -2832,7 +2787,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                   <Dumbbell className={`w-5 h-5 ${themeStyles.accent}`} />
                                 </div>
                                 <div>
-                                  <h2 className={`text-xl font-display font-black ${themeStyles.textMain} uppercase tracking-tight leading-none`}>Tu Rutina</h2>
+                                  <h2 className={`text-xl font-display font-black ${themeStyles.textMain} uppercase tracking-tight leading-tight`}>Tu Rutina</h2>
                                   <p className={`${themeStyles.textMuted} text-[9px] font-bold uppercase tracking-widest mt-1`}>
                                     {profile.trainingDaysPerWeek} Días • {translateGymGoal(profile.gymGoal)}
                                   </p>
@@ -2882,7 +2837,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               prose-li:text-zinc-800 dark:prose-li:text-zinc-300 prose-li:my-1 prose-li:text-sm prose-li:font-medium
                             `}>
                               <Markdown remarkPlugins={[remarkGfm]}>
-                                {getWorkoutSection(workoutPlan, 'intro' as any)}
+                                {getWorkoutSection(workoutPlan, 'info')}
                               </Markdown>
                             </div>
                           </div>
@@ -2891,7 +2846,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                         {/* Daily routines logic */}
                         {planSubTab === 'ejercicios' && (() => {
-                          const parsedDays = workoutPlan
+                          const ejerciciosContent = getWorkoutSection(workoutPlan, 'exercises');
+                          const parsedDays = ejerciciosContent
                             .split(/\n(?=# DÍA \d+)/i)
                             .filter(chunk => /^# DÍA \d+/i.test(chunk.trim()))
                             .map(chunk => {
@@ -2997,9 +2953,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                   <div className={`h-px w-full ${themeStyles.border} shadow-sm`} />
                                 </div>
 
+                                {(() => {
+                                  const dayContent = activeDay.fullText.split('\n').slice(1).join('\n').trim();
+                                  return (
                                 <div className={`prose ${profile.theme === 'light' ? 'prose-slate' : 'prose-invert'} max-w-none
                                   prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
-                                  prose-h1:hidden
+                                  prose-h1:hidden prose-h3:hidden
                                   prose-strong:${themeStyles.accent} prose-strong:font-black
                                   prose-p:text-sm prose-p:leading-relaxed text-left
                                   prose-li:text-sm prose-li:my-1
@@ -3009,10 +2968,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                     components={{
                                       h4: () => null,
                                       table: ({node, ...props}) => {
-                                        const tableContent = node?.position ? workoutPlan?.substring(node.position.start.offset, node.position.end.offset) : '';
+                                        const tableContent = node?.position ? dayContent.substring(node.position.start.offset, node.position.end.offset) : '';
                                         const tableId = `table-${node?.position?.start.offset || 0}`;
 
-                                        const textBeforeTable = workoutPlan.substring(0, node?.position?.start.offset || 0);
+                                        const textBeforeTable = dayContent.substring(0, node?.position?.start.offset || 0);
                                         const headerMatch = textBeforeTable.match(/####\s*([^\n]+)\s*$/m) ||
                                                             textBeforeTable.match(/###\s*([^\n]+)\s*$/m) ||
                                                             textBeforeTable.match(/\*\*([^\*]+)\*\*\s*$/m);
@@ -3060,9 +3019,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                       )
                                     }}
                                   >
-                                    {activeDay.fullText.split('\n').slice(1).join('\n').trim()}
+                                    {dayContent}
                                   </Markdown>
                                 </div>
+                                  );
+                                })()}
 
                                 {/* Summary Technical legend */}
                                 <div className={`pt-6 flex flex-wrap gap-3 justify-center border-t ${themeStyles.border}`}>
@@ -3093,7 +3054,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             prose-li:text-slate-900 dark:prose-li:text-slate-100 prose-li:my-1 prose-li:text-sm prose-li:font-medium
                           `}>
                             <Markdown remarkPlugins={[remarkGfm]}>
-                              {getWorkoutSection(workoutPlan, 'safety' as any)}
+                              {getWorkoutSection(workoutPlan, 'safety')}
                             </Markdown>
                           </div>
                         </motion.div>

@@ -330,37 +330,51 @@ export async function generateWorkoutPlan(profileStr: string): Promise<string> {
 
 Perfil del usuario:
 - Edad: ${data.age} años | Sexo: ${data.gender} | Peso: ${data.weight ?? data.currentWeight ?? 'N/A'}kg | Altura: ${data.height}cm
-- Objetivo: ${data.gymGoal || data.goal || 'forma física general'}
+- Objetivo de entrenamiento: ${data.gymGoal || 'forma física general'}
 - Ubicación: ${isHome ? 'Entrenamiento en casa (sin equipamiento, solo peso corporal y material doméstico)' : 'Gimnasio (pesas libres, máquinas, poleas)'}
 - Días de entrenamiento por semana: ${trainingDays}${diabetesNotes}
 
 Reglas:
 - Ejercicios reales y específicos — nunca genéricos como "ejercicio de piernas"
-- Series, repeticiones y RPE por cada ejercicio
 - Progresión lógica entre días (no repitas el mismo grupo muscular consecutivo sin recuperación)
 - Calentamiento específico al foco del día (no genérico)
 - Vuelta a la calma en todos los días
 - Si trainingDays < 7, añade un día de descanso activo al final (estiramientos / movilidad)
 - ${isHome ? 'Solo ejercicios sin equipamiento o con silla/suelo/pared' : 'Aprovecha máquinas, poleas y peso libre del gimnasio'}
+- Cada sección de cada día lleva sus ejercicios en una tabla markdown
+- Añade una columna "Enlace" con: [Ver](https://www.youtube.com/results?search_query=NOMBRE+DEL+EJERCICIO+tutorial) — reemplaza espacios por + en la URL
 
-Formato de salida — usa EXACTAMENTE esta estructura markdown:
+Formato de salida — usa EXACTAMENTE estos encabezados de sección (## INFO, ## EJERCICIOS, ## TIPS):
 
-# DÍA 1 — [FOCO DE LA SESIÓN EN MAYÚSCULAS]
-## Calentamiento
-- Ejercicio: X series × Y reps (RPE Z)
+## INFO
+Descripción general de la rutina: objetivo, duración estimada por sesión y equipamiento necesario.
 
-## Bloque principal
-- Ejercicio: X series × Y reps (RPE Z)
+## EJERCICIOS
 
-## Vuelta a la calma
-- Ejercicio: X min / Y reps
+# DÍA 1 — [FOCO EN MAYÚSCULAS]
+
+### Calentamiento
+| Ejercicio | Series | Reps/Tiempo | RPE | Enlace |
+|-----------|--------|-------------|-----|--------|
+| Nombre ejercicio | 2 | 10 reps | 4 | [Ver](https://www.youtube.com/results?search_query=Nombre+ejercicio+tutorial) |
+
+### Bloque principal
+| Ejercicio | Series | Reps | RPE | Enlace |
+|-----------|--------|------|-----|--------|
+| Nombre ejercicio | 4 | 8-10 | 8 | [Ver](https://www.youtube.com/results?search_query=Nombre+ejercicio+tutorial) |
+
+### Vuelta a la calma
+| Ejercicio | Duración | Enlace |
+|-----------|----------|--------|
+| Estiramiento | 30 seg | [Ver](https://www.youtube.com/results?search_query=Estiramiento+tutorial) |
 
 ---
 
 # DÍA 2 — [FOCO]
 ...
 
-Separa cada día con ---. No añadas introducción ni conclusión fuera de los días.`;
+## TIPS
+Consejos de nutrición peri-entreno, recuperación, progresión semanal y notas del coach.`;
 
   const userPrompt = `Genera un plan de entrenamiento semanal completo con exactamente ${trainingDays} días de entrenamiento activo.`;
 
@@ -372,7 +386,7 @@ Separa cada día con ---. No añadas introducción ni conclusión fuera de los d
         { role: 'user', content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 4096,
+      max_tokens: 8192,
     });
 
     return completion.choices[0].message.content || 'No se pudo generar la rutina.';
