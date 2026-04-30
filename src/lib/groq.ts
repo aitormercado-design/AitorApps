@@ -341,8 +341,8 @@ Reglas:
 - Vuelta a la calma en todos los días
 - Si trainingDays < 7, añade un día de descanso activo al final (estiramientos / movilidad)
 - ${isHome ? 'Solo ejercicios sin equipamiento o con silla/suelo/pared' : 'Aprovecha máquinas, poleas y peso libre del gimnasio'}
-- Cada sección de cada día lleva sus ejercicios en una tabla markdown
-- Añade una columna "Enlace" con: [Ver](https://www.youtube.com/results?search_query=NOMBRE+DEL+EJERCICIO+tutorial) — reemplaza espacios por + en la URL
+- Cada sección de cada día lleva sus ejercicios en una tabla markdown de 3 columnas
+- El nombre de cada ejercicio debe ser un enlace de YouTube: [Nombre](https://www.youtube.com/results?search_query=Nombre+ejercicio+tutorial)
 
 Formato de salida — usa EXACTAMENTE estos encabezados de sección (## INFO, ## EJERCICIOS, ## TIPS):
 
@@ -354,19 +354,19 @@ Descripción general de la rutina: objetivo, duración estimada por sesión y eq
 # DÍA 1 — [FOCO EN MAYÚSCULAS]
 
 ### Calentamiento
-| Ejercicio | Series | Reps/Tiempo | RPE | Enlace |
-|-----------|--------|-------------|-----|--------|
-| Nombre ejercicio | 2 | 10 reps | 4 | [Ver](https://www.youtube.com/results?search_query=Nombre+ejercicio+tutorial) |
+| Ejercicio | Trabajo | RPE |
+|-----------|---------|-----|
+| [Nombre ejercicio](https://www.youtube.com/results?search_query=Nombre+ejercicio+tutorial) | 2 × 10 reps | 4 |
 
 ### Bloque principal
-| Ejercicio | Series | Reps | RPE | Enlace |
-|-----------|--------|------|-----|--------|
-| Nombre ejercicio | 4 | 8-10 | 8 | [Ver](https://www.youtube.com/results?search_query=Nombre+ejercicio+tutorial) |
+| Ejercicio | Trabajo | RPE |
+|-----------|---------|-----|
+| [Nombre ejercicio](https://www.youtube.com/results?search_query=Nombre+ejercicio+tutorial) | 4 × 8-10 | 8 |
 
 ### Vuelta a la calma
-| Ejercicio | Duración | Enlace |
-|-----------|----------|--------|
-| Estiramiento | 30 seg | [Ver](https://www.youtube.com/results?search_query=Estiramiento+tutorial) |
+| Ejercicio | Duración |
+|-----------|----------|
+| [Estiramiento](https://www.youtube.com/results?search_query=Estiramiento+tutorial) | 30 seg |
 
 ---
 

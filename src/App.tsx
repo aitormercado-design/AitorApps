@@ -726,8 +726,11 @@ export default function App() {
   useEffect(() => {
     if (!workoutPlan) return;
     const dates: {[key: string]: string} = {};
+    const base = new Date(todayStr + 'T12:00:00');
     for (let i = 1; i <= (profile.trainingDaysPerWeek || 3); i++) {
-      dates[`Día ${i}`] = todayStr;
+      const d = new Date(base);
+      d.setDate(base.getDate() + (i - 1) * 2);
+      dates[`Día ${i}`] = getLocalDateStr(d);
     }
     setGymRoutineDates(dates);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2742,14 +2745,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </button>
                       ))}
                     </div>
-                    <button
-                      onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
-                      disabled={workoutCooldown.isActive || isGeneratingWorkout}
-                      className={`w-full ${themeStyles.buttonSecondary} font-bold uppercase tracking-widest py-3 rounded-xl transition-all text-[10px] flex items-center justify-center gap-2 disabled:opacity-50`}
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingWorkout ? 'animate-spin' : ''}`} />
-                      {workoutCooldown.isActive ? `Espera ${workoutCooldown.remaining}s` : 'Regenerar Plan Completo'}
-                    </button>
                   </div>
                 )}
 
@@ -2991,10 +2986,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                         const tableId = `table-${node?.position?.start.offset || 0}`;
 
                                         const textBeforeTable = dayContent.substring(0, node?.position?.start.offset || 0);
-                                        const headerMatch = textBeforeTable.match(/####\s*([^\n]+)\s*$/m) ||
-                                                            textBeforeTable.match(/###\s*([^\n]+)\s*$/m) ||
-                                                            textBeforeTable.match(/\*\*([^\*]+)\*\*\s*$/m);
-                                        const sectionTitleRaw = headerMatch ? headerMatch[1].trim() : 'Ejercicios';
+                                        const allH3 = [...textBeforeTable.matchAll(/###?\s*([^\n]+)/g)];
+                                        const lastH3 = allH3.pop();
+                                        const boldMatch = textBeforeTable.match(/\*\*([^\*]+)\*\*\s*\n\s*$/);
+                                        const sectionTitleRaw = lastH3 ? lastH3[1].trim() : boldMatch ? boldMatch[1].trim() : 'Ejercicios';
                                         let sectionTitle = sectionTitleRaw;
                                         if (sectionTitleRaw.toLowerCase().includes('calentamiento')) sectionTitle = 'Calentamiento';
                                         else if (sectionTitleRaw.toLowerCase().includes('principal')) sectionTitle = 'Parte Principal';
@@ -3016,8 +3011,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                         );
                                       },
                                       thead: ({node, ...props}) => <thead {...props} className={`${profile.theme === 'light' ? 'bg-slate-100' : 'bg-white/5'} border-b ${themeStyles.border}`} />,
-                                      th: ({node, ...props}) => <th {...props} className={`px-5 py-4 text-left text-[9px] font-black uppercase tracking-widest ${themeStyles.textMuted} border-b ${themeStyles.border} first:${themeStyles.textMain} first:min-w-[150px]`} />,
-                                      td: ({node, ...props}) => <td {...props} className={`px-5 py-4 ${themeStyles.textMuted} border-b ${themeStyles.border} text-[11px] font-medium first:${themeStyles.textMain} first:font-bold`} />,
+                                      th: ({node, ...props}) => <th {...props} className={`px-3 py-2.5 text-left text-[9px] font-black uppercase tracking-widest ${themeStyles.textMuted} border-b ${themeStyles.border} first:${themeStyles.textMain} first:min-w-[100px]`} />,
+                                      td: ({node, ...props}) => <td {...props} className={`px-3 py-2.5 ${themeStyles.textMuted} border-b ${themeStyles.border} text-[11px] font-medium first:${themeStyles.textMain} first:font-bold`} />,
                                       a: ({node, ...props}) => (
                                         <a {...props} className={`inline-flex items-center gap-2 ${themeStyles.accent} font-bold hover:${themeStyles.textMain} transition-colors`} target="_blank" rel="noopener noreferrer">
                                           {props.children}
@@ -3052,17 +3047,19 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                         {/* Safety / Tips Section */}
                         {planSubTab === 'tips' && (
-                        <motion.div initial={{opacity:0}} animate={{opacity:1}} layout className={`${themeStyles.card} rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border}`}>
-                          <div className={`prose ${profile.theme === 'light' ? 'prose-zinc' : 'prose-invert prose-zinc'} max-w-none ${themeStyles.textMain}
-                            prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
-                            prose-h2:text-2xl prose-h2:${themeStyles.accent} prose-h2:pb-4 prose-h2:mb-6
-                            prose-strong:${themeStyles.accent} prose-strong:font-black
-                            prose-p:leading-relaxed prose-p:text-sm prose-p:font-medium
-                            prose-li:my-1 prose-li:text-sm prose-li:font-medium
-                          `}>
-                            <Markdown remarkPlugins={[remarkGfm]}>
-                              {getWorkoutSection(workoutPlan, 'safety')}
-                            </Markdown>
+                        <motion.div initial={{opacity:0}} animate={{opacity:1}} layout className="space-y-6">
+                          <div className={`${themeStyles.card} rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border}`}>
+                            <div className={`prose ${profile.theme === 'light' ? 'prose-slate' : 'prose-invert prose-zinc'} max-w-none
+                              prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
+                              prose-h2:text-2xl prose-h2:${themeStyles.accent} prose-h2:border-b prose-h2:border-white/10 prose-h2:pb-4 prose-h2:mb-6
+                              prose-strong:text-orange-500 prose-strong:font-black
+                              prose-p:text-zinc-700 dark:prose-p:text-zinc-400 prose-p:leading-relaxed prose-p:text-sm prose-p:font-medium
+                              prose-li:text-zinc-800 dark:prose-li:text-zinc-300 prose-li:my-1 prose-li:text-sm prose-li:font-medium
+                            `}>
+                              <Markdown remarkPlugins={[remarkGfm]}>
+                                {getWorkoutSection(workoutPlan, 'safety')}
+                              </Markdown>
+                            </div>
                           </div>
                         </motion.div>
                         )}
