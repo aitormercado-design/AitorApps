@@ -205,7 +205,7 @@ export async function generateWeeklyMenu(profile: any, currentWeight: number): P
     adjustedTargets.fat = Math.round(adjustedTargets.fat + excessKcal / 9);
   }
 
-  const userPrompt = `Genera el plan nutricional con estos datos:
+  const userPrompt = `Genera el menú semanal con estos datos:
 
 PERFIL CALCULADO (no recalcules esto, úsalo tal cual):
 - Calorías diarias objetivo: ${adjustedTargets.calories} kcal

@@ -2461,7 +2461,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               ) : mealsSubTab === 'plan' ? (
                 <div className="space-y-6">
                 <p className={`${themeStyles.textMain} text-sm font-medium mb-4`}>
-                    Esta es una propuesta de plan nutricional para ayudarte a cumplir con tus objetivos de calorías y macronutrientes.
+                    Esta es una propuesta de menú semanal para ayudarte a cumplir con tus objetivos de calorías y macronutrientes.
                 </p>
               {profile.age === 0 ? (
                 <div className={`${themeStyles.bento} text-center`}>
@@ -2490,7 +2490,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center gap-3">
                         <Utensils className={`w-6 h-6 ${themeStyles.accent}`} />
-                        <h2 className={`text-xl font-display font-bold ${themeStyles.textMain} uppercase tracking-tight`}>Plan Nutricional</h2>
+                        <h2 className={`text-xl font-display font-bold ${themeStyles.textMain} uppercase tracking-tight`}>Menú Semanal</h2>
                       </div>
                     </div>
                     {isGeneratingMenu ? (
