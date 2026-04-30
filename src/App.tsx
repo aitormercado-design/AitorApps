@@ -2892,13 +2892,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         {/* Daily routines logic */}
                         {planSubTab === 'ejercicios' && (() => {
                           const parsedDays = workoutPlan
-                            .split(/(?=^# DÍA \d+)/m)
-                            .filter(chunk => chunk.trim().startsWith('# DÍA'))
+                            .split(/\n(?=# DÍA \d+)/i)
+                            .filter(chunk => /^# DÍA \d+/i.test(chunk.trim()))
                             .map(chunk => {
-                              const firstLine = chunk.split('\n')[0];
-                              const dayNum = parseInt(firstLine.match(/DÍA (\d+)/)?.[1] ?? '1');
-                              const focus = firstLine.split('—')[1]?.trim() ?? '';
-                              return { dayNumber: dayNum, focus, fullText: chunk };
+                              const trimmed = chunk.trim();
+                              const firstLine = trimmed.split('\n')[0];
+                              const dayNum = parseInt(firstLine.match(/\d+/)?.[0] ?? '1');
+                              const focus = firstLine.replace(/^# DÍA \d+\s*[—–-]\s*/i, '').trim();
+                              return { dayNumber: dayNum, focus, fullText: trimmed };
                             });
 
                           if (parsedDays.length === 0) {
