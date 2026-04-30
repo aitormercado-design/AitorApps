@@ -244,6 +244,14 @@ Reglas nutricionales:
 - Genera exactamente 7 días en orden Lunes→Domingo, cada día con exactamente 4 comidas: Desayuno, Almuerzo, Merienda, Cena.
 - Todos los valores numéricos son enteros sin decimales.
 
+VARIEDAD OBLIGATORIA:
+- Ningún plato puede repetirse en la misma semana.
+- Ningún ingrediente proteico principal (pollo, salmón, atún, ternera, huevo, cerdo, pavo) puede aparecer más de 2 veces en la semana en el mismo tipo de comida.
+- Alterna métodos de cocción: plancha, horno, vapor, crudo, salteado, cocido.
+- Incluye al menos 3 países de origen culinario diferentes durante la semana (mediterráneo, asiático, mexicano, etc.).
+- Varía las fuentes de carbohidratos: arroz, pasta, patata, quinoa, pan, legumbres — no repetir más de 2 veces.
+- El desayuno debe ser diferente cada día — nunca repetir el mismo desayuno.
+
 Estructura del JSON — usa EXACTAMENTE estas claves abreviadas:
 - "d": array de 7 días
 - Cada día: "n" (nombre), "k" (kcal), "p" (proteína g), "c" (carbs g), "g" (grasa g), "m" (array de comidas)
