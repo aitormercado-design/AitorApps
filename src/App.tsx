@@ -2807,6 +2807,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                 Rutina profesional para <span className={`${themeStyles.textMain} font-bold`}>{profile.age} años</span> y objetivo de <span className={`${themeStyles.accent} font-bold`}>{translateGymGoal(profile.gymGoal).toLowerCase()}</span>. Esta rutina está diseñada para realizarse <span className={`${themeStyles.textMain} font-bold`}>{profile.workoutType === 'home' ? 'en casa' : 'en el gimnasio'}</span>.
                               </p>
                             </div>
+                            <button
+                              onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
+                              disabled={isGeneratingWorkout || workoutCooldown.isActive}
+                              className={`shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent} disabled:opacity-40`}
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingWorkout ? 'animate-spin' : ''}`} />
+                              {workoutCooldown.isActive ? `${workoutCooldown.remaining}s` : 'Regenerar'}
+                            </button>
                           </div>
                         </div>
 
@@ -2976,6 +2984,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                   <Markdown
                                     remarkPlugins={[remarkGfm]}
                                     components={{
+                                      h3: () => null,
                                       h4: () => null,
                                       table: ({node, ...props}) => {
                                         const tableContent = node?.position ? dayContent.substring(node.position.start.offset, node.position.end.offset) : '';
@@ -2995,21 +3004,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                                         return (
                                           <div className="my-8 relative group">
-                                            <div className="flex items-center justify-between gap-4 mb-4">
-                                              <div className="flex items-center gap-3 px-2 text-left">
-                                                <div className={`w-1 h-5 ${isTableCompleted || habits[currentDayDate]?.workoutDone ? themeStyles.accentBg : 'bg-zinc-500'} rounded-full`} />
-                                                <h5 className={`text-[11px] font-black uppercase tracking-widest ${isTableCompleted || habits[currentDayDate]?.workoutDone ? themeStyles.accent : themeStyles.textMain}`}>{sectionTitle}</h5>
-                                              </div>
-
-                                              <div className="flex items-center gap-2 pr-2">
-                                                <button
-                                                  onClick={() => tableContent && handleRegenerateWorkoutTable(tableContent)}
-                                                  className={`p-2.5 rounded-xl ${themeStyles.iconBg} border ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent} transition-all shadow-sm`}
-                                                  title="Regenerar"
-                                                >
-                                                  <RefreshCw className="w-4 h-4" />
-                                                </button>
-                                              </div>
+                                            <div className="flex items-center gap-3 px-2 mb-4">
+                                              <div className={`w-1 h-5 ${isTableCompleted || habits[currentDayDate]?.workoutDone ? themeStyles.accentBg : 'bg-zinc-500'} rounded-full`} />
+                                              <h5 className={`text-[11px] font-black uppercase tracking-widest ${isTableCompleted || habits[currentDayDate]?.workoutDone ? themeStyles.accent : themeStyles.textMain}`}>{sectionTitle}</h5>
                                             </div>
 
                                             <div className={`overflow-x-auto rounded-[2.5rem] border ${themeStyles.border} ${profile.theme === 'light' ? 'bg-slate-50 shadow-inner' : 'bg-zinc-950/30'} shadow-sm ${habits[currentDayDate]?.workoutDone ? 'opacity-60 grayscale-[0.5]' : ''}`}>
@@ -3056,12 +3053,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         {/* Safety / Tips Section */}
                         {planSubTab === 'tips' && (
                         <motion.div initial={{opacity:0}} animate={{opacity:1}} layout className={`${themeStyles.card} rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border}`}>
-                          <div className={`prose ${profile.theme === 'light' ? 'prose-slate' : 'prose-invert prose-zinc'} max-w-none
+                          <div className={`prose ${profile.theme === 'light' ? 'prose-zinc' : 'prose-invert prose-zinc'} max-w-none ${themeStyles.textMain}
                             prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
-                            prose-h2:text-2xl prose-h2:${themeStyles.accent} prose-h2:border-b prose-h2:border-white/10 prose-h2:pb-4 prose-h2:mb-6
-                            prose-strong:text-orange-500 prose-strong:font-black
-                            prose-p:text-slate-800 dark:prose-p:text-slate-200 prose-p:leading-relaxed prose-p:text-sm prose-p:font-medium
-                            prose-li:text-slate-900 dark:prose-li:text-slate-100 prose-li:my-1 prose-li:text-sm prose-li:font-medium
+                            prose-h2:text-2xl prose-h2:${themeStyles.accent} prose-h2:pb-4 prose-h2:mb-6
+                            prose-strong:${themeStyles.accent} prose-strong:font-black
+                            prose-p:leading-relaxed prose-p:text-sm prose-p:font-medium
+                            prose-li:my-1 prose-li:text-sm prose-li:font-medium
                           `}>
                             <Markdown remarkPlugins={[remarkGfm]}>
                               {getWorkoutSection(workoutPlan, 'safety')}
