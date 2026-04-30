@@ -8,6 +8,25 @@ const groq = new Groq({
 });
 
 const MODEL = 'llama-3.3-70b-versatile';
+// Higher rate limits on free tier (30k TPM, 14.4k RPD vs 6k TPM, 30 RPD for 70b)
+const FAST_MODEL = 'llama-3.1-8b-instant';
+
+async function withRateLimitRetry<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const msg: string = error?.message ?? '';
+      const isRateLimit = msg.includes('429') || msg.includes('rate_limit') || msg.includes('quota');
+      if (isRateLimit && attempt < 2) {
+        await new Promise(r => setTimeout(r, (attempt + 1) * 3000)); // 3s, 6s
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
 
 function friendlyGroqError(error: any, fallback: string): Error {
   const msg: string = error?.message ?? '';
@@ -378,16 +397,17 @@ Consejos de nutrición peri-entreno, recuperación, progresión semanal y notas 
   const userPrompt = `Genera un plan de entrenamiento semanal completo con EXACTAMENTE ${trainingDays} días de entrenamiento activo, numerados DÍA 1 hasta DÍA ${trainingDays}. NO añadas días de descanso activo numerados — si quieres incluir consejos de descanso o movilidad, inclúyelos dentro de la sección ## TIPS, no como un DÍA extra.`;
 
   try {
-    const completion = await groq.chat.completions.create({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.7,
-      max_tokens: 8192,
-    });
-
+    const completion = await withRateLimitRetry(() =>
+      groq.chat.completions.create({
+        model: FAST_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 8192,
+      })
+    );
     return completion.choices[0].message.content || 'No se pudo generar la rutina.';
   } catch (error: any) {
     console.error('Error generating workout:', error);
