@@ -453,7 +453,9 @@ export default function App() {
   const [shoppingList, setShoppingList] = useState<ShoppingList | null>(null);
   const [isGeneratingShoppingList, setIsGeneratingShoppingList] = useState(false);
   const [appError, setAppError] = useState<{ message: string; timestamp: number } | null>(null);
+  const [appSuccess, setAppSuccess] = useState<string | null>(null);
   const showError = (message: string) => setAppError({ message, timestamp: Date.now() });
+  const showSuccess = (message: string) => { setAppSuccess(message); setTimeout(() => setAppSuccess(null), 3000); };
 
   // Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -794,7 +796,7 @@ export default function App() {
       if (sectionsDone.has('cool')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
     }
     if (profile.gymEnabled && todayHabits.manualWorkout) {
-      burnedCalories += todayHabits.manualWorkout.caloriesBurnedBurned;
+      burnedCalories += (todayHabits.manualWorkout.caloriesBurned ?? (todayHabits.manualWorkout as any).calories ?? 0);
     }
 
     const gymDays = Math.min(7, Math.max(0, profile.trainingDaysPerWeek));
@@ -945,7 +947,7 @@ export default function App() {
           if (sectionsDone.has('cool')) burnedCalories += calculateExpertCalories(latestWeight, profile.gymGoal, 'cool');
         }
         if (dayHabits?.manualWorkout) {
-          burnedCalories += dayHabits.manualWorkout.caloriesBurned;
+          burnedCalories += (dayHabits.manualWorkout.caloriesBurned ?? (dayHabits.manualWorkout as any).calories ?? 0);
         }
       }
     }
@@ -1034,7 +1036,7 @@ export default function App() {
           if (sectionsDone.has('cool')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'cool');
         }
         if (dayHabits?.manualWorkout) {
-          dayBurned += dayHabits.manualWorkout.caloriesBurned;
+          dayBurned += (dayHabits.manualWorkout.caloriesBurned ?? (dayHabits.manualWorkout as any).calories ?? 0);
         }
       }
       
@@ -3158,6 +3160,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           if (user) {
                             setDoc(doc(db, 'users', user.uid, 'habits', manualWorkoutDate), newHabits[manualWorkoutDate]).catch(console.error);
                           }
+                          setManualWorkoutMinutes('45');
+                          showSuccess(`${manualWorkoutActivity} guardado — ${kcal} kcal`);
                         }} className="space-y-6">
 
                           {/* 1. Fecha */}
@@ -3257,7 +3261,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                    </div>
                                 </div>
                                 <div className="text-right flex flex-col items-end">
-                                   <span className={`text-xl font-display font-black ${themeStyles.accent}`}>+{habits[todayStr].manualWorkout.caloriesBurned}</span>
+                                   <span className={`text-xl font-display font-black ${themeStyles.accent}`}>+{habits[todayStr].manualWorkout.caloriesBurned ?? (habits[todayStr].manualWorkout as any).calories ?? 0}</span>
                                    <span className={`text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest block`}>kcal</span>
                                 </div>
                              </div>
@@ -4120,8 +4124,23 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
       {/* Error Toast */}
       <AnimatePresence>
+        {appSuccess && (
+          <motion.div
+            key="success-toast"
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-24 left-4 right-4 z-[60] flex justify-center pointer-events-none"
+          >
+            <div className="bg-emerald-500 text-white px-6 py-4 rounded-2xl shadow-2xl font-medium text-sm flex items-center gap-3 pointer-events-auto max-w-md w-full border border-emerald-400/50">
+              <CheckCircle2 className="w-5 h-5 shrink-0" />
+              <p className="flex-1">{appSuccess}</p>
+            </div>
+          </motion.div>
+        )}
         {appError && (
           <motion.div
+            key="error-toast"
             initial={{ opacity: 0, y: 50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
@@ -4130,7 +4149,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             <div className="bg-rose-500 text-white px-6 py-4 rounded-2xl shadow-2xl font-medium text-sm flex items-center gap-3 pointer-events-auto max-w-md w-full border border-rose-400/50">
               <AlertTriangle className="w-5 h-5 shrink-0" />
               <p className="flex-1">{appError.message}</p>
-              <button 
+              <button
                 onClick={() => setAppError(null)}
                 className="p-1 hover:bg-rose-600 rounded-lg transition-colors shrink-0"
               >
