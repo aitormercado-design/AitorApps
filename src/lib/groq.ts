@@ -376,7 +376,7 @@ Descripción general de la rutina: objetivo, duración estimada por sesión y eq
 ## TIPS
 Consejos de nutrición peri-entreno, recuperación, progresión semanal y notas del coach.`;
 
-  const userPrompt = `Genera un plan de entrenamiento semanal completo con exactamente ${trainingDays} días de entrenamiento activo.`;
+  const userPrompt = `Genera un plan de entrenamiento semanal completo con EXACTAMENTE ${trainingDays} días de entrenamiento activo, numerados DÍA 1 hasta DÍA ${trainingDays}. NO añadas días de descanso activo numerados — si quieres incluir consejos de descanso o movilidad, inclúyelos dentro de la sección ## TIPS, no como un DÍA extra.`;
 
   try {
     const completion = await groq.chat.completions.create({
