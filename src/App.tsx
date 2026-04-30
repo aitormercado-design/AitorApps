@@ -107,6 +107,7 @@ type DailyHabits = {
     water: number;
     sleep: number;
     workoutDone?: boolean;
+    workoutSessions?: number;
     completedExercises?: string[]; // IDs or names of exercise blocks completed
     manualWorkout?: { activity: string, calories: number };
     workoutCalories?: number;
@@ -725,14 +726,21 @@ export default function App() {
 
   useEffect(() => {
     if (!workoutPlan) return;
-    const dates: {[key: string]: string} = {};
-    const base = new Date(todayStr + 'T12:00:00');
-    for (let i = 1; i <= (profile.trainingDaysPerWeek || 3); i++) {
-      const d = new Date(base);
-      d.setDate(base.getDate() + (i - 1) * 2);
-      dates[`Día ${i}`] = getLocalDateStr(d);
-    }
-    setGymRoutineDates(dates);
+    // Only fill in keys that don't exist yet (handleGenerateWorkout sets them eagerly;
+    // this covers the app-load case when workoutPlan is restored from Firestore)
+    setGymRoutineDates(prev => {
+      const next = { ...prev };
+      const base = new Date(todayStr + 'T12:00:00');
+      for (let i = 1; i <= (profile.trainingDaysPerWeek || 3); i++) {
+        const key = `Día ${i}`;
+        if (!next[key]) {
+          const d = new Date(base);
+          d.setDate(base.getDate() + (i - 1) * 2);
+          next[key] = getLocalDateStr(d);
+        }
+      }
+      return next;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workoutPlan]);
 
@@ -1462,25 +1470,45 @@ export default function App() {
     setIsGoalModalOpen(false);
   };
 
-  const handleToggleWorkoutAtDate = async (impactDate: string) => {
-    const isDone = !habits[impactDate]?.workoutDone;
+  const getSessionCalories = () => {
     const currentWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
-    const sessionCalories =
+    return (
       calculateExpertCalories(currentWeight, profile.gymGoal, 'warm') +
       calculateExpertCalories(currentWeight, profile.gymGoal, 'main') +
-      calculateExpertCalories(currentWeight, profile.gymGoal, 'cool');
+      calculateExpertCalories(currentWeight, profile.gymGoal, 'cool')
+    );
+  };
+
+  const handleAddWorkoutSession = async (impactDate: string) => {
+    const sessionCalories = getSessionCalories();
     let savedEntry: any;
     setHabits(prev => {
-      const existingCalories = prev[impactDate]?.workoutCalories ?? 0;
-      const newCalories = isDone
-        ? existingCalories + sessionCalories
-        : Math.max(0, existingCalories - sessionCalories);
+      const sessions = (prev[impactDate]?.workoutSessions ?? 0) + 1;
       savedEntry = {
         ...(prev[impactDate] || { water: 0, sleep: 0 }),
-        workoutDone: isDone,
-        completedExercises: isDone ? [] : (prev[impactDate]?.completedExercises || []),
-        workoutCalories: newCalories,
-        workoutSessionFocus: isDone ? translateGymGoal(profile.gymGoal) : '',
+        workoutDone: true,
+        workoutSessions: sessions,
+        workoutCalories: (prev[impactDate]?.workoutCalories ?? 0) + sessionCalories,
+        workoutSessionFocus: translateGymGoal(profile.gymGoal),
+      };
+      return { ...prev, [impactDate]: savedEntry };
+    });
+    if (user) {
+      setDoc(doc(db, 'users', user.uid, 'habits', impactDate), savedEntry).catch(console.error);
+    }
+  };
+
+  const handleRemoveWorkoutSession = async (impactDate: string) => {
+    const sessionCalories = getSessionCalories();
+    let savedEntry: any;
+    setHabits(prev => {
+      const sessions = Math.max(0, (prev[impactDate]?.workoutSessions ?? 0) - 1);
+      savedEntry = {
+        ...(prev[impactDate] || { water: 0, sleep: 0 }),
+        workoutDone: sessions > 0,
+        workoutSessions: sessions,
+        workoutCalories: Math.max(0, (prev[impactDate]?.workoutCalories ?? 0) - sessionCalories),
+        workoutSessionFocus: sessions > 0 ? translateGymGoal(profile.gymGoal) : '',
       };
       return { ...prev, [impactDate]: savedEntry };
     });
@@ -1502,7 +1530,6 @@ export default function App() {
       [impactDate]: {
         ...(habits[impactDate] || { water: 0, sleep: 0 }),
         completedExercises: newCompleted,
-        workoutDone: habits[impactDate]?.workoutDone || newCompleted.length > 0
       }
     };
     
@@ -1536,9 +1563,38 @@ export default function App() {
   };
 
   const handleGenerateWorkout = async (customProfile?: UserProfile) => {
+    const targetProfile = customProfile || profile;
+    const days = targetProfile.trainingDaysPerWeek || 3;
+
+    // Set dates eagerly so inputs never show empty
+    const base = new Date(todayStr + 'T12:00:00');
+    const newDates: {[key: string]: string} = {};
+    for (let i = 1; i <= days; i++) {
+      const d = new Date(base);
+      d.setDate(base.getDate() + (i - 1) * 2);
+      newDates[`Día ${i}`] = getLocalDateStr(d);
+    }
+    setGymRoutineDates(newDates);
+
+    // Reset workout state for these dates so the new plan starts clean
+    setHabits(prev => {
+      const next = { ...prev };
+      Object.values(newDates).forEach(date => {
+        if (next[date]) {
+          next[date] = {
+            ...next[date],
+            workoutDone: false,
+            workoutSessions: 0,
+            workoutCalories: 0,
+            workoutSessionFocus: '',
+          };
+        }
+      });
+      return next;
+    });
+
     setIsGeneratingWorkout(true);
     try {
-      const targetProfile = customProfile || profile;
       const profileStr = JSON.stringify({
         ...targetProfile,
         diabetes: targetProfile.diabetesType,
@@ -2945,17 +3001,35 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                         </div>
                                       </div>
                                     </div>
-                                    <button
-                                      onClick={() => handleToggleWorkoutAtDate(currentDayDate)}
-                                      className={`mt-2 flex items-center gap-2 px-6 py-3 rounded-xl border font-black uppercase tracking-widest text-[10px] transition-all w-full md:w-auto justify-center ${
-                                        habits[currentDayDate]?.workoutDone
-                                          ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} border-transparent shadow-lg`
-                                          : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent}`
-                                      }`}
-                                    >
-                                      <CheckCircle2 className="w-4 h-4" />
-                                      {habits[currentDayDate]?.workoutDone ? 'Rutina Completada' : 'Marcar Rutina como Hecha'}
-                                    </button>
+                                    {(() => {
+                                      const sessions = habits[currentDayDate]?.workoutSessions ?? 0;
+                                      return (
+                                        <div className="mt-2 flex items-center gap-2 w-full md:w-auto">
+                                          <button
+                                            onClick={() => handleAddWorkoutSession(currentDayDate)}
+                                            className={`flex-1 md:flex-none flex items-center gap-2 px-6 py-3 rounded-xl border font-black uppercase tracking-widest text-[10px] transition-all justify-center ${
+                                              sessions > 0
+                                                ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} border-transparent shadow-lg`
+                                                : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent}`
+                                            }`}
+                                          >
+                                            <CheckCircle2 className="w-4 h-4" />
+                                            {sessions > 0
+                                              ? `${sessions} Sesión${sessions > 1 ? 'es' : ''} Completada${sessions > 1 ? 's' : ''}`
+                                              : 'Marcar Rutina como Hecha'}
+                                          </button>
+                                          {sessions > 0 && (
+                                            <button
+                                              onClick={() => handleRemoveWorkoutSession(currentDayDate)}
+                                              title="Deshacer última sesión"
+                                              className={`shrink-0 p-3 rounded-xl border ${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:text-red-400 transition-all`}
+                                            >
+                                              <Minus className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
 
                                   <div className="space-y-1 text-left">
