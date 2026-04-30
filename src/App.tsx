@@ -2891,34 +2891,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                         {/* Daily routines logic */}
                         {planSubTab === 'ejercicios' && (() => {
-                          const normalized = workoutPlan.replace(/\r\n/g, '\n');
-                          
-                          // Improved extraction logic
-                          const exercisesRegex = /##?\s*[^#\n]*(?:EJERCICIOS|RUTINA|DETALLE|TABLAS|CONTENIDO|RUTINAS|PROGRAMA|WORKOUT)[^#\n]*\n([\s\S]*?)(?=\n#|$)/i;
-                          const match = normalized.match(exercisesRegex);
-                          let exercisesContent = match ? match[1].trim() : '';
+                          const parsedDays = workoutPlan
+                            .split(/(?=^# DÍA \d+)/m)
+                            .filter(chunk => chunk.trim().startsWith('# DÍA'))
+                            .map(chunk => {
+                              const firstLine = chunk.split('\n')[0];
+                              const dayNum = parseInt(firstLine.match(/DÍA (\d+)/)?.[1] ?? '1');
+                              const focus = firstLine.split('—')[1]?.trim() ?? '';
+                              return { dayNumber: dayNum, focus, fullText: chunk };
+                            });
 
-                          // Secondary fallback if regex fails
-                          if (!exercisesContent) {
-                            const h2Tags = ['EJERCICIOS', 'RUTINA', 'DETALLE', 'TABLAS', 'CONTENIDO', 'RUTINAS', 'PROGRAMA', 'WORKOUT'];
-                            for (const tag of h2Tags) {
-                              const regex = new RegExp(`##\\s*[^\\n]*${tag}[^\\n]*\\n`, 'i');
-                              const fallbackMatch = normalized.match(regex);
-                              if (fallbackMatch && fallbackMatch.index !== undefined) {
-                                const start = fallbackMatch.index + fallbackMatch[0].length;
-                                const nextH2 = normalized.indexOf('\n## ', start);
-                                exercisesContent = nextH2 !== -1 ? normalized.substring(start, nextH2) : normalized.substring(start);
-                                break;
-                              }
-                            }
-                          }
-
-                          // If still empty, use the whole text but try to skip intro
-                          if (!exercisesContent) {
-                             exercisesContent = normalized.length > 200 ? normalized : '';
-                          }
-
-                          if (!exercisesContent || exercisesContent.length < 50) {
+                          if (parsedDays.length === 0) {
                             return (
                               <div className={`${themeStyles.bento} p-10 text-center space-y-4 border ${themeStyles.border}`}>
                                 <div className={`w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto border ${themeStyles.border}`}>
@@ -2939,37 +2922,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             );
                           }
 
-                          // Better day chunking: split by ### and keep the header in the chunk
-                          const dayChunks = exercisesContent.split(/(?=###\s+)/).filter(s => s.trim().length > 20);
-                          const parsedDays = dayChunks.map((chunk, idx) => {
-                            const trimmedChunk = chunk.trim();
-                            const lines = trimmedChunk.split('\n');
-                            const headerRaw = lines[0].replace(/^###\s*/, '').replace(/^#+/, '').trim();
-                            const dayMatch = headerRaw.match(/Día\s*(\d+)/i);
-                            const label = dayMatch ? `Día ${dayMatch[1]}` : `Día ${idx + 1}`;
-                            
-                            const dayNameMatch = headerRaw.match(/(Lunes|Martes|Miércoles|Jueves|Viernes|Sábado|Domingo)/i);
-                            const dayName = dayNameMatch ? dayNameMatch[0] : label;
-                            
-                            // Extract title carefully
-                            const objective = headerRaw
-                              .replace(dayMatch?.[0] || '', '')
-                              .replace(dayNameMatch?.[0] || '', '')
-                              .replace(/^[:\s-]+/, '')
-                              .trim() || 'Entrenamiento';
-                              
-                            return { 
-                              id: idx, 
-                              dayName, 
-                              label, 
-                              objective, 
-                              content: lines.slice(1).join('\n').trim() || trimmedChunk 
-                            };
-                          });
-
-                          if (parsedDays.length === 0) return null;
-
-                          const activeDayData = parsedDays.find(d => d.label === gymDay || d.dayName.toLowerCase() === gymDay.toLowerCase()) || parsedDays[0];
+                          const activeDay = parsedDays.find(d => `Día ${d.dayNumber}` === gymDay) || parsedDays[0];
+                          const dayLabel = `Día ${activeDay.dayNumber}`;
+                          const currentDayDate = gymRoutineDates[dayLabel] || todayStr;
 
                           return (
                             <div className="space-y-6">
@@ -2977,20 +2932,20 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar px-1 scroll-smooth">
                                 {parsedDays.map((d) => (
                                   <button
-                                    key={d.id}
-                                    onClick={() => setGymDay(d.label)}
+                                    key={d.dayNumber}
+                                    onClick={() => setGymDay(`Día ${d.dayNumber}`)}
                                     className={`px-6 py-3 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap min-w-[100px] border-solid ${
-                                      gymDay === d.label || gymDay.toLowerCase() === d.dayName.toLowerCase()
+                                      gymDay === `Día ${d.dayNumber}`
                                         ? `${themeStyles.buttonPrimary} scale-105`
                                         : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.textMain}`
                                     }`}
                                   >
-                                    {d.label}
+                                    {`Día ${d.dayNumber}`}
                                   </button>
                                 ))}
                               </div>
 
-                                {/* Day Detail Content */}
+                              {/* Day Detail Content */}
                               <motion.div
                                 key={gymDay}
                                 initial={{ opacity: 0, scale: 0.98 }}
@@ -2998,67 +2953,66 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                 className={`${themeStyles.bento} p-6 md:p-8 shadow-2xl space-y-8 relative overflow-hidden`}
                               >
                                 <div className={`absolute top-0 right-0 w-32 h-32 ${themeStyles.accentMuted} opacity-20 rounded-full blur-2xl mr-[-10%] mt-[-10%]`} />
-                                
+
                                 <div className="relative z-10 space-y-6">
                                   <div className="flex flex-col gap-1">
                                     <div className={`flex items-center gap-1.5 text-[8px] font-black ${themeStyles.accent} uppercase tracking-[0.2em] mb-1`}>
-
                                       <Activity className="w-3 h-3" />
                                       <span>Bloque de entrenamiento</span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                       <div className={`w-1 h-5 ${themeStyles.accentBg} rounded-full`} />
                                       <div className={`flex items-center gap-2 ${themeStyles.textMain} font-display font-black text-lg uppercase tracking-tighter`}>
-                                        <span className={themeStyles.accent}>{activeDayData.label}</span>
+                                        <span className={themeStyles.accent}>{dayLabel}</span>
                                         <span className="opacity-20">/</span>
                                         <div className="relative inline-block border-b-2 border-dotted border-current opacity-70 hover:opacity-100 transition-opacity">
                                           <input
                                             type="date"
-                                            value={gymRoutineDates[activeDayData.label] || todayStr}
-                                            onChange={(e) => setGymRoutineDates(prev => ({ ...prev, [activeDayData.label]: e.target.value }))}
+                                            value={gymRoutineDates[dayLabel] || todayStr}
+                                            onChange={(e) => setGymRoutineDates(prev => ({ ...prev, [dayLabel]: e.target.value }))}
                                             className="bg-transparent text-current border-none focus:ring-0 p-0 cursor-pointer appearance-none text-sm font-black"
                                           />
                                         </div>
                                       </div>
                                     </div>
                                     <button
-                                      onClick={() => handleToggleWorkoutAtDate(gymRoutineDates[activeDayData.label] || todayStr)}
+                                      onClick={() => handleToggleWorkoutAtDate(currentDayDate)}
                                       className={`mt-2 flex items-center gap-2 px-6 py-3 rounded-xl border font-black uppercase tracking-widest text-[10px] transition-all w-full md:w-auto justify-center ${
-                                        habits[gymRoutineDates[activeDayData.label] || todayStr]?.workoutDone 
-                                          ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} border-transparent shadow-lg` 
+                                        habits[currentDayDate]?.workoutDone
+                                          ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} border-transparent shadow-lg`
                                           : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent}`
                                       }`}
                                     >
                                       <CheckCircle2 className="w-4 h-4" />
-                                      {habits[gymRoutineDates[activeDayData.label] || todayStr]?.workoutDone ? 'Rutina Completada' : 'Marcar Rutina como Hecha'}
+                                      {habits[currentDayDate]?.workoutDone ? 'Rutina Completada' : 'Marcar Rutina como Hecha'}
                                     </button>
                                   </div>
 
                                   <div className="space-y-1 text-left">
                                     <span className={`text-[8px] font-black ${themeStyles.textMuted} uppercase tracking-[0.2em] pl-1`}>Foco de la sesión</span>
-                                    <h4 className={`text-sm font-display font-black ${themeStyles.textMain} uppercase tracking-tight`}>{activeDayData.objective}</h4>
+                                    <h4 className={`text-sm font-display font-black ${themeStyles.textMain} uppercase tracking-tight`}>{activeDay.focus}</h4>
                                   </div>
-                                  
+
                                   <div className={`h-px w-full ${themeStyles.border} shadow-sm`} />
                                 </div>
 
-                                <div className={`prose ${profile.theme === 'light' ? 'prose-slate' : 'prose-invert'} max-w-none 
+                                <div className={`prose ${profile.theme === 'light' ? 'prose-slate' : 'prose-invert'} max-w-none
                                   prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
-                                  prose-h3:hidden
+                                  prose-h1:hidden
                                   prose-strong:${themeStyles.accent} prose-strong:font-black
                                   prose-p:text-sm prose-p:leading-relaxed text-left
                                   prose-li:text-sm prose-li:my-1
                                 `}>
-                                  <Markdown 
+                                  <Markdown
                                     remarkPlugins={[remarkGfm]}
                                     components={{
                                       h4: () => null,
                                       table: ({node, ...props}) => {
                                         const tableContent = node?.position ? workoutPlan?.substring(node.position.start.offset, node.position.end.offset) : '';
                                         const tableId = `table-${node?.position?.start.offset || 0}`;
-                                        
+
                                         const textBeforeTable = workoutPlan.substring(0, node?.position?.start.offset || 0);
-                                        const headerMatch = textBeforeTable.match(/####\s*([^\n]+)\s*$/m) || 
+                                        const headerMatch = textBeforeTable.match(/####\s*([^\n]+)\s*$/m) ||
                                                             textBeforeTable.match(/###\s*([^\n]+)\s*$/m) ||
                                                             textBeforeTable.match(/\*\*([^\*]+)\*\*\s*$/m);
                                         const sectionTitleRaw = headerMatch ? headerMatch[1].trim() : 'Ejercicios';
@@ -3067,7 +3021,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                         else if (sectionTitleRaw.toLowerCase().includes('principal')) sectionTitle = 'Parte Principal';
                                         else if (sectionTitleRaw.toLowerCase().includes('calma')) sectionTitle = 'Vuelta a la calma';
 
-                                        const currentDayDate = gymRoutineDates[activeDayData.label] || todayStr;
                                         const isTableCompleted = habits[currentDayDate]?.completedExercises?.includes(tableId);
 
                                         return (
@@ -3077,7 +3030,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                                 <div className={`w-1 h-5 ${isTableCompleted || habits[currentDayDate]?.workoutDone ? themeStyles.accentBg : 'bg-zinc-500'} rounded-full`} />
                                                 <h5 className={`text-[11px] font-black uppercase tracking-widest ${isTableCompleted || habits[currentDayDate]?.workoutDone ? themeStyles.accent : themeStyles.textMain}`}>{sectionTitle}</h5>
                                               </div>
-                                              
+
                                               <div className="flex items-center gap-2 pr-2">
                                                 <button
                                                   onClick={() => tableContent && handleRegenerateWorkoutTable(tableContent)}
@@ -3106,47 +3059,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                       )
                                     }}
                                   >
-                                    {(() => {
-                                      const lines = activeDayData.content.split('\n');
-                                      let tableHeaders: string[] = [];
-                                      return lines.map(line => {
-                                        const trimmed = line.trim();
-                                        if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-                                          const cells = trimmed.split('|').map(c => c.trim());
-                                          if (cells.length > 2) {
-                                            if (tableHeaders.length === 0 && (trimmed.toLowerCase().includes('serie') || trimmed.toLowerCase().includes('rep'))) {
-                                              if (trimmed.match(/[a-zA-Z]/) && !trimmed.includes('---')) {
-                                                tableHeaders = cells;
-                                              }
-                                            }
-                                            
-                                            if (tableHeaders.length > 0) {
-                                              const sIdx = tableHeaders.findIndex(h => h.toLowerCase().includes('serie'));
-                                              const rIdx = tableHeaders.findIndex(h => h.toLowerCase().includes('repeticion') || h.toLowerCase().includes('reps'));
-                                              
-                                              if (sIdx !== -1 && rIdx !== -1) {
-                                                const newCells = [...cells];
-                                                if (trimmed.includes('---')) {
-                                                  newCells.splice(rIdx, 1);
-                                                } else if (JSON.stringify(cells) === JSON.stringify(tableHeaders)) {
-                                                  newCells[sIdx] = 'Series x Reps';
-                                                  newCells.splice(rIdx, 1);
-                                                } else {
-                                                  if (cells[rIdx]) {
-                                                    newCells[sIdx] = `${cells[sIdx]} x ${cells[rIdx]}`;
-                                                    newCells.splice(rIdx, 1);
-                                                  }
-                                                }
-                                                return newCells.join(' | ').trim();
-                                              }
-                                            }
-                                          }
-                                        } else if (trimmed === '') {
-                                          tableHeaders = [];
-                                        }
-                                        return line;
-                                      }).join('\n');
-                                    })()}
+                                    {activeDay.fullText.split('\n').slice(1).join('\n').trim()}
                                   </Markdown>
                                 </div>
 
