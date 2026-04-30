@@ -381,6 +381,7 @@ export default function App() {
   const [manualWorkoutCaloriesEdit, setManualWorkoutCaloriesEdit] = useState('');
   const [gymDay, setGymDay] = useState<string>('Día 1');
   const [gymRoutineDates, setGymRoutineDates] = useState<{[key: string]: string}>({});
+  const [gymDayDone, setGymDayDone] = useState<{[dayLabel: string]: boolean}>({});
 
   useEffect(() => {
     if (profile.theme === 'light') {
@@ -1479,42 +1480,66 @@ export default function App() {
     );
   };
 
-  const handleAddWorkoutSession = async (impactDate: string) => {
-    const sessionCalories = getSessionCalories();
-    let savedEntry: any;
-    setHabits(prev => {
-      const sessions = (prev[impactDate]?.workoutSessions ?? 0) + 1;
-      savedEntry = {
-        ...(prev[impactDate] || { water: 0, sleep: 0 }),
-        workoutDone: true,
-        workoutSessions: sessions,
-        workoutCalories: (prev[impactDate]?.workoutCalories ?? 0) + sessionCalories,
-        workoutSessionFocus: translateGymGoal(profile.gymGoal),
-      };
-      return { ...prev, [impactDate]: savedEntry };
-    });
-    if (user) {
-      setDoc(doc(db, 'users', user.uid, 'habits', impactDate), savedEntry).catch(console.error);
-    }
+  // Recompute and save habits calories for a calendar date based on current gymDayDone state.
+  const syncHabitsForDate = (
+    date: string,
+    doneState: {[key: string]: boolean},
+    dates: {[key: string]: string},
+    prevHabits: DailyHabits
+  ): DailyHabits[string] => {
+    const sessionCals = getSessionCalories();
+    const doneDaysOnDate = Object.entries(doneState).filter(([lbl, done]) => done && dates[lbl] === date).length;
+    return {
+      ...(prevHabits[date] || { water: 0, sleep: 0 }),
+      workoutDone: doneDaysOnDate > 0,
+      workoutCalories: doneDaysOnDate * sessionCals,
+      workoutSessionFocus: doneDaysOnDate > 0 ? translateGymGoal(profile.gymGoal) : '',
+    };
   };
 
-  const handleRemoveWorkoutSession = async (impactDate: string) => {
-    const sessionCalories = getSessionCalories();
-    let savedEntry: any;
+  const handleToggleGymDay = (dayLabel: string) => {
+    const date = gymRoutineDates[dayLabel];
+    if (!date) return;
+    const newDoneState = { ...gymDayDone, [dayLabel]: !(gymDayDone[dayLabel] ?? false) };
+    setGymDayDone(newDoneState);
     setHabits(prev => {
-      const sessions = Math.max(0, (prev[impactDate]?.workoutSessions ?? 0) - 1);
-      savedEntry = {
-        ...(prev[impactDate] || { water: 0, sleep: 0 }),
-        workoutDone: sessions > 0,
-        workoutSessions: sessions,
-        workoutCalories: Math.max(0, (prev[impactDate]?.workoutCalories ?? 0) - sessionCalories),
-        workoutSessionFocus: sessions > 0 ? translateGymGoal(profile.gymGoal) : '',
-      };
-      return { ...prev, [impactDate]: savedEntry };
+      const updated = syncHabitsForDate(date, newDoneState, gymRoutineDates, prev);
+      if (user) setDoc(doc(db, 'users', user.uid, 'habits', date), updated).catch(console.error);
+      return { ...prev, [date]: updated };
     });
-    if (user) {
-      setDoc(doc(db, 'users', user.uid, 'habits', impactDate), savedEntry).catch(console.error);
-    }
+  };
+
+  const handleGymDayDateChange = (dayLabel: string, newDate: string) => {
+    const oldDate = gymRoutineDates[dayLabel];
+    const newDates = { ...gymRoutineDates, [dayLabel]: newDate };
+    setGymRoutineDates(newDates);
+    if (!gymDayDone[dayLabel]) return;
+    // Day was done — move its calories from oldDate to newDate
+    setHabits(prev => {
+      const sessionCals = getSessionCalories();
+      const next = { ...prev };
+      // Recompute old date (this day no longer counted there)
+      const doneDaysOld = Object.entries(gymDayDone).filter(([lbl, done]) => done && newDates[lbl] === oldDate).length;
+      next[oldDate] = {
+        ...(next[oldDate] || { water: 0, sleep: 0 }),
+        workoutDone: doneDaysOld > 0,
+        workoutCalories: doneDaysOld * sessionCals,
+        workoutSessionFocus: doneDaysOld > 0 ? translateGymGoal(profile.gymGoal) : '',
+      };
+      // Recompute new date (this day now counted there)
+      const doneDaysNew = Object.entries(gymDayDone).filter(([lbl, done]) => done && newDates[lbl] === newDate).length;
+      next[newDate] = {
+        ...(next[newDate] || { water: 0, sleep: 0 }),
+        workoutDone: doneDaysNew > 0,
+        workoutCalories: doneDaysNew * sessionCals,
+        workoutSessionFocus: doneDaysNew > 0 ? translateGymGoal(profile.gymGoal) : '',
+      };
+      if (user) {
+        setDoc(doc(db, 'users', user.uid, 'habits', oldDate), next[oldDate]).catch(console.error);
+        setDoc(doc(db, 'users', user.uid, 'habits', newDate), next[newDate]).catch(console.error);
+      }
+      return next;
+    });
   };
 
   const handleToggleExercise = async (id: string, impactDate: string) => {
@@ -1575,23 +1600,7 @@ export default function App() {
       newDates[`Día ${i}`] = getLocalDateStr(d);
     }
     setGymRoutineDates(newDates);
-
-    // Reset workout state for these dates so the new plan starts clean
-    setHabits(prev => {
-      const next = { ...prev };
-      Object.values(newDates).forEach(date => {
-        if (next[date]) {
-          next[date] = {
-            ...next[date],
-            workoutDone: false,
-            workoutSessions: 0,
-            workoutCalories: 0,
-            workoutSessionFocus: '',
-          };
-        }
-      });
-      return next;
-    });
+    setGymDayDone({});
 
     setIsGeneratingWorkout(true);
     try {
@@ -2995,41 +3004,23 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                           <input
                                             type="date"
                                             value={gymRoutineDates[dayLabel] || todayStr}
-                                            onChange={(e) => setGymRoutineDates(prev => ({ ...prev, [dayLabel]: e.target.value }))}
+                                            onChange={(e) => handleGymDayDateChange(dayLabel, e.target.value)}
                                             className="bg-transparent text-current border-none focus:ring-0 p-0 cursor-pointer appearance-none text-sm font-black"
                                           />
                                         </div>
                                       </div>
                                     </div>
-                                    {(() => {
-                                      const sessions = habits[currentDayDate]?.workoutSessions ?? 0;
-                                      return (
-                                        <div className="mt-2 flex items-center gap-2 w-full md:w-auto">
-                                          <button
-                                            onClick={() => handleAddWorkoutSession(currentDayDate)}
-                                            className={`flex-1 md:flex-none flex items-center gap-2 px-6 py-3 rounded-xl border font-black uppercase tracking-widest text-[10px] transition-all justify-center ${
-                                              sessions > 0
-                                                ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} border-transparent shadow-lg`
-                                                : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent}`
-                                            }`}
-                                          >
-                                            <CheckCircle2 className="w-4 h-4" />
-                                            {sessions > 0
-                                              ? `${sessions} Sesión${sessions > 1 ? 'es' : ''} Completada${sessions > 1 ? 's' : ''}`
-                                              : 'Marcar Rutina como Hecha'}
-                                          </button>
-                                          {sessions > 0 && (
-                                            <button
-                                              onClick={() => handleRemoveWorkoutSession(currentDayDate)}
-                                              title="Deshacer última sesión"
-                                              className={`shrink-0 p-3 rounded-xl border ${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:text-red-400 transition-all`}
-                                            >
-                                              <Minus className="w-4 h-4" />
-                                            </button>
-                                          )}
-                                        </div>
-                                      );
-                                    })()}
+                                    <button
+                                      onClick={() => handleToggleGymDay(dayLabel)}
+                                      className={`mt-2 flex items-center gap-2 px-6 py-3 rounded-xl border font-black uppercase tracking-widest text-[10px] transition-all w-full md:w-auto justify-center ${
+                                        gymDayDone[dayLabel]
+                                          ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} border-transparent shadow-lg`
+                                          : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent}`
+                                      }`}
+                                    >
+                                      <CheckCircle2 className="w-4 h-4" />
+                                      {gymDayDone[dayLabel] ? 'Rutina Completada' : 'Marcar Rutina como Hecha'}
+                                    </button>
                                   </div>
 
                                   <div className="space-y-1 text-left">
@@ -3074,11 +3065,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                         return (
                                           <div className="my-8 relative group">
                                             <div className="flex items-center gap-3 px-2 mb-4">
-                                              <div className={`w-1 h-5 ${isTableCompleted || habits[currentDayDate]?.workoutDone ? themeStyles.accentBg : 'bg-zinc-500'} rounded-full`} />
-                                              <h5 className={`text-[11px] font-black uppercase tracking-widest ${isTableCompleted || habits[currentDayDate]?.workoutDone ? themeStyles.accent : themeStyles.textMain}`}>{sectionTitle}</h5>
+                                              <div className={`w-1 h-5 ${isTableCompleted || gymDayDone[dayLabel] ? themeStyles.accentBg : 'bg-zinc-500'} rounded-full`} />
+                                              <h5 className={`text-[11px] font-black uppercase tracking-widest ${isTableCompleted || gymDayDone[dayLabel] ? themeStyles.accent : themeStyles.textMain}`}>{sectionTitle}</h5>
                                             </div>
 
-                                            <div className={`overflow-x-auto rounded-[2.5rem] border ${themeStyles.border} ${profile.theme === 'light' ? 'bg-slate-50 shadow-inner' : 'bg-zinc-950/30'} shadow-sm ${habits[currentDayDate]?.workoutDone ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+                                            <div className={`overflow-x-auto rounded-[2.5rem] border ${themeStyles.border} ${profile.theme === 'light' ? 'bg-slate-50 shadow-inner' : 'bg-zinc-950/30'} shadow-sm ${gymDayDone[dayLabel] ? 'opacity-60 grayscale-[0.5]' : ''}`}>
                                               <table {...props} className="w-full text-left border-collapse" />
                                             </div>
                                           </div>
