@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import { ExerciseDelta } from './components/ExerciseDelta';
 import { analyzeFoodText, chatWithCoach, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList } from './lib/groq';
 import type { ChatMessage, CoachUserContext } from './lib/groq';
+import { useProactiveCoach } from './hooks/useProactiveCoach';
 import { analyzeFoodImage } from './lib/openrouter';
 import type { NutritionalInfo, WeeklyMenu, ShoppingList } from './types/nutrition';
 import { extractIngredients, calcularBMR } from './utils/nutrition';
@@ -891,6 +892,24 @@ export default function App() {
   };
 
   const assistant = getAssistantState();
+
+  const { proactiveMessage, clearMessage } = useProactiveCoach({
+    meals: todaysMeals,
+    habits,
+    weights,
+    goals,
+    profile,
+    todayStr,
+    generatedMenu: generatedMenu ?? undefined,
+    workoutPlan,
+    isDataLoaded,
+  });
+
+  useEffect(() => {
+    if (!proactiveMessage) return;
+    const timer = setTimeout(clearMessage, 8000);
+    return () => clearTimeout(timer);
+  }, [proactiveMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const themeStyles = useMemo(() => {
     const isLight = profile.theme === 'light';
@@ -2061,6 +2080,34 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
       )}
 
       <main className="px-6 pt-6 max-w-md mx-auto space-y-8">
+        {/* Proactive Coach Banner */}
+        <AnimatePresence>
+          {proactiveMessage && (
+            <motion.div
+              key="proactive-banner"
+              initial={{ opacity: 0, y: -12, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.97 }}
+              transition={{ duration: 0.25 }}
+              className={`rounded-2xl border-l-4 ${profile.theme === 'light' ? 'bg-emerald-50 border-emerald-400' : 'bg-emerald-950/30 border-lime-400/70'} p-4 flex items-start gap-3 shadow-sm`}
+            >
+              <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${themeStyles.accentBg}`}>
+                <Bot className={`w-3.5 h-3.5 ${profile.theme === 'light' ? 'text-white' : 'text-zinc-900'}`} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className={`text-[9px] font-black uppercase tracking-widest ${themeStyles.accent}`}>Coach</span>
+                <p className={`text-[13px] leading-snug mt-0.5 ${themeStyles.textMain}`}>{proactiveMessage}</p>
+              </div>
+              <button
+                onClick={clearMessage}
+                className={`${themeStyles.textMuted} hover:${themeStyles.textMain} transition-colors shrink-0 p-1`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Tabs */}
         <div className={`flex flex-nowrap overflow-x-auto hide-scrollbar ${profile.theme === 'light' ? 'bg-slate-200/50' : 'bg-zinc-950/80'} backdrop-blur-md p-1.5 rounded-2xl border ${profile.theme === 'light' ? 'border-slate-300/50' : 'border-white/5'} mb-8 shadow-2xl gap-1`}>
           <button 
