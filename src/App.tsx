@@ -12,6 +12,7 @@ import { analyzeFoodImage } from './lib/openrouter';
 import type { NutritionalInfo, WeeklyMenu, ShoppingList } from './types/nutrition';
 import { extractIngredients, calcularBMR } from './utils/nutrition';
 import { calculateMETCalories, ACTIVITY_OPTIONS } from './utils/metCalculator';
+import { getSuggestions, type ProfileSuggestion } from './utils/profileSuggestions';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer, onSnapshot, deleteField } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -406,6 +407,8 @@ export default function App() {
   
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [profileTab, setProfileTab] = useState<'user' | 'diet' | 'exercise'>('user');
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<string[]>([]);
+  const [appliedSuggestionKey, setAppliedSuggestionKey] = useState<string | null>(null);
   const [editProfile, setEditProfile] = useState<UserProfile>({
     name: '',
     age: 0,
@@ -455,6 +458,22 @@ export default function App() {
   const [appSuccess, setAppSuccess] = useState<string | null>(null);
   const showError = (message: string) => setAppError({ message, timestamp: Date.now() });
   const showSuccess = (message: string) => { setAppSuccess(message); setTimeout(() => setAppSuccess(null), 3000); };
+
+  const activeSuggestionsForField = (field: ProfileSuggestion['field']) =>
+    getSuggestions(editProfile).filter(
+      s => s.field === field && !dismissedSuggestions.includes(`${s.field}:${s.suggestedValue}`)
+    );
+
+  const applySuggestion = (s: ProfileSuggestion) => {
+    const key = `${s.field}:${s.suggestedValue}`;
+    setEditProfile(prev => ({ ...prev, [s.field]: s.suggestedValue }));
+    setAppliedSuggestionKey(key);
+    setTimeout(() => setAppliedSuggestionKey(prev => prev === key ? null : prev), 1500);
+  };
+
+  const dismissSuggestion = (s: ProfileSuggestion) => {
+    setDismissedSuggestions(prev => [...prev, `${s.field}:${s.suggestedValue}`]);
+  };
 
   // Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -1992,7 +2011,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 });
                 const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
                 setEditWeight(latestWeight);
-                setIsGoalModalOpen(true); 
+                setDismissedSuggestions([]);
+                setIsGoalModalOpen(true);
               }}
               className={`relative h-10 px-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
                 profile.age === 0 
@@ -2478,7 +2498,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       });
                       const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
                       setEditWeight(latestWeight);
-                      setIsGoalModalOpen(true); 
+                      setDismissedSuggestions([]);
+                setIsGoalModalOpen(true);
                     }}
                     className={themeStyles.buttonPrimary + " px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-sm"}
                   >
@@ -3605,6 +3626,24 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           ⚠️ Tu objetivo de entrenamiento ({translateGymGoal(editProfile.gymGoal)}) no coincide con tu objetivo nutricional ({editProfile.goal === 'lose' ? 'Perder grasa' : 'Ganar músculo'}). ¿Es correcto?
                         </p>
                       )}
+                      {activeSuggestionsForField('goal').map(s => {
+                        const key = `${s.field}:${s.suggestedValue}`;
+                        return (
+                          <div key={key} className={`mt-2 p-2.5 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${profile.theme === 'light' ? 'bg-indigo-50 border-indigo-200' : 'bg-indigo-950/30 border-indigo-800/40'}`}>
+                            <div className="flex items-start gap-2 mb-2">
+                              <span className="text-[11px] shrink-0">💡</span>
+                              <p className={`text-[10px] leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>{s.reason}</p>
+                            </div>
+                            <div className="flex gap-2 justify-end">
+                              <button type="button" onClick={() => dismissSuggestion(s)} className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
+                              <button type="button" onClick={() => applySuggestion(s)} className={`text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {appliedSuggestionKey?.startsWith('goal:') && (
+                        <p className={`text-[10px] font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">
@@ -3619,6 +3658,24 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         <option value="Vegana">Vegana</option>
                         <option value="Pescetariana">Pescetariana</option>
                       </select>
+                      {activeSuggestionsForField('dietType').map(s => {
+                        const key = `${s.field}:${s.suggestedValue}`;
+                        return (
+                          <div key={key} className={`mt-2 p-2.5 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${profile.theme === 'light' ? 'bg-indigo-50 border-indigo-200' : 'bg-indigo-950/30 border-indigo-800/40'}`}>
+                            <div className="flex items-start gap-2 mb-2">
+                              <span className="text-[11px] shrink-0">💡</span>
+                              <p className={`text-[10px] leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>{s.reason}</p>
+                            </div>
+                            <div className="flex gap-2 justify-end">
+                              <button type="button" onClick={() => dismissSuggestion(s)} className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
+                              <button type="button" onClick={() => applySuggestion(s)} className={`text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {appliedSuggestionKey?.startsWith('dietType:') && (
+                        <p className={`text-[10px] font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">
@@ -3637,6 +3694,24 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         <p className={`text-[10px] font-medium ${profile.theme === 'light' ? 'text-amber-600' : 'text-amber-400'} leading-snug pt-1`}>
                           ⚠️ Una distribución {editProfile.macroDistribution === 'keto' ? 'keto' : 'baja en carbos'} con objetivo de ganar músculo puede dificultar el rendimiento. Considera &quot;Alta en proteína&quot; para este objetivo.
                         </p>
+                      )}
+                      {activeSuggestionsForField('macroDistribution').map(s => {
+                        const key = `${s.field}:${s.suggestedValue}`;
+                        return (
+                          <div key={key} className={`mt-2 p-2.5 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${profile.theme === 'light' ? 'bg-indigo-50 border-indigo-200' : 'bg-indigo-950/30 border-indigo-800/40'}`}>
+                            <div className="flex items-start gap-2 mb-2">
+                              <span className="text-[11px] shrink-0">💡</span>
+                              <p className={`text-[10px] leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>{s.reason}</p>
+                            </div>
+                            <div className="flex gap-2 justify-end">
+                              <button type="button" onClick={() => dismissSuggestion(s)} className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
+                              <button type="button" onClick={() => applySuggestion(s)} className={`text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {appliedSuggestionKey?.startsWith('macroDistribution:') && (
+                        <p className={`text-[10px] font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
                       )}
                     </div>
 
@@ -3773,7 +3848,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                           <div className="space-y-1.5 text-left">
                             <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Objetivo</label>
-                            <select 
+                            <select
                               value={editProfile.gymGoal}
                               onChange={(e) => setEditProfile({...editProfile, gymGoal: e.target.value as any})}
                               className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all appearance-none`}
@@ -3785,6 +3860,29 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               <option value="flexibility">Flexibilidad</option>
                               <option value="maintenance">Mantenimiento</option>
                             </select>
+                            {getSuggestions(editProfile)
+                              .filter(s => ['goal', 'macroDistribution'].includes(s.field) && !dismissedSuggestions.includes(`${s.field}:${s.suggestedValue}`))
+                              .map(s => {
+                                const key = `${s.field}:${s.suggestedValue}`;
+                                const fieldLabel = s.field === 'goal' ? 'Objetivo nutricional' : 'Distribución Macros';
+                                return (
+                                  <div key={key} className={`mt-2 p-2.5 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${profile.theme === 'light' ? 'bg-indigo-50 border-indigo-200' : 'bg-indigo-950/30 border-indigo-800/40'}`}>
+                                    <div className="flex items-start gap-2 mb-2">
+                                      <span className="text-[11px] shrink-0">💡</span>
+                                      <p className={`text-[10px] leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>
+                                        <span className="font-bold">{fieldLabel}:</span> {s.reason}
+                                      </p>
+                                    </div>
+                                    <div className="flex gap-2 justify-end">
+                                      <button type="button" onClick={() => dismissSuggestion(s)} className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
+                                      <button type="button" onClick={() => applySuggestion(s)} className={`text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            {appliedSuggestionKey && ['goal', 'macroDistribution'].some(f => appliedSuggestionKey.startsWith(`${f}:`)) && (
+                              <p className={`text-[10px] font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
+                            )}
                           </div>
                           
                           <div className="space-y-1.5 text-left">
