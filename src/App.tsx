@@ -3600,17 +3600,39 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           <option value="Pescetariana">Pescetariana</option>
                         </select>
                       </div>
-                      <div className="space-y-1.5">
-                        <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Objetivo</label>
-                        <select 
-                          value={editProfile.goal}
-                          onChange={(e) => setEditProfile({...editProfile, goal: e.target.value as any})}
-                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all appearance-none`}
-                        >
-                          <option value="lose">Bajar Peso</option>
-                          <option value="maintain">Mantenimiento</option>
-                          <option value="gain">Ganar Músculo/Volumen</option>
-                        </select>
+                      <div className="space-y-2">
+                        <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Objetivo nutricional</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { value: 'lose',     emoji: '📉', label: 'Perder grasa',   sub: '−400 kcal/día' },
+                            { value: 'maintain', emoji: '⚖️', label: 'Mantener',        sub: 'TDEE exacto'   },
+                            { value: 'gain',     emoji: '📈', label: 'Ganar músculo',  sub: '+300 kcal/día' },
+                          ].map(opt => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setEditProfile({...editProfile, goal: opt.value as any})}
+                              className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-center transition-all ${
+                                editProfile.goal === opt.value
+                                  ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} border-transparent shadow-md`
+                                  : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.textMain}`
+                              }`}
+                            >
+                              <span className="text-base leading-none">{opt.emoji}</span>
+                              <span className="text-[10px] font-black uppercase tracking-tight leading-tight">{opt.label}</span>
+                              <span className="text-[9px] font-medium opacity-70">{opt.sub}</span>
+                            </button>
+                          ))}
+                        </div>
+                        {/* Conflict warning */}
+                        {editProfile.gymEnabled && (
+                          (editProfile.gymGoal === 'fat_loss' && editProfile.goal === 'gain') ||
+                          (editProfile.gymGoal === 'muscle' && editProfile.goal === 'lose')
+                        ) && (
+                          <p className={`text-[10px] font-medium ${profile.theme === 'light' ? 'text-amber-600' : 'text-amber-400'} leading-snug pt-1`}>
+                            ⚠️ Tu objetivo de entrenamiento ({translateGymGoal(editProfile.gymGoal)}) no coincide con tu objetivo nutricional ({editProfile.goal === 'lose' ? 'Perder grasa' : 'Ganar músculo'}). ¿Es correcto?
+                          </p>
+                        )}
                       </div>
                     </div>
 
