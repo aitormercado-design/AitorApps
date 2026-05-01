@@ -478,9 +478,7 @@ export default function App() {
 
   // Chatbot State
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState<{role: 'user' | 'model', parts: {text: string}[]}[]>([
-    { role: 'model', parts: [{ text: '¡Hola! Soy tu entrenador y nutricionista personal. ¿En qué te puedo ayudar hoy?' }] }
-  ]);
+  const [chatMessages, setChatMessages] = useState<{role: 'user' | 'model', parts: {text: string}[]}[]>([]);
   const [currentChatMessage, setCurrentChatMessage] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
 
@@ -536,7 +534,6 @@ export default function App() {
             if (data.generatedMenu) setGeneratedMenu(data.generatedMenu);
             if (data.shoppingList) setShoppingList(data.shoppingList);
             if (data.workoutPlan) setWorkoutPlan(data.workoutPlan);
-            if (data.chatMessages) setChatMessages(data.chatMessages);
             if (data.checkedItems) setCheckedItems(data.checkedItems);
             
             // Load subcollections — meals via real-time listener
@@ -610,7 +607,6 @@ export default function App() {
           if (localStorage.getItem('nutritivapp_workout_plan')) setWorkoutPlan(localStorage.getItem('nutritivapp_workout_plan'));
           if (savedMeals) setMeals(JSON.parse(savedMeals));
           if (savedWeights) setWeights(JSON.parse(savedWeights));
-          if (savedChat) setChatMessages(JSON.parse(savedChat));
           if (savedChecked) setCheckedItems(JSON.parse(savedChecked));
         } catch (e) {
           console.error("Error loading from localStorage:", e);
@@ -703,14 +699,6 @@ export default function App() {
     }
   }, [shoppingList, user, isDataLoaded]);
 
-  useEffect(() => {
-    if (isDataLoaded) {
-      localStorage.setItem('nutritivapp_chat', JSON.stringify(chatMessages));
-      if (user) {
-        setDoc(doc(db, 'users', user.uid), { chatMessages }, { merge: true }).catch(error => handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`));
-      }
-    }
-  }, [chatMessages, user, isDataLoaded]);
 
   useEffect(() => {
     if (isDataLoaded) {
@@ -835,59 +823,17 @@ export default function App() {
     const totalTarget = adjustedGoal;
     const consumedCalories = totals.calories;
     const remainingCalories = totalTarget - consumedCalories;
-    const remainingProtein = goals.protein - totals.protein;
-    
-    let message = "";
-    let subMessage = "";
-    let stateType: 'good' | 'over' | 'under' | 'start' = 'good';
 
-    if (totals.calories === 0) {
-      stateType = 'start';
-      message = "¡Buenos días!";
-      subMessage = "Vamos a por tus objetivos de hoy con energía.";
-    } else if (remainingCalories < -100) {
-      stateType = 'over';
-      message = "Límite superado";
-      subMessage = "Un pequeño desvío es normal. Ajustamos en la próxima comida.";
-    } else if (consumedCalories > goals.calories) {
-      stateType = 'under'; // Reusing 'under' for 'within extra buffer'
-      message = "¡Buen ritmo!";
-      subMessage = "Estás usando el margen extra del ejercicio.";
-    } else if (remainingCalories > 500) {
-      stateType = 'under';
-      message = "¡Buen ritmo!";
-      subMessage = "Aún tienes margen para una comida completa.";
-    } else {
-      stateType = 'good';
-      message = "¡Excelente ritmo!";
-      subMessage = "Estás respetando tus macros perfectamente.";
-    }
+    const stateType: 'over' | 'good' = remainingCalories < -100 ? 'over' : 'good';
 
-    // Add recommendation if today's meals have one
-    const latestTodayMeal = todaysMeals[todaysMeals.length - 1]; // Use last meal for most recent advice
-    const recommendation = latestTodayMeal ? (latestTodayMeal.actionableRecommendation || latestTodayMeal.recommendations) : null;
-    
-    if (recommendation) {
-      const cleanRec = recommendation
-        .replace(new RegExp(`${profile.name}`, 'gi'), '')
-        .replace(/^(sugerencia|consejo|recomendación|tip|coach|sugerencia del coach)[:\s-]*/i, '')
-        .replace(/^[,.\s]+|[,.\s]+$/g, '');
-      subMessage = cleanRec; // Prioritize coach suggestion as per user request
-    } else if (totals.calories > 0) {
-      // Fallback encouraging message
-      subMessage = "¡Sigue así, vas por muy buen camino!";
-    }
-
-    return { 
-      message, 
-      subMessage, 
-      stateType, 
-      remainingCalories, 
+    return {
+      stateType,
+      remainingCalories,
       burnedCalories: profile.gymEnabled ? burnedCalories : 0,
       impliedCalories: profile.gymEnabled ? impliedCalories : 0,
       totalTarget,
       baseTarget: goals.calories,
-      consumedCalories
+      consumedCalories,
     };
   };
 
@@ -1852,9 +1798,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
       setHabits({});
       setGeneratedMenu(null);
       setShoppingList(null);
-      setChatMessages([
-        { role: 'model', parts: [{ text: '¡Hola! Soy tu entrenador y nutricionista personal. ¿En qué te puedo ayudar hoy?' }] }
-      ]);
+      setChatMessages([]);
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -2165,31 +2109,20 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 {evolutionPeriod === 'today' ? (
                   <div className="space-y-6">
                     <div className="space-y-6">
-                      {/* 1. Assistant Header (Calories) - Reordered Top */}
+                      {/* 1. Calories Summary Card */}
                         <div className={`${themeStyles.bento} p-8 relative overflow-hidden group border-b-4 ${assistant.stateType === 'over' ? 'border-amber-500' : (profile.theme === 'light' ? 'border-emerald-500' : themeStyles.accentBorder)} shadow-2xl`}>
                           <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-3xl`} />
                           <div className="relative z-10">
                             <div className="flex flex-col md:flex-row gap-8 items-start md:items-center justify-between">
-                               <div className="space-y-4 max-w-xl text-center md:text-left">
-                                  <div className="flex items-center justify-center md:justify-start gap-2.5">
-                                    <div className={`p-2 ${themeStyles.accentBg} rounded-xl shadow-lg`}>
-                                      <Bot className={`w-4 h-4 ${profile.theme === 'light' ? 'text-white' : 'text-zinc-900'}`} />
-                                    </div>
-                                    <span className={`text-[10px] font-black ${themeStyles.accent} uppercase tracking-[0.25em]`}>Coach NutritivApp</span>
-                                  </div>
-                                  <h3 className={`text-4xl md:text-5xl font-display font-black tracking-tighter leading-none ${themeStyles.textMain}`}>
-                                    {assistant.message}
-                                  </h3>
-                                  <p className={`text-sm ${themeStyles.textMuted} font-medium leading-relaxed italic max-w-md`}>
-                                    "{assistant.subMessage}"
-                                  </p>
+                               <div className="space-y-2 max-w-xl text-center md:text-left">
+                                  <span className={`text-[10px] font-black ${themeStyles.accent} uppercase tracking-[0.25em]`}>Resumen del día</span>
+                                  <p className={`text-sm ${themeStyles.textMuted} font-medium`}>{profile.name ? `Hola, ${profile.name}` : 'Resumen calórico de hoy'}</p>
                                </div>
-                               
                                <div className="flex flex-col items-center md:items-end gap-2 group-hover:scale-105 transition-transform">
                                   <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Margen de hoy</span>
                                   <span className={`text-6xl font-display font-black tracking-tighter ${
-                                    assistant.remainingCalories < 0 ? 'text-amber-500' : 
-                                    (assistant.burnedCalories > assistant.impliedCalories) 
+                                    assistant.remainingCalories < 0 ? 'text-amber-500' :
+                                    (assistant.burnedCalories > assistant.impliedCalories)
                                       ? (profile.theme === 'light' ? 'text-emerald-500' : 'text-lime-400')
                                       : (profile.theme === 'light' ? 'text-emerald-600' : themeStyles.accent)
                                   }`}>
@@ -2841,25 +2774,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             >
               {/* Workout Content */}
               <div className="space-y-6">
-                {/* General Coach Message */}
-                <div className={`${themeStyles.card} p-5 rounded-[2rem] border-l-4 ${profile.theme === 'light' ? 'border-emerald-500' : themeStyles.accentBorder}`}>
-                  <div className="flex gap-4">
-                    <div className={`w-12 h-12 rounded-2xl ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center shrink-0`}>
-                      <Bot className={`w-6 h-6 ${themeStyles.accent}`} />
-                    </div>
-                    <div className="text-left">
-                      <span className={`text-[10px] font-black ${themeStyles.accent} uppercase tracking-widest`}>AI Coach Gym</span>
-                      <p className={`${themeStyles.textMain} text-sm font-medium mt-1 leading-relaxed`}>
-                        {habits[todayStr]?.completedExercises && habits[todayStr].completedExercises.length >= 3 
-                          ? "¡Rutina casi fulminada! Has hecho un trabajo excelente." 
-                          : (habits[todayStr]?.completedExercises && habits[todayStr].completedExercises.length > 0)
-                          ? "¡Genial, sigue así! Ya has completado parte de tu rutina, a terminarla campeón."
-                          : "El momento es ahora. Ponte las zapatillas y revisa tu rutina."}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
                 {workoutPlan && !isGeneratingWorkout && (
                   <div className="flex flex-col gap-4">
                     <div className={`grid grid-cols-2 gap-1.5 ${themeStyles.iconBg} p-1 rounded-xl border ${themeStyles.border} w-full`}>
