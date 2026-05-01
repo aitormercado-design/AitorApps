@@ -50,6 +50,7 @@ export function useProactiveCoach({
   // Refs to track previous values
   const prevMealsCount = useRef(meals.length);
   const prevWorkoutDone = useRef(habits[todayStr]?.workoutDone);
+  const prevWorkoutCalories = useRef(habits[todayStr]?.workoutCalories ?? 0);
   const prevWeightsCount = useRef(weights.length);
   const hasTriggeredDayStart = useRef(false);
 
@@ -74,7 +75,26 @@ export function useProactiveCoach({
     prevMealsCount.current = meals.length;
   }, [meals.length, isDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Event: gym day or full workout marked done
+  // Event: gym plan day marked done (workoutCalories increases)
+  useEffect(() => {
+    if (!isDataLoaded) {
+      prevWorkoutCalories.current = habits[todayStr]?.workoutCalories ?? 0;
+      return;
+    }
+    const current = habits[todayStr]?.workoutCalories ?? 0;
+    if (current > 0 && current > prevWorkoutCalories.current) {
+      triggerMessage({
+        type: 'workout_done',
+        data: {
+          calories: current,
+          focus: habits[todayStr]?.workoutSessionFocus,
+        },
+      });
+    }
+    prevWorkoutCalories.current = current;
+  }, [habits[todayStr]?.workoutCalories, isDataLoaded, todayStr]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Event: legacy workoutDone toggle (handleToggleWorkout)
   useEffect(() => {
     if (!isDataLoaded) {
       prevWorkoutDone.current = habits[todayStr]?.workoutDone;

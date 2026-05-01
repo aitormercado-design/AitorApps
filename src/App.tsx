@@ -853,7 +853,7 @@ export default function App() {
 
   useEffect(() => {
     if (!proactiveMessage) return;
-    const timer = setTimeout(clearMessage, 8000);
+    const timer = setTimeout(clearMessage, 10000);
     return () => clearTimeout(timer);
   }, [proactiveMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
