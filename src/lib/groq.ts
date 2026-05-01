@@ -45,15 +45,23 @@ function friendlyGroqError(error: any, fallback: string): Error {
   return new Error(fallback);
 }
 
-export type CoachUserContext = {
-  profile: any;
-  goals: { calories: number; protein: number; carbs: number; fat: number };
-  mealsToday: any[];
-  caloriesConsumedToday: number;
-  burnedToday: number;
-};
-
-export type ChatMessage = { role: 'user' | 'assistant'; content: string };
+export async function streamCompletion(prompt: string, onChunk: (text: string) => void): Promise<void> {
+  try {
+    const stream = await groq.chat.completions.create({
+      model: MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 2048,
+      stream: true,
+    });
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content ?? '';
+      if (delta) onChunk(delta);
+    }
+  } catch (error: any) {
+    throw friendlyGroqError(error, 'Error al procesar la solicitud. Inténtalo de nuevo.');
+  }
+}
 
 const gymGoalLabels: Record<string, string> = {
   muscle: 'Ganar músculo',
@@ -70,75 +78,6 @@ const goalLabels: Record<string, string> = {
   gain: 'Ganar músculo',
 };
 
-export async function chatWithCoach(
-  conversationHistory: ChatMessage[],
-  userContext: CoachUserContext,
-  onChunk: (text: string) => void
-): Promise<void> {
-  const { profile, goals, mealsToday, caloriesConsumedToday, burnedToday } = userContext;
-  const currentWeight = profile.currentWeight ?? profile.weight ?? 'N/A';
-  const consumedProtein = mealsToday.reduce((s: number, m: any) => s + (m.protein ?? 0), 0);
-  const consumedCarbs   = mealsToday.reduce((s: number, m: any) => s + (m.carbs   ?? 0), 0);
-  const consumedFat     = mealsToday.reduce((s: number, m: any) => s + (m.fat     ?? 0), 0);
-
-  const mealsDetail = mealsToday.length > 0
-    ? mealsToday.map((m: any) =>
-        `${m.foodName} (${Math.round(m.calories)}kcal, P:${Math.round(m.protein)}g C:${Math.round(m.carbs)}g G:${Math.round(m.fat)}g)`
-      ).join(' | ')
-    : 'Ninguna registrada aún';
-
-  const alergias = Array.isArray(profile.allergies) && profile.allergies.length > 0
-    ? profile.allergies.join(', ')
-    : 'Ninguna';
-
-  const netBalance = Math.round(caloriesConsumedToday - burnedToday);
-
-  const systemPrompt = `Eres un auténtico experto en fitness, fisiología del ejercicio y nutrición clínica. Actúas como un coach personal motivador que conoce al usuario en profundidad.
-
-Contexto del usuario:
-- Nombre: ${profile.name || 'Usuario'}
-- Edad: ${profile.age}, Peso: ${currentWeight}kg, Altura: ${profile.height}cm, Género: ${profile.gender}
-- Objetivo nutricional: ${goalLabels[profile.goal] ?? profile.goal}
-- Objetivo de entrenamiento: ${gymGoalLabels[profile.gymGoal] ?? profile.gymGoal ?? 'No especificado'}, ${profile.trainingDaysPerWeek ?? 0} días/semana
-- Tipo de dieta: ${profile.dietType || 'Sin restricción'}, Alergias: ${alergias}${profile.diabetesType && profile.diabetesType !== 'none' ? `\n- Diabetes tipo ${profile.diabetesType} — prioriza estabilidad glucémica` : ''}
-- Calorías objetivo: ${goals.calories} kcal (P: ${goals.protein}g, C: ${goals.carbs}g, G: ${goals.fat}g)
-- Consumido hoy: ${Math.round(caloriesConsumedToday)} kcal (P: ${Math.round(consumedProtein)}g, C: ${Math.round(consumedCarbs)}g, G: ${Math.round(consumedFat)}g)
-- Quemadas hoy: ${Math.round(burnedToday)} kcal
-- Balance neto: ${netBalance >= 0 ? '+' : ''}${netBalance} kcal ${netBalance < 0 ? '(déficit — favorable para perder grasa)' : '(superávit — favorable para ganar músculo)'}
-- Faltan: ${Math.round(Math.max(0, goals.calories - caloriesConsumedToday))} kcal para el objetivo de hoy
-- Comidas de hoy: ${mealsDetail}
-
-Instrucciones:
-1. Usa SIEMPRE los datos reales del contexto. Nunca des consejos genéricos.
-2. Si pregunta qué puede comer, calcula las kcal y macros restantes y sugiere opciones concretas compatibles con su dieta y alergias.
-3. Si ya cumplió el objetivo calórico, díselo claramente.
-4. Máximo 3 párrafos por respuesta.
-5. Termina siempre con una acción concreta.
-6. Tono: directo y motivador, como un entrenador personal que te conoce bien.`;
-
-  const recentHistory = conversationHistory.slice(-8);
-
-  try {
-    const stream = await groq.chat.completions.create({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...recentHistory,
-      ],
-      temperature: 0.8,
-      max_tokens: 1024,
-      stream: true,
-    });
-
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content ?? '';
-      if (delta) onChunk(delta);
-    }
-  } catch (error: any) {
-    console.error('Error in coach chat:', error);
-    throw friendlyGroqError(error, 'Hubo un error de conexión. Inténtalo de nuevo.');
-  }
-}
 
 export interface ProactiveEvent {
   type: 'meal_added' | 'workout_done' | 'workout_exercise' | 'free_workout' | 'weight_updated' | 'day_start' | 'goal_90pct' | 'goal_exceeded';
@@ -164,7 +103,7 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
     meal_added: `El usuario acaba de registrar: ${event.data.meal?.foodName} (${Math.round(event.data.meal?.calories ?? 0)}kcal). Lleva ${Math.round(event.data.totalCalories)}kcal de ${goals.calories}kcal objetivo. Comenta brevemente y dile qué le queda.`,
     workout_done: `El usuario acaba de completar su rutina de ${event.data.focus ?? 'entrenamiento'} quemando ${event.data.calories ?? 0}kcal. Felicítale y dale un consejo de recuperación.`,
     workout_exercise: `El usuario ha completado un ejercicio de su rutina. Anímale brevemente.`,
-    free_workout: `El usuario ha registrado un entrenamiento libre. Comenta brevemente.`,
+    free_workout: `El usuario ha registrado un entrenamiento libre: ${event.data.activity ?? 'ejercicio'} durante ${event.data.durationMinutes ?? '?'} minutos quemando ${Math.round(event.data.calories ?? 0)}kcal. Felicítale brevemente.`,
     weight_updated: `El usuario ha registrado su peso. Peso actual: ${event.data.current}kg. ${event.data.previous ? `Cambio: ${event.data.diff > 0 ? '+' : ''}${Number(event.data.diff).toFixed(1)}kg` : 'Es su primer registro de peso.'}. Comenta la tendencia de forma motivadora.`,
     goal_90pct: `El usuario está al 90% de su objetivo calórico. Le quedan ${Math.round(event.data.remaining ?? 0)}kcal. Avísale y sugiere qué puede comer con lo que le queda.`,
     goal_exceeded: `El usuario ha superado su objetivo calórico en ${Math.round(event.data.excess ?? 0)}kcal. Mensaje tranquilizador, sin dramatizar, con consejo práctico para el resto del día.`,

@@ -113,6 +113,27 @@ export function useProactiveCoach({
     prevWorkoutDone.current = current;
   }, [habits[todayStr]?.workoutDone, isDataLoaded, todayStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Event: manual/free workout saved
+  const prevManualCalories = useRef(habits[todayStr]?.manualWorkout?.caloriesBurned ?? 0);
+  useEffect(() => {
+    if (!isDataLoaded) {
+      prevManualCalories.current = habits[todayStr]?.manualWorkout?.caloriesBurned ?? 0;
+      return;
+    }
+    const current = habits[todayStr]?.manualWorkout?.caloriesBurned ?? 0;
+    if (current > 0 && current !== prevManualCalories.current) {
+      triggerMessage({
+        type: 'free_workout',
+        data: {
+          activity: habits[todayStr]?.manualWorkout?.activity,
+          calories: current,
+          durationMinutes: habits[todayStr]?.manualWorkout?.durationMinutes,
+        },
+      });
+    }
+    prevManualCalories.current = current;
+  }, [habits[todayStr]?.manualWorkout?.caloriesBurned, isDataLoaded, todayStr]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Event: new weight entry
   useEffect(() => {
     if (!isDataLoaded) {

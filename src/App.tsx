@@ -1,13 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, MessageCircle, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, Banana, User as UserIcon, Pizza, Save, Edit2, Trash2, Home } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, Banana, User as UserIcon, Pizza, Save, Edit2, Trash2, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
 import { useCooldown } from './hooks/useCooldown';
 import remarkGfm from 'remark-gfm';
 import { ExerciseDelta } from './components/ExerciseDelta';
-import { analyzeFoodText, chatWithCoach, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList } from './lib/groq';
-import type { ChatMessage, CoachUserContext } from './lib/groq';
+import { analyzeFoodText, streamCompletion, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList } from './lib/groq';
 import { useProactiveCoach } from './hooks/useProactiveCoach';
 import { analyzeFoodImage } from './lib/openrouter';
 import type { NutritionalInfo, WeeklyMenu, ShoppingList } from './types/nutrition';
@@ -445,7 +444,6 @@ export default function App() {
   const shoppingCooldown = useCooldown(30);
   const textFoodCooldown = useCooldown(8);
   const imageFoodCooldown = useCooldown(8);
-  const chatCooldown     = useCooldown(3);
   const mealsListenerRef = useRef<(() => void) | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuTabsRef = useRef<HTMLDivElement>(null);
@@ -477,10 +475,6 @@ export default function App() {
   };
 
   // Chatbot State
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState<{role: 'user' | 'model', parts: {text: string}[]}[]>([]);
-  const [currentChatMessage, setCurrentChatMessage] = useState('');
-  const [isChatLoading, setIsChatLoading] = useState(false);
 
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
@@ -1350,56 +1344,6 @@ export default function App() {
     }
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentChatMessage.trim()) return;
-
-    const newUserMessage = currentChatMessage;
-    const newMessages = [...chatMessages, { role: 'user' as const, parts: [{ text: newUserMessage }] }];
-    setChatMessages([...newMessages, { role: 'model' as const, parts: [{ text: '' }] }]);
-    setCurrentChatMessage('');
-    setIsChatLoading(true);
-
-    try {
-      const conversationHistory: ChatMessage[] = newMessages.map(m => ({
-        role: m.role === 'model' ? 'assistant' : 'user',
-        content: m.parts.map(p => p.text).join(''),
-      }));
-
-      const currentWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
-      const userContext: CoachUserContext = {
-        profile: { ...profile, currentWeight },
-        goals,
-        mealsToday: todaysMeals,
-        caloriesConsumedToday: totals.calories,
-        burnedToday: assistant.burnedCalories,
-      };
-
-      await chatWithCoach(conversationHistory, userContext, (chunk) => {
-        setChatMessages(prev => {
-          const updated = [...prev];
-          const last = updated[updated.length - 1];
-          if (last?.role === 'model') {
-            updated[updated.length - 1] = { ...last, parts: [{ text: last.parts[0].text + chunk }] };
-          }
-          return updated;
-        });
-      });
-    } catch (error) {
-      console.error('Chat error:', error);
-      setChatMessages(prev => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last?.role === 'model' && last.parts[0].text === '') {
-          updated[updated.length - 1] = { role: 'model', parts: [{ text: 'Hubo un error de conexión. Inténtalo de nuevo.' }] };
-          return updated;
-        }
-        return [...prev, { role: 'model', parts: [{ text: 'Hubo un error de conexión. Inténtalo de nuevo.' }] }];
-      });
-    } finally {
-      setIsChatLoading(false);
-    }
-  };
 
   const handleSaveGoal = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1454,6 +1398,13 @@ export default function App() {
     // Auto-regenerate workout plan if gym relevant fields changed
     if (editProfile.gymEnabled && (gymChanged || !workoutPlan)) {
       handleGenerateWorkout(editProfile);
+    }
+
+    // One-time migration: remove persisted chatMessages from Firestore
+    if (user) {
+      import('firebase/firestore').then(({ updateDoc, deleteField: df }) => {
+        updateDoc(doc(db, 'users', user.uid), { chatMessages: df() }).catch(() => {});
+      });
     }
 
     setIsGoalModalOpen(false);
@@ -1656,12 +1607,7 @@ ${tableContent}
 Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero con ejercicios diferentes o variaciones que mantengan el estímulo. NO incluyas ninguna explicación, solo la tabla Markdown.`;
 
       let result = '';
-      const currentWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
-      await chatWithCoach(
-        [{ role: 'user', content: prompt }],
-        { profile: { ...profile, currentWeight }, goals, mealsToday: todaysMeals, caloriesConsumedToday: totals.calories, burnedToday: 0 },
-        (chunk) => { result += chunk; }
-      );
+      await streamCompletion(prompt, (chunk) => { result += chunk; });
       if (result) {
         setWorkoutPlan(prev => prev ? prev.replace(tableContent, result) : result);
       }
@@ -1798,7 +1744,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
       setHabits({});
       setGeneratedMenu(null);
       setShoppingList(null);
-      setChatMessages([]);
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -3907,81 +3852,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         )}
       </AnimatePresence>
 
-      {/* Chatbot FAB */}
-      <button
-        onClick={() => setIsChatOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-indigo-500 hover:bg-indigo-400 text-white rounded-full shadow-[0_0_20px_rgba(99,102,241,0.4)] flex items-center justify-center transition-transform hover:scale-110 active:scale-95 z-40"
-      >
-        <MessageCircle className="w-6 h-6" />
-      </button>
-
-      {/* Chatbot Modal */}
-      <AnimatePresence>
-        {isChatOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed inset-x-4 bottom-24 top-24 md:inset-auto md:bottom-24 md:right-6 md:w-96 md:h-[600px] bg-zinc-900 border border-zinc-800 rounded-3xl shadow-2xl z-50 flex flex-col overflow-hidden"
-          >
-            <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-indigo-500/20 rounded-full flex items-center justify-center border border-indigo-500/30">
-                  <Bot className="w-5 h-5 text-indigo-400" />
-                </div>
-                <div>
-                  <h3 className="text-white font-bold text-sm">Coach NutritivApp</h3>
-                  <p className="text-zinc-500 text-[10px] uppercase tracking-widest">En línea 24/7</p>
-                </div>
-              </div>
-              <button onClick={() => setIsChatOpen(false)} className="text-zinc-500 hover:text-white transition-colors p-2">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {isChatLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-zinc-800 text-zinc-400 rounded-2xl rounded-bl-sm p-3 flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-xs">Escribiendo...</span>
-                  </div>
-                </div>
-              )}
-              {[...chatMessages].reverse().map((msg, i) => (
-                <div key={chatMessages.length - 1 - i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] rounded-2xl p-3 text-sm ${msg.role === 'user' ? 'bg-indigo-500 text-white rounded-br-sm' : 'bg-zinc-800 text-zinc-200 rounded-bl-sm'}`}>
-                    <div className="prose prose-invert prose-sm max-w-none prose-p:leading-snug prose-p:m-0 prose-ul:m-0 prose-li:m-0">
-                      <Markdown remarkPlugins={[remarkGfm]}>
-                        {msg.parts[0].text}
-                      </Markdown>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <form onSubmit={(e) => { chatCooldown.start(); handleSendMessage(e); }} className="p-4 border-t border-zinc-800 bg-zinc-950/50 flex gap-2">
-              <input
-                type="text"
-                value={currentChatMessage}
-                onChange={(e) => setCurrentChatMessage(e.target.value)}
-                placeholder="Pregúntame lo que quieras..."
-                className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
-              />
-              <button
-                type="submit"
-                disabled={!currentChatMessage.trim() || isChatLoading || chatCooldown.isActive}
-                className="bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white p-2 rounded-xl transition-colors shrink-0 flex items-center justify-center w-10 h-10"
-              >
-                {chatCooldown.isActive
-                  ? <span className="text-xs font-mono font-bold">{chatCooldown.remaining}</span>
-                  : <Send className="w-4 h-4" />}
-              </button>
-            </form>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Edit Meal Modal */}
       <AnimatePresence>
