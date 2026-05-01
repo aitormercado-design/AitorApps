@@ -3600,31 +3600,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           <option value="Pescetariana">Pescetariana</option>
                         </select>
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Objetivo nutricional</label>
-                        <div className="grid grid-cols-3 gap-2">
-                          {[
-                            { value: 'lose',     emoji: '📉', label: 'Perder grasa',   sub: '−400 kcal/día' },
-                            { value: 'maintain', emoji: '⚖️', label: 'Mantener',        sub: 'TDEE exacto'   },
-                            { value: 'gain',     emoji: '📈', label: 'Ganar músculo',  sub: '+300 kcal/día' },
-                          ].map(opt => (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => setEditProfile({...editProfile, goal: opt.value as any})}
-                              className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-center transition-all ${
-                                editProfile.goal === opt.value
-                                  ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} border-transparent shadow-md`
-                                  : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.textMain}`
-                              }`}
-                            >
-                              <span className="text-base leading-none">{opt.emoji}</span>
-                              <span className="text-[10px] font-black uppercase tracking-tight leading-tight">{opt.label}</span>
-                              <span className="text-[9px] font-medium opacity-70">{opt.sub}</span>
-                            </button>
-                          ))}
-                        </div>
-                        {/* Conflict warning */}
+                        <select
+                          value={editProfile.goal}
+                          onChange={(e) => setEditProfile({...editProfile, goal: e.target.value as any})}
+                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all appearance-none`}
+                        >
+                          <option value="lose">Perder grasa (−400 kcal/día)</option>
+                          <option value="maintain">Mantener peso (TDEE exacto)</option>
+                          <option value="gain">Ganar músculo (+300 kcal/día)</option>
+                        </select>
                         {editProfile.gymEnabled && (
                           (editProfile.gymGoal === 'fat_loss' && editProfile.goal === 'gain') ||
                           (editProfile.gymGoal === 'muscle' && editProfile.goal === 'lose')
@@ -3689,6 +3675,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           <option value="high_protein">Alta en Proteína</option>
                           <option value="keto">Keto</option>
                         </select>
+                        {(['keto', 'low_carb'] as const).includes(editProfile.macroDistribution) && editProfile.goal === 'gain' && (
+                          <p className={`text-[10px] font-medium ${profile.theme === 'light' ? 'text-amber-600' : 'text-amber-400'} leading-snug pt-1`}>
+                            ⚠️ Una distribución {editProfile.macroDistribution === 'keto' ? 'keto' : 'baja en carbos'} con objetivo de ganar músculo puede dificultar el rendimiento. Considera &quot;Alta en proteína&quot; para este objetivo.
+                          </p>
+                        )}
                       </div>
                     </div>
 

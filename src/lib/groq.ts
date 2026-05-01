@@ -211,7 +211,8 @@ PERFIL CALCULADO (no recalcules esto, úsalo tal cual):
 
 DATOS DEL USUARIO:
 - Edad: ${profile.age} | Sexo: ${profile.gender} | Peso: ${currentWeight}kg | Altura: ${profile.height}cm
-- Objetivo: ${profile.goal}
+- Objetivo: ${profile.goal === 'lose' ? 'Perder grasa' : profile.goal === 'gain' ? 'Ganar músculo' : 'Mantener peso'}
+- Tipo de dieta: ${profile.dietType || 'Normal'}
 - Días de gimnasio esta semana: ${profile.trainingDaysPerWeek} (distribúyelos a tu criterio)
 - Condiciones médicas: ${profile.diabetesType !== 'none' ? `Diabetes tipo ${profile.diabetesType}` : 'Ninguna'}
 - Alergias absolutas: ${allergiesStr}
@@ -235,6 +236,14 @@ COMIDA LIBRE:
 
 Reglas nutricionales:
 - Alergias: exclusión absoluta, sin excepciones.${diabetesRule ? '\n' + diabetesRule : ''}
+- Tipo de dieta — respetar estrictamente:
+  Normal: sin restricciones
+  Vegetariana: sin carne ni pescado; sí lácteos y huevos
+  Vegana: sin ningún producto animal (carne, pescado, lácteos, huevos, miel)
+  Pescetariana: sin carne; sí pescado, marisco, lácteos y huevos
+  Keto: máximo 5% carbohidratos, 70% grasas saludables
+  Baja en carbohidratos: máximo 20% carbos
+  Alta en proteína: mínimo 40% proteína
 - Calorías diarias: entre 97%-103% del objetivo. Macros con ±5% de tolerancia.
 - Días de gimnasio: proteína +15%, carbohidratos reducidos equivalente.${freeMealRule ? '\n' + freeMealRule : ''}
 - Genera exactamente 7 días en orden Lunes→Domingo, cada día con exactamente 4 comidas: Desayuno, Almuerzo, Merienda, Cena.
