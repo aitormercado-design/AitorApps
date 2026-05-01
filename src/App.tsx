@@ -3254,6 +3254,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
       </main>
 
       <input
+        type="file"
         accept="image/*"
         capture="environment"
         ref={fileInputRef}
