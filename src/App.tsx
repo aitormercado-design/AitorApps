@@ -3586,40 +3586,58 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                 {profileTab === 'diet' && (
                   <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Tipo de Dieta</label>
-                        <select 
-                          value={editProfile.dietType}
-                          onChange={(e) => setEditProfile({...editProfile, dietType: e.target.value})}
-                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all appearance-none`}
-                        >
-                          <option value="Normal">Normal</option>
-                          <option value="Vegetariana">Vegetariana</option>
-                          <option value="Vegana">Vegana</option>
-                          <option value="Pescetariana">Pescetariana</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Objetivo nutricional</label>
-                        <select
-                          value={editProfile.goal}
-                          onChange={(e) => setEditProfile({...editProfile, goal: e.target.value as any})}
-                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all appearance-none`}
-                        >
-                          <option value="lose">Perder grasa (−400 kcal/día)</option>
-                          <option value="maintain">Mantener peso (TDEE exacto)</option>
-                          <option value="gain">Ganar músculo (+300 kcal/día)</option>
-                        </select>
-                        {editProfile.gymEnabled && (
-                          (editProfile.gymGoal === 'fat_loss' && editProfile.goal === 'gain') ||
-                          (editProfile.gymGoal === 'muscle' && editProfile.goal === 'lose')
-                        ) && (
-                          <p className={`text-[10px] font-medium ${profile.theme === 'light' ? 'text-amber-600' : 'text-amber-400'} leading-snug pt-1`}>
-                            ⚠️ Tu objetivo de entrenamiento ({translateGymGoal(editProfile.gymGoal)}) no coincide con tu objetivo nutricional ({editProfile.goal === 'lose' ? 'Perder grasa' : 'Ganar músculo'}). ¿Es correcto?
-                          </p>
-                        )}
-                      </div>
+                    <div className="space-y-1.5">
+                      <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Objetivo nutricional</label>
+                      <select
+                        value={editProfile.goal}
+                        onChange={(e) => setEditProfile({...editProfile, goal: e.target.value as any})}
+                        className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all appearance-none`}
+                      >
+                        <option value="lose">Perder grasa (−400 kcal/día)</option>
+                        <option value="maintain">Mantener peso (TDEE exacto)</option>
+                        <option value="gain">Ganar músculo (+300 kcal/día)</option>
+                      </select>
+                      {editProfile.gymEnabled && (
+                        (editProfile.gymGoal === 'fat_loss' && editProfile.goal === 'gain') ||
+                        (editProfile.gymGoal === 'muscle' && editProfile.goal === 'lose')
+                      ) && (
+                        <p className={`text-[10px] font-medium ${profile.theme === 'light' ? 'text-amber-600' : 'text-amber-400'} leading-snug pt-1`}>
+                          ⚠️ Tu objetivo de entrenamiento ({translateGymGoal(editProfile.gymGoal)}) no coincide con tu objetivo nutricional ({editProfile.goal === 'lose' ? 'Perder grasa' : 'Ganar músculo'}). ¿Es correcto?
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Tipo de Dieta</label>
+                      <select
+                        value={editProfile.dietType}
+                        onChange={(e) => setEditProfile({...editProfile, dietType: e.target.value})}
+                        className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all appearance-none`}
+                      >
+                        <option value="Normal">Normal</option>
+                        <option value="Vegetariana">Vegetariana</option>
+                        <option value="Vegana">Vegana</option>
+                        <option value="Pescetariana">Pescetariana</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className={`block text-[10px] font-bold uppercase tracking-widest text-left ${themeStyles.textMuted}`}>Distribución Macros</label>
+                      <select
+                        value={editProfile.macroDistribution}
+                        onChange={(e) => setEditProfile({...editProfile, macroDistribution: e.target.value as any})}
+                        className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-xs focus:outline-none transition-colors appearance-none`}
+                      >
+                        <option value="balanced">Equilibrada</option>
+                        <option value="low_carb">Baja en Carbohidratos</option>
+                        <option value="high_protein">Alta en Proteína</option>
+                        <option value="keto">Keto</option>
+                      </select>
+                      {(['keto', 'low_carb'] as const).includes(editProfile.macroDistribution) && editProfile.goal === 'gain' && (
+                        <p className={`text-[10px] font-medium ${profile.theme === 'light' ? 'text-amber-600' : 'text-amber-400'} leading-snug pt-1`}>
+                          ⚠️ Una distribución {editProfile.macroDistribution === 'keto' ? 'keto' : 'baja en carbos'} con objetivo de ganar músculo puede dificultar el rendimiento. Considera &quot;Alta en proteína&quot; para este objetivo.
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-3">
@@ -3634,7 +3652,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               const exists = editProfile.allergies.includes(lid);
                               setEditProfile({
                                 ...editProfile,
-                                allergies: exists 
+                                allergies: exists
                                   ? editProfile.allergies.filter(a => a !== lid)
                                   : [...editProfile.allergies, lid]
                               });
@@ -3652,35 +3670,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       </div>
 
                       {editProfile.allergies.includes('otros') && (
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           value={editProfile.otherAllergies}
                           onChange={(e) => setEditProfile({...editProfile, otherAllergies: e.target.value})}
                           className={`w-full ${themeStyles.input} rounded-xl px-3 py-2 text-xs focus:outline-none transition-colors animate-in fade-in`}
                           placeholder="Especifica (ej. Melocotón, Fresas...)"
                         />
                       )}
-                    </div>
-
-                    <div className="space-y-4 mt-2">
-                      <div className="space-y-1.5">
-                        <label className={`block text-[10px] font-bold uppercase tracking-widest text-left ${themeStyles.textMuted}`}>Distribución Macros</label>
-                        <select 
-                          value={editProfile.macroDistribution}
-                          onChange={(e) => setEditProfile({...editProfile, macroDistribution: e.target.value as any})}
-                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-xs focus:outline-none transition-colors appearance-none`}
-                        >
-                          <option value="balanced">Equilibrada</option>
-                          <option value="low_carb">Baja en Carbohidratos</option>
-                          <option value="high_protein">Alta en Proteína</option>
-                          <option value="keto">Keto</option>
-                        </select>
-                        {(['keto', 'low_carb'] as const).includes(editProfile.macroDistribution) && editProfile.goal === 'gain' && (
-                          <p className={`text-[10px] font-medium ${profile.theme === 'light' ? 'text-amber-600' : 'text-amber-400'} leading-snug pt-1`}>
-                            ⚠️ Una distribución {editProfile.macroDistribution === 'keto' ? 'keto' : 'baja en carbos'} con objetivo de ganar músculo puede dificultar el rendimiento. Considera &quot;Alta en proteína&quot; para este objetivo.
-                          </p>
-                        )}
-                      </div>
                     </div>
 
                     <div className={`p-4 rounded-2xl border space-y-4 shadow-inner ${profile.theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-zinc-950 border-white/5'}`}>
