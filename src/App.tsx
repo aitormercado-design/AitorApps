@@ -3979,8 +3979,16 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {chatMessages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {isChatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-zinc-800 text-zinc-400 rounded-2xl rounded-bl-sm p-3 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-xs">Escribiendo...</span>
+                  </div>
+                </div>
+              )}
+              {[...chatMessages].reverse().map((msg, i) => (
+                <div key={chatMessages.length - 1 - i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] rounded-2xl p-3 text-sm ${msg.role === 'user' ? 'bg-indigo-500 text-white rounded-br-sm' : 'bg-zinc-800 text-zinc-200 rounded-bl-sm'}`}>
                     <div className="prose prose-invert prose-sm max-w-none prose-p:leading-snug prose-p:m-0 prose-ul:m-0 prose-li:m-0">
                       <Markdown remarkPlugins={[remarkGfm]}>
@@ -3990,14 +3998,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   </div>
                 </div>
               ))}
-              {isChatLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-zinc-800 text-zinc-400 rounded-2xl rounded-bl-sm p-3 flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-xs">Escribiendo...</span>
-                  </div>
-                </div>
-              )}
             </div>
 
             <form onSubmit={(e) => { chatCooldown.start(); handleSendMessage(e); }} className="p-4 border-t border-zinc-800 bg-zinc-950/50 flex gap-2">
