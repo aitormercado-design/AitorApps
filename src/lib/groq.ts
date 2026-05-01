@@ -140,6 +140,54 @@ Instrucciones:
   }
 }
 
+export interface ProactiveEvent {
+  type: 'meal_added' | 'workout_done' | 'workout_exercise' | 'free_workout' | 'weight_updated' | 'day_start' | 'goal_90pct' | 'goal_exceeded';
+  data: Record<string, any>;
+}
+
+export interface CoachContext {
+  profile: any;
+  goals: { calories: number; protein: number; carbs: number; fat: number };
+  meals: any[];
+  habits: Record<string, any>;
+  weights: any[];
+  generatedMenu?: any;
+  workoutPlan?: string | null;
+}
+
+export async function generateProactiveMessage(event: ProactiveEvent, context: CoachContext): Promise<string> {
+  const { profile, goals } = context;
+  const dayName = new Date().toLocaleDateString('es-ES', { weekday: 'long' });
+
+  const eventPrompts: Record<ProactiveEvent['type'], string> = {
+    day_start: `El usuario acaba de abrir la app. Es ${dayName}. Salúdale con su nombre (${profile.name || 'usuario'}), dile qué tiene hoy (objetivo: ${goals.calories}kcal) y una motivación breve.`,
+    meal_added: `El usuario acaba de registrar: ${event.data.meal?.foodName} (${Math.round(event.data.meal?.calories ?? 0)}kcal). Lleva ${Math.round(event.data.totalCalories)}kcal de ${goals.calories}kcal objetivo. Comenta brevemente y dile qué le queda.`,
+    workout_done: `El usuario acaba de completar su rutina de ${event.data.focus ?? 'entrenamiento'} quemando ${event.data.calories ?? 0}kcal. Felicítale y dale un consejo de recuperación.`,
+    workout_exercise: `El usuario ha completado un ejercicio de su rutina. Anímale brevemente.`,
+    free_workout: `El usuario ha registrado un entrenamiento libre. Comenta brevemente.`,
+    weight_updated: `El usuario ha registrado su peso. Peso actual: ${event.data.current}kg. ${event.data.previous ? `Cambio: ${event.data.diff > 0 ? '+' : ''}${Number(event.data.diff).toFixed(1)}kg` : 'Es su primer registro de peso.'}. Comenta la tendencia de forma motivadora.`,
+    goal_90pct: `El usuario está al 90% de su objetivo calórico. Le quedan ${Math.round(event.data.remaining ?? 0)}kcal. Avísale y sugiere qué puede comer con lo que le queda.`,
+    goal_exceeded: `El usuario ha superado su objetivo calórico en ${Math.round(event.data.excess ?? 0)}kcal. Mensaje tranquilizador, sin dramatizar, con consejo práctico para el resto del día.`,
+  };
+
+  const systemPrompt = `Eres el coach personal de ${profile.name || 'usuario'}. Conoces su perfil y su plan de la semana. Responde en máximo 2 frases. Tono directo y motivador. NUNCA uses saludos largos ni despedidas. Solo el mensaje esencial.`;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: eventPrompts[event.type] },
+      ],
+      temperature: 0.8,
+      max_tokens: 150,
+    });
+    return completion.choices[0].message.content ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export async function analyzeFoodText(foodDescription: string, contextStr?: string): Promise<NutritionalInfo> {
   const systemPrompt = `Eres un experto nutricionista deportivo y coach empático y motivador. Estima con precisión el contenido nutricional del alimento descrito. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él.
 
