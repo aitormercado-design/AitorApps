@@ -50,44 +50,80 @@ export type CoachUserContext = {
   goals: { calories: number; protein: number; carbs: number; fat: number };
   mealsToday: any[];
   caloriesConsumedToday: number;
+  burnedToday: number;
 };
 
 export type ChatMessage = { role: 'user' | 'assistant'; content: string };
+
+const gymGoalLabels: Record<string, string> = {
+  muscle: 'Ganar músculo',
+  strength: 'Fuerza',
+  cardio: 'Resistencia/Cardio',
+  fat_loss: 'Pérdida de grasa',
+  flexibility: 'Flexibilidad',
+  maintenance: 'Mantenimiento',
+};
+
+const goalLabels: Record<string, string> = {
+  lose: 'Perder grasa',
+  maintain: 'Mantener peso',
+  gain: 'Ganar músculo',
+};
 
 export async function chatWithCoach(
   conversationHistory: ChatMessage[],
   userContext: CoachUserContext,
   onChunk: (text: string) => void
 ): Promise<void> {
-  const { profile, goals, mealsToday, caloriesConsumedToday } = userContext;
+  const { profile, goals, mealsToday, caloriesConsumedToday, burnedToday } = userContext;
   const currentWeight = profile.currentWeight ?? profile.weight ?? 'N/A';
-  const consumedProtein  = mealsToday.reduce((s: number, m: any) => s + (m.protein  ?? 0), 0);
-  const consumedCarbs    = mealsToday.reduce((s: number, m: any) => s + (m.carbs    ?? 0), 0);
-  const consumedFat      = mealsToday.reduce((s: number, m: any) => s + (m.fat      ?? 0), 0);
+  const consumedProtein = mealsToday.reduce((s: number, m: any) => s + (m.protein ?? 0), 0);
+  const consumedCarbs   = mealsToday.reduce((s: number, m: any) => s + (m.carbs   ?? 0), 0);
+  const consumedFat     = mealsToday.reduce((s: number, m: any) => s + (m.fat     ?? 0), 0);
 
-  const systemPrompt = `Eres un auténtico experto en fitness, fisiología del ejercicio y nutrición clínica (diabetes). Actúas como un coach motivador 24/7.
+  const mealsDetail = mealsToday.length > 0
+    ? mealsToday.map((m: any) =>
+        `${m.foodName} (${Math.round(m.calories)}kcal, P:${Math.round(m.protein)}g C:${Math.round(m.carbs)}g G:${Math.round(m.fat)}g)`
+      ).join(' | ')
+    : 'Ninguna registrada aún';
+
+  const alergias = Array.isArray(profile.allergies) && profile.allergies.length > 0
+    ? profile.allergies.join(', ')
+    : 'Ninguna';
+
+  const netBalance = Math.round(caloriesConsumedToday - burnedToday);
+
+  const systemPrompt = `Eres un auténtico experto en fitness, fisiología del ejercicio y nutrición clínica. Actúas como un coach personal motivador que conoce al usuario en profundidad.
 
 Contexto del usuario:
 - Nombre: ${profile.name || 'Usuario'}
 - Edad: ${profile.age}, Peso: ${currentWeight}kg, Altura: ${profile.height}cm, Género: ${profile.gender}
-- Objetivo: ${profile.goal}, Días de gym: ${profile.trainingDaysPerWeek}/semana
-- Dieta: ${profile.dietType || 'Sin restricción'}, Alergias: ${profile.allergies || 'Ninguna'}${profile.diabetesType && profile.diabetesType !== 'none' ? `\n- Diabetes tipo ${profile.diabetesType} — prioriza estabilidad glucémica` : ''}
+- Objetivo nutricional: ${goalLabels[profile.goal] ?? profile.goal}
+- Objetivo de entrenamiento: ${gymGoalLabels[profile.gymGoal] ?? profile.gymGoal ?? 'No especificado'}, ${profile.trainingDaysPerWeek ?? 0} días/semana
+- Tipo de dieta: ${profile.dietType || 'Sin restricción'}, Alergias: ${alergias}${profile.diabetesType && profile.diabetesType !== 'none' ? `\n- Diabetes tipo ${profile.diabetesType} — prioriza estabilidad glucémica` : ''}
 - Calorías objetivo: ${goals.calories} kcal (P: ${goals.protein}g, C: ${goals.carbs}g, G: ${goals.fat}g)
 - Consumido hoy: ${Math.round(caloriesConsumedToday)} kcal (P: ${Math.round(consumedProtein)}g, C: ${Math.round(consumedCarbs)}g, G: ${Math.round(consumedFat)}g)
-- Faltan: ${Math.round(goals.calories - caloriesConsumedToday)} kcal para el objetivo de hoy
+- Quemadas hoy: ${Math.round(burnedToday)} kcal
+- Balance neto: ${netBalance >= 0 ? '+' : ''}${netBalance} kcal ${netBalance < 0 ? '(déficit — favorable para perder grasa)' : '(superávit — favorable para ganar músculo)'}
+- Faltan: ${Math.round(Math.max(0, goals.calories - caloriesConsumedToday))} kcal para el objetivo de hoy
+- Comidas de hoy: ${mealsDetail}
 
 Instrucciones:
-1. Sé extremadamente motivador y profesional. Demuestra autoridad en fitness.
-2. Si el usuario tiene diabetes, ofrece consejos para estabilizar la glucosa (orden de ingestión, ejercicio ligero post-prandial).
-3. Personaliza las respuestas basándote en su objetivo y datos reales de hoy.
-4. Responde de forma concisa, alentadora y directa, sin ser condescendiente.`;
+1. Usa SIEMPRE los datos reales del contexto. Nunca des consejos genéricos.
+2. Si pregunta qué puede comer, calcula las kcal y macros restantes y sugiere opciones concretas compatibles con su dieta y alergias.
+3. Si ya cumplió el objetivo calórico, díselo claramente.
+4. Máximo 3 párrafos por respuesta.
+5. Termina siempre con una acción concreta.
+6. Tono: directo y motivador, como un entrenador personal que te conoce bien.`;
+
+  const recentHistory = conversationHistory.slice(-8);
 
   try {
     const stream = await groq.chat.completions.create({
       model: MODEL,
       messages: [
         { role: 'system', content: systemPrompt },
-        ...conversationHistory,
+        ...recentHistory,
       ],
       temperature: 0.8,
       max_tokens: 1024,

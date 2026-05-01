@@ -1407,6 +1407,7 @@ export default function App() {
         goals,
         mealsToday: todaysMeals,
         caloriesConsumedToday: totals.calories,
+        burnedToday: assistant.burnedCalories,
       };
 
       await chatWithCoach(conversationHistory, userContext, (chunk) => {
@@ -1693,7 +1694,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
       const currentWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
       await chatWithCoach(
         [{ role: 'user', content: prompt }],
-        { profile: { ...profile, currentWeight }, goals, mealsToday: todaysMeals, caloriesConsumedToday: totals.calories },
+        { profile: { ...profile, currentWeight }, goals, mealsToday: todaysMeals, caloriesConsumedToday: totals.calories, burnedToday: 0 },
         (chunk) => { result += chunk; }
       );
       if (result) {
