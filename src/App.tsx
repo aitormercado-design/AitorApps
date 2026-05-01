@@ -13,7 +13,7 @@ import type { NutritionalInfo, WeeklyMenu, ShoppingList } from './types/nutritio
 import { extractIngredients, calcularBMR } from './utils/nutrition';
 import { calculateMETCalories, ACTIVITY_OPTIONS } from './utils/metCalculator';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer, onSnapshot, deleteField } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 enum OperationType {
@@ -91,7 +91,6 @@ type UserProfile = {
   dislikedFoods: string;
   goal: 'lose' | 'maintain' | 'gain';
   macroDistribution: 'balanced' | 'low_carb' | 'high_protein' | 'keto';
-  favoriteSupermarket: string;
   freeMealEnabled: boolean;
   freeMealDay: string;
   freeMealType: 'comida' | 'cena';
@@ -352,7 +351,7 @@ export default function App() {
     dislikedFoods: '',
     goal: 'maintain',
     macroDistribution: 'balanced',
-    favoriteSupermarket: '',
+
     freeMealEnabled: false,
     freeMealDay: 'Sábado',
     freeMealType: 'cena',
@@ -419,7 +418,7 @@ export default function App() {
     dislikedFoods: '',
     goal: 'maintain',
     macroDistribution: 'balanced',
-    favoriteSupermarket: '',
+
     freeMealEnabled: false,
     freeMealDay: 'Sábado',
     freeMealType: 'cena',
@@ -498,7 +497,6 @@ export default function App() {
                 otherAllergies: data.profile.otherAllergies || '',
                 diabetesType: data.profile.diabetesType || 'none',
                 dislikedFoods: data.profile.dislikedFoods || '',
-                favoriteSupermarket: data.profile.favoriteSupermarket || '',
                 freeMealEnabled: data.profile.freeMealEnabled || false,
                 freeMealDay: data.profile.freeMealDay || 'Sábado',
                 freeMealType: data.profile.freeMealType || 'cena',
@@ -507,6 +505,12 @@ export default function App() {
                 trainingDaysPerWeek: data.profile.trainingDaysPerWeek || 3
               };
               setProfile(loadedProfile);
+              // One-time migration: delete legacy favoriteSupermarket field
+              if (data.profile.favoriteSupermarket !== undefined) {
+                import('firebase/firestore').then(({ updateDoc }) => {
+                  updateDoc(doc(db, 'users', currentUser.uid), { 'profile.favoriteSupermarket': deleteField() }).catch(console.error);
+                });
+              }
             }
             if (data.goals) setGoals(data.goals);
             if (data.generatedMenu) setGeneratedMenu(data.generatedMenu);
@@ -570,7 +574,6 @@ export default function App() {
               otherAllergies: parsed.otherAllergies || '',
               diabetesType: parsed.diabetesType || 'none',
               dislikedFoods: parsed.dislikedFoods || '',
-              favoriteSupermarket: parsed.favoriteSupermarket || '',
               freeMealEnabled: parsed.freeMealEnabled || false,
               freeMealDay: parsed.freeMealDay || 'Sábado',
               freeMealType: parsed.freeMealType || 'cena',
@@ -1213,7 +1216,7 @@ export default function App() {
         .container { max-width: 500px; margin: 0 auto; }
         h1 { font-size: 24px; font-weight: 900; letter-spacing: -1px; margin-bottom: 5px; }
         .subtitle { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
-        .supermarket { color: var(--accent); font-size: 14px; font-weight: 800; text-transform: uppercase; margin-bottom: 30px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+
         .category { margin-bottom: 25px; }
         .category-title { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
         .category-title::before { content: ''; width: 4px; height: 4px; background: var(--accent); border-radius: 50%; }
@@ -1231,7 +1234,6 @@ export default function App() {
     <div class="container">
         <h1>Nutritiv<span style="color: var(--lime)">App</span></h1>
         <div class="subtitle">Lista de la Compra Interactiva</div>
-        <div class="supermarket">Supermercado: ${profile.favoriteSupermarket}</div>
         ${shoppingList.categories.map(cat => `
             <div class="category">
                 <div class="category-title">${cat.name}</div>
@@ -1354,7 +1356,7 @@ export default function App() {
     setAppError(null);
     try {
       const ingredients = extractIngredients(generatedMenu);
-      const list = await generateShoppingList(ingredients, profile.favoriteSupermarket);
+      const list = await generateShoppingList(ingredients);
       setShoppingList(list);
     } catch (error) {
       console.error("Error generating shopping list:", error);
@@ -1799,7 +1801,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         dislikedFoods: '',
         goal: 'maintain',
         macroDistribution: 'balanced',
-        favoriteSupermarket: 'Mercadona',
         freeMealEnabled: false,
         freeMealDay: 'Sábado',
         freeMealType: 'cena',
@@ -2530,7 +2531,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               Plan de {profile.name || 'Usuario'}
                             </p>
                             <p className={`text-[10px] ${themeStyles.textMuted} mt-0.5`}>
-                              {generatedMenu.days?.length || 0} días · {profile.goal === 'lose' ? 'Perder grasa' : profile.goal === 'gain' ? 'Ganar músculo' : 'Mantenimiento'} · {profile.favoriteSupermarket || 'General'}
+                              {generatedMenu.days?.length || 0} días · {profile.goal === 'lose' ? 'Perder grasa' : profile.goal === 'gain' ? 'Ganar músculo' : 'Mantenimiento'}
                             </p>
                           </div>
                           <button
@@ -2702,7 +2703,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                            animate={{ opacity: [0, 1, 0] }}
                            transition={{ repeat: Infinity, duration: 1.5 }}
                          >
-                           {`> Buscando productos en ${profile.favoriteSupermarket}...`}
+                           {`> Generando lista de la compra...`}
                          </motion.div>
                        </div>
                      </div>
@@ -2711,7 +2712,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                        <ShoppingCart className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-4`} />
                        <p className={`${themeStyles.textMain} font-bold mb-2`}>Sin Lista de la Compra</p>
                        <p className={`${themeStyles.textMuted} text-[10px] uppercase font-bold tracking-widest px-4 mb-6`}>
-                         Extrae los ingredientes del menú y crea tu lista para <span className={`${themeStyles.accent}`}>{profile.favoriteSupermarket}</span>
+                         Extrae los ingredientes del menú y genera tu lista de la compra semanal
                        </p>
                        <button
                          onClick={() => { shoppingCooldown.start(); handleGenerateShoppingList(); }}
@@ -2732,11 +2733,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                      <div className="space-y-6">
                        <div className={`${themeStyles.accentMuted} border ${themeStyles.accentBorder} rounded-2xl p-6 text-center`}>
                          <p className={`${themeStyles.accent} text-sm font-bold mb-1 uppercase tracking-widest`}>¡Lista generada con éxito!</p>
-                         <p className={`${themeStyles.textMuted} text-xs mb-6`}>La lista se ha generado orientada a tu supermercado favorito: <span className={`${themeStyles.accent} font-bold`}>{profile.favoriteSupermarket}</span>.</p>
+                         <p className={`${themeStyles.textMuted} text-xs mb-6`}>Lista de ingredientes para toda la semana. Puedes marcar los productos mientras compras.</p>
                          
                          <div className="space-y-4">
                            <p className={`${themeStyles.textMuted} text-[10px] uppercase font-bold tracking-widest text-center`}>
-                             Puedes ir marcando los productos mientras compras en el supermercado
+                             Puedes ir marcando los productos mientras compras
                            </p>
                            <div className="flex flex-col gap-3">
                              <button
@@ -3665,21 +3666,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           <option value="low_carb">Baja en Carbohidratos</option>
                           <option value="high_protein">Alta en Proteína</option>
                           <option value="keto">Keto</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className={`block text-[10px] font-bold uppercase tracking-widest text-left ${themeStyles.textMuted}`}>Supermercado Preferido</label>
-                        <select 
-                          value={editProfile.favoriteSupermarket}
-                          onChange={(e) => setEditProfile({...editProfile, favoriteSupermarket: e.target.value})}
-                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-xs focus:outline-none transition-colors appearance-none`}
-                        >
-                          <option value="Mercadona">Mercadona</option>
-                          <option value="Carrefour">Carrefour</option>
-                          <option value="Aldi">Aldi</option>
-                          <option value="Lidl">Lidl</option>
-                          <option value="Eroski">Eroski</option>
-                          <option value="Alcampo">Alcampo</option>
                         </select>
                       </div>
                     </div>

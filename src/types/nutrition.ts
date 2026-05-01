@@ -38,5 +38,5 @@ export type ShoppingList = {
     name: string;
     items: ShoppingItem[];
   }[];
-  budget?: string;
+
 };

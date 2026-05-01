@@ -136,28 +136,24 @@ Responde ÚNICAMENTE con JSON válido. Sin texto adicional. Sin markdown. El JSO
   }
 }
 
-const BUDGET_SUPERMARKETS = new Set(['mercadona', 'lidl', 'carrefour', 'alcampo']);
-
-export async function generateShoppingList(ingredients: any[], supermarket: string = 'Mercadona'): Promise<ShoppingList> {
+export async function generateShoppingList(ingredients: any[]): Promise<ShoppingList> {
   const ingredientLines = ingredients
     .filter(i => i.item)
     .map(i => i.day ? `${i.item} [${i.day}]` : i.item)
     .join('\n');
 
-  const includeBudget = BUDGET_SUPERMARKETS.has(supermarket.toLowerCase());
-
-  const systemPrompt = `Eres un asistente de compras experto. Organiza los ingredientes en secciones de supermercado y devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown.
+  const systemPrompt = `Eres un asistente de compras experto. Organiza los ingredientes en secciones y devuelve ÚNICAMENTE JSON válido. Sin texto adicional. Sin markdown.
 
 Reglas:
 - Consolida duplicados: mismo ingrediente varias veces = una sola entrada con cantidad total semanal
 - Cantidades en unidades comerciales reales (no "137g" sino "1 paquete 150g" o "7 unidades")
 - Omite secciones sin ítems
-- Secciones en este orden exacto: "Frutas y verduras", "Carnes y pescados", "Lácteos y huevos", "Cereales y legumbres", "Frutos secos y semillas", "Proteína y suplementos", "Aceites y condimentos", "Otros"${includeBudget ? `\n- Incluye "presupuesto_estimado" con coste semanal aproximado para ${supermarket}` : '\n- NO incluyas "presupuesto_estimado"'}
+- Secciones en este orden exacto: "Frutas y verduras", "Carnes y pescados", "Lácteos y huevos", "Cereales y legumbres", "Frutos secos y semillas", "Proteína y suplementos", "Aceites y condimentos", "Otros"
 
 Formato exacto:
-{"secciones":[{"nombre":"Frutas y verduras","items":[{"nombre":"Plátano","cantidad":"7 unidades"}]},{"nombre":"Carnes y pescados","items":[{"nombre":"Pechuga de pollo","cantidad":"1kg"}]}]${includeBudget ? ',"presupuesto_estimado":"75-90€"' : ''}}`;
+{"secciones":[{"nombre":"Frutas y verduras","items":[{"nombre":"Plátano","cantidad":"7 unidades"}]},{"nombre":"Carnes y pescados","items":[{"nombre":"Pechuga de pollo","cantidad":"1kg"}]}]}`;
 
-  const userPrompt = `Supermercado: ${supermarket} | Personas: 1 | Semana completa\n\nIngredientes del menú:\n${ingredientLines}`;
+  const userPrompt = `Personas: 1 | Semana completa\n\nIngredientes del menú:\n${ingredientLines}`;
 
   try {
     const completion = await groq.chat.completions.create({
@@ -185,7 +181,7 @@ Formato exacto:
       }))
       .filter((cat: any) => cat.items.length > 0);
 
-    return { categories, budget: parsed.presupuesto_estimado };
+    return { categories };
   } catch (error: any) {
     console.error('Error generating shopping list:', error);
     throw friendlyGroqError(error, 'No se pudo generar la lista de la compra. Inténtalo de nuevo.');
@@ -220,7 +216,7 @@ DATOS DEL USUARIO:
 - Condiciones médicas: ${profile.diabetesType !== 'none' ? `Diabetes tipo ${profile.diabetesType}` : 'Ninguna'}
 - Alergias absolutas: ${allergiesStr}
 - Alimentos que no le gustan: ${profile.dislikedFoods || 'Ninguno'}
-- Supermercado de referencia: ${profile.favoriteSupermarket || 'Cualquiera'}
+
 
 COMIDA LIBRE:
 - Habilitada: ${profile.freeMealEnabled ? 'Sí' : 'No'}
