@@ -438,6 +438,11 @@ export default function App() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const [portionMultiplier, setPortionMultiplier] = useState(1);
+  const [originalAnalyzedName, setOriginalAnalyzedName] = useState<string | null>(null);
+  const [isRecalculatingMacros, setIsRecalculatingMacros] = useState(false);
+  const [macrosJustUpdated, setMacrosJustUpdated] = useState(false);
+  const [macrosManuallyEdited, setMacrosManuallyEdited] = useState(false);
+  const recalcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const menuCooldown     = useCooldown(60);
   const workoutCooldown  = useCooldown(60);
@@ -1108,6 +1113,9 @@ export default function App() {
       };
 
       setPortionMultiplier(1);
+      setOriginalAnalyzedName(newMeal.foodName);
+      setMacrosManuallyEdited(false);
+      setMacrosJustUpdated(false);
       setEditingMeal(newMeal);
     } catch (error) {
       console.error("Error in handleTextFoodSubmit:", error);
@@ -1152,6 +1160,9 @@ export default function App() {
       };
 
       setPortionMultiplier(1);
+      setOriginalAnalyzedName(newMeal.foodName);
+      setMacrosManuallyEdited(false);
+      setMacrosJustUpdated(false);
       setEditingMeal(newMeal);
     } catch (error) {
       console.error("Error in handleFileChange:", error);
@@ -1165,6 +1176,51 @@ export default function App() {
     // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRecalculateMacros = async (name: string, meal: Meal) => {
+    if (isRecalculatingMacros || !name.trim()) return;
+    setIsRecalculatingMacros(true);
+    try {
+      const remainingCalories = goals.calories - totals.calories;
+      const remainingProtein = goals.protein - totals.protein;
+      const contextStr = `Usuario: ${profile.name || 'Usuario'}. Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína. Dieta: ${profile.dietType}.`;
+      const info = await analyzeFoodText(name.trim(), contextStr);
+      setEditingMeal({
+        ...meal,
+        foodName: name,
+        calories: info.calories,
+        protein: info.protein,
+        carbs: info.carbs,
+        fat: info.fat,
+        totalWeight: info.totalWeight,
+        interpretation: info.interpretation,
+        coachMessage: info.coachMessage,
+        nutriScore: info.nutriScore,
+      });
+      setMacrosJustUpdated(true);
+      setTimeout(() => setMacrosJustUpdated(false), 2500);
+    } catch {
+      // Silent fail — keep existing values
+    } finally {
+      setIsRecalculatingMacros(false);
+    }
+  };
+
+  const handleFoodNameChange = (e: React.ChangeEvent<HTMLInputElement>, meal: Meal) => {
+    const newName = e.target.value;
+    setEditingMeal({ ...meal, foodName: newName });
+    if (macrosManuallyEdited) return;
+    if (recalcTimerRef.current) clearTimeout(recalcTimerRef.current);
+    const trimmed = newName.trim();
+    if (trimmed.length > 2 && trimmed !== originalAnalyzedName?.trim()) {
+      recalcTimerRef.current = setTimeout(() => {
+        setEditingMeal(prev => {
+          if (prev) handleRecalculateMacros(prev.foodName, prev);
+          return prev;
+        });
+      }, 2000);
     }
   };
 
@@ -3911,23 +3967,55 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 {/* Food Name & Ingredients (Configurable Parameters) */}
                 <div>
                   <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Nombre de la comida</label>
-                  <div className="flex flex-col gap-4">
-                    <input 
-                      type="text" 
-                      value={editingMeal.foodName} 
-                      onChange={(e) => setEditingMeal({...editingMeal, foodName: e.target.value})}
-                      className={`w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:${themeStyles.accentBorder} transition-colors`} 
-                      required 
+                  <div className="flex flex-col gap-2">
+                    <input
+                      type="text"
+                      value={editingMeal.foodName}
+                      onChange={(e) => handleFoodNameChange(e, editingMeal)}
+                      onBlur={() => {
+                        if (recalcTimerRef.current) clearTimeout(recalcTimerRef.current);
+                        const trimmed = editingMeal.foodName.trim();
+                        if (!macrosManuallyEdited && trimmed.length > 2 && trimmed !== originalAnalyzedName?.trim()) {
+                          handleRecalculateMacros(editingMeal.foodName, editingMeal);
+                        }
+                      }}
+                      className={`w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:${themeStyles.accentBorder} transition-colors`}
+                      required
                     />
-                    
-                    {/* Interpretación Automática */}
+
+                    {/* Recalc button / manual override notice */}
+                    {macrosManuallyEdited ? (
+                      <div className="flex items-center gap-2 text-xs text-zinc-500">
+                        <span>Macros editados manualmente —</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRecalculateMacros(editingMeal.foodName, editingMeal)}
+                          className={`${themeStyles.accent} font-semibold hover:underline`}
+                        >
+                          Recalcular con IA
+                        </button>
+                      </div>
+                    ) : editingMeal.foodName.trim() !== originalAnalyzedName?.trim() && editingMeal.foodName.trim().length > 2 && !isRecalculatingMacros ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (recalcTimerRef.current) clearTimeout(recalcTimerRef.current);
+                          handleRecalculateMacros(editingMeal.foodName, editingMeal);
+                        }}
+                        className={`self-start flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg ${themeStyles.accentMuted} ${themeStyles.accent} border border-current/20 transition-opacity`}
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        Recalcular con nuevo nombre
+                      </button>
+                    ) : null}
+
+                    {/* Interpretation badge */}
                     {(editingMeal.interpretation || editingMeal.isHealthy !== undefined) && (
                       <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900 border border-white/10 text-xs font-medium text-zinc-300 w-fit">
                         <Activity className={`w-3.5 h-3.5 ${themeStyles.accent}`} />
                         {editingMeal.interpretation || (editingMeal.isHealthy ? 'Comida equilibrada' : 'A tener en cuenta')}
                       </div>
                     )}
-                    
                   </div>
                 </div>
 
@@ -4005,23 +4093,47 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 </div>
 
                 {/* Read-Only Macros */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
-                    <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Calorías</span>
-                    <span className={`text-lg font-display font-bold ${themeStyles.accent}`}>{Math.round(editingMeal.calories * portionMultiplier)} <span className="text-xs text-zinc-500">kcal</span></span>
+                <div className="relative">
+                  {isRecalculatingMacros && (
+                    <div className="absolute inset-0 flex items-center justify-center z-10 rounded-xl">
+                      <div className="flex items-center gap-2 bg-zinc-900/90 px-3 py-2 rounded-xl border border-white/10">
+                        <Loader2 className={`w-4 h-4 animate-spin ${themeStyles.accent}`} />
+                        <span className={`text-xs font-semibold ${themeStyles.accent}`}>Recalculando…</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className={`grid grid-cols-2 gap-3 transition-opacity duration-200 ${isRecalculatingMacros ? 'opacity-30' : 'opacity-100'}`}>
+                    <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
+                      <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Calorías</span>
+                      <span className={`text-lg font-display font-bold ${themeStyles.accent}`}>{Math.round(editingMeal.calories * portionMultiplier)} <span className="text-xs text-zinc-500">kcal</span></span>
+                    </div>
+                    <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
+                      <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Proteínas</span>
+                      <span className="text-lg font-display font-bold text-blue-400">{Math.round(editingMeal.protein * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
+                    </div>
+                    <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
+                      <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Carbohidratos</span>
+                      <span className="text-lg font-display font-bold text-amber-400">{Math.round(editingMeal.carbs * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
+                    </div>
+                    <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
+                      <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Grasas</span>
+                      <span className="text-lg font-display font-bold text-rose-400">{Math.round(editingMeal.fat * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
+                    </div>
                   </div>
-                  <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
-                    <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Proteínas</span>
-                    <span className="text-lg font-display font-bold text-blue-400">{Math.round(editingMeal.protein * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
-                  </div>
-                  <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
-                    <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Carbohidratos</span>
-                    <span className="text-lg font-display font-bold text-amber-400">{Math.round(editingMeal.carbs * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
-                  </div>
-                  <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
-                    <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Grasas</span>
-                    <span className="text-lg font-display font-bold text-rose-400">{Math.round(editingMeal.fat * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
-                  </div>
+                  <AnimatePresence>
+                    {macrosJustUpdated && (
+                      <motion.div
+                        key="macros-updated"
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        className={`flex items-center gap-1.5 mt-2 text-xs font-semibold ${themeStyles.accent}`}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Macros actualizados
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 {(editingMeal.coachMessage || editingMeal.healthAnalysis) && (
