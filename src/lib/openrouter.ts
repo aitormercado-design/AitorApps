@@ -2,7 +2,81 @@ import type { NutritionalInfo } from '../types/nutrition';
 
 const OPENROUTER_API_KEY = (import.meta.env.VITE_OPENROUTER_API_KEY as string) || '';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const VISION_MODEL = 'meta-llama/llama-3.2-11b-vision-instruct:free';
+// Primary: free tier. Fallback: cheap paid model when free tier is unavailable.
+const VISION_MODELS = [
+  'meta-llama/llama-3.2-11b-vision-instruct:free',
+  'google/gemini-flash-1.5-8b',
+];
+
+async function callVisionModel(model: string, systemPrompt: string, userPrompt: string, base64Image: string, mimeType: string): Promise<NutritionalInfo> {
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('timeout')), 45000)
+  );
+
+  const fetchPromise = fetch(OPENROUTER_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://aitor-apps.vercel.app',
+      'X-Title': 'NutritivApp',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: `data:${mimeType};base64,${base64Image}` },
+            },
+            { type: 'text', text: userPrompt },
+          ],
+        },
+      ],
+      max_tokens: 2048,
+    }),
+  });
+
+  const response = await Promise.race([fetchPromise, timeoutPromise]);
+
+  let data: any;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error(`HTTP ${response.status}: respuesta no válida del servidor`);
+  }
+
+  if (!response.ok) {
+    const errMsg = data?.error?.message ?? data?.error ?? `HTTP ${response.status}`;
+    throw new Error(String(errMsg));
+  }
+
+  if (!data.choices?.[0]?.message?.content) {
+    throw new Error('Sin respuesta del modelo de visión');
+  }
+
+  const text: string = data.choices[0].message.content;
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('JSON no encontrado en respuesta');
+
+  return JSON.parse(match[0]) as NutritionalInfo;
+}
+
+function isRetryableError(msg: string): boolean {
+  return (
+    msg.includes('503') ||
+    msg.includes('Service Unavailable') ||
+    msg.includes('unavailable') ||
+    msg.includes('overloaded') ||
+    msg.includes('No endpoints') ||
+    msg.includes('model') ||
+    msg.includes('404') ||
+    msg.includes('NOT_FOUND')
+  );
+}
 
 export async function analyzeFoodImage(base64Image: string, mimeType: string, contextStr?: string): Promise<NutritionalInfo> {
   const systemPrompt = `Eres un experto nutricionista especializado en nutrición deportiva y gestión de la DIABETES. Actúa como un coach empático y motivador.
@@ -16,71 +90,37 @@ Responde ÚNICAMENTE con JSON válido. Sin texto adicional. Sin markdown. Format
     ? `Analiza esta imagen de comida. Contexto del usuario: "${contextStr}".`
     : 'Analiza esta imagen de comida.';
 
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('timeout')), 45000)
-  );
+  let lastError: Error = new Error('No se pudo analizar la imagen. Inténtalo de nuevo.');
 
-  try {
-    const fetchPromise = fetch(OPENROUTER_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://aitor-apps.vercel.app',
-        'X-Title': 'NutritivApp',
-      },
-      body: JSON.stringify({
-        model: VISION_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: { url: `data:${mimeType};base64,${base64Image}` },
-              },
-              { type: 'text', text: userPrompt },
-            ],
-          },
-        ],
-        max_tokens: 2048,
-      }),
-    });
+  for (const model of VISION_MODELS) {
+    try {
+      return await callVisionModel(model, systemPrompt, userPrompt, base64Image, mimeType);
+    } catch (error: any) {
+      console.error(`analyzeFoodImage [${model}]:`, error?.message ?? error);
+      const msg: string = error?.message ?? '';
 
-    const response = await Promise.race([fetchPromise, timeoutPromise]);
+      if (msg.includes('timeout')) {
+        throw new Error('El análisis está tardando demasiado. Comprueba tu conexión e inténtalo de nuevo.');
+      }
+      if (msg.includes('429') || msg.includes('rate limit') || msg.includes('Rate limit')) {
+        throw new Error('Límite de análisis de fotos alcanzado. Espera un momento.');
+      }
+      if (msg.includes('401') || msg.includes('Unauthorized') || msg.includes('No auth') || msg.includes('invalid_api_key')) {
+        throw new Error('Clave de API de OpenRouter no válida. Revisa la configuración.');
+      }
+      if (msg.includes('400') || msg.includes('Bad Request')) {
+        throw new Error('Imagen no compatible. Prueba con una foto diferente.');
+      }
 
-    const data = await response.json();
+      // Retryable with next model
+      if (isRetryableError(msg)) {
+        lastError = new Error('El modelo de visión no está disponible. Inténtalo de nuevo.');
+        continue;
+      }
 
-    if (!response.ok) {
-      const errMsg = data?.error?.message ?? data?.error ?? `HTTP ${response.status}`;
-      throw new Error(String(errMsg));
+      lastError = new Error('No se pudo analizar la imagen. Inténtalo de nuevo.');
     }
-
-    if (!data.choices?.[0]?.message?.content) {
-      throw new Error('Sin respuesta del modelo de visión');
-    }
-
-    const text: string = data.choices[0].message.content;
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('JSON no encontrado en respuesta');
-
-    return JSON.parse(match[0]) as NutritionalInfo;
-  } catch (error: any) {
-    console.error('Error in analyzeFoodImage:', error);
-    const msg: string = error?.message ?? '';
-    if (msg.includes('timeout')) {
-      throw new Error('El análisis está tardando demasiado. Comprueba tu conexión e inténtalo de nuevo.');
-    }
-    if (msg.includes('429')) {
-      throw new Error('Límite de análisis de fotos alcanzado. Espera un momento.');
-    }
-    if (msg.includes('model') || msg.includes('404') || msg.includes('NOT_FOUND')) {
-      throw new Error('Modelo de visión no disponible. Inténtalo de nuevo.');
-    }
-    if (msg.includes('401') || msg.includes('Unauthorized')) {
-      throw new Error('Clave de API de OpenRouter no válida. Revisa la configuración.');
-    }
-    throw new Error('No se pudo analizar la imagen. Inténtalo de nuevo.');
   }
+
+  throw lastError;
 }
