@@ -14,7 +14,7 @@ import { extractIngredients, calcularBMR } from './utils/nutrition';
 import { calculateMETCalories, ACTIVITY_OPTIONS } from './utils/metCalculator';
 import { getSuggestions, type ProfileSuggestion } from './utils/profileSuggestions';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer, onSnapshot, deleteField } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer, onSnapshot, deleteField, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 enum OperationType {
@@ -438,6 +438,7 @@ export default function App() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const [portionMultiplier, setPortionMultiplier] = useState(1);
+  const [mealEditMode, setMealEditMode] = useState<'create' | 'edit'>('create');
   const [originalAnalyzedName, setOriginalAnalyzedName] = useState<string | null>(null);
   const [isRecalculatingMacros, setIsRecalculatingMacros] = useState(false);
   const [macrosJustUpdated, setMacrosJustUpdated] = useState(false);
@@ -1112,6 +1113,7 @@ export default function App() {
         timestamp: Date.now(),
       };
 
+      setMealEditMode('create');
       setPortionMultiplier(1);
       setOriginalAnalyzedName(newMeal.foodName);
       setMacrosManuallyEdited(false);
@@ -1159,6 +1161,7 @@ export default function App() {
         timestamp: Date.now(),
       };
 
+      setMealEditMode('create');
       setPortionMultiplier(1);
       setOriginalAnalyzedName(newMeal.foodName);
       setMacrosManuallyEdited(false);
@@ -1300,6 +1303,15 @@ export default function App() {
     if (user) {
       deleteDoc(doc(db, 'users', user.uid, 'meals', id)).catch(err => console.error(err));
     }
+  };
+
+  const openMealForEdit = (meal: Meal) => {
+    setMealEditMode('edit');
+    setPortionMultiplier(1);
+    setOriginalAnalyzedName(meal.foodName);
+    setMacrosManuallyEdited(false);
+    setMacrosJustUpdated(false);
+    setEditingMeal(meal);
   };
 
   const updateGoalsForProfile = (prof: UserProfile, currentWeight: number) => {
@@ -2435,9 +2447,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             <div className="flex-1 min-w-0">
                               <div className="flex items-start justify-between mb-1">
                                 <h3 className={`font-bold ${themeStyles.textMain} truncate text-base tracking-tight`}>{meal.foodName}</h3>
-                                <button onClick={() => removeMeal(meal.id)} className={`${themeStyles.textMuted} hover:text-rose-500 p-1 rounded-lg hover:bg-rose-500/10 transition-all`}>
-                                  <X className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center gap-0.5 shrink-0 ml-2">
+                                  <button onClick={() => openMealForEdit(meal)} className={`${themeStyles.textMuted} hover:text-sky-400 p-1 rounded-lg hover:bg-sky-500/10 transition-all`} title="Editar">
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={() => removeMeal(meal.id)} className={`${themeStyles.textMuted} hover:text-rose-500 p-1 rounded-lg hover:bg-rose-500/10 transition-all`} title="Borrar">
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
                                 <span className={`${themeStyles.accent} font-black text-xs tracking-tight`}>{Math.round(meal.calories)} Kcal</span>
@@ -3926,7 +3943,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               className="bg-zinc-900 border border-white/10 rounded-3xl p-6 w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh]"
             >
               <div className="flex justify-between items-center mb-6 sticky top-0 bg-zinc-900 z-10 pb-2 border-b border-white/5">
-                <h3 className="text-xl font-display font-bold text-white">Revisar Análisis</h3>
+                <h3 className="text-xl font-display font-bold text-white">
+                  {mealEditMode === 'edit' ? 'Editar Comida' : 'Revisar Análisis'}
+                </h3>
                 <button onClick={() => setEditingMeal(null)} className="text-zinc-500 hover:text-white transition-colors">
                   <X className="w-6 h-6" />
                 </button>
@@ -3958,7 +3977,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     setMeals(prev => [mealToSave, ...prev]);
                   }
                   if (user) {
-                    setDoc(doc(db, 'users', user.uid, 'meals', mealToSave.id), mealToSave).catch(console.error);
+                    const payload = mealEditMode === 'edit'
+                      ? { ...mealToSave, editedAt: serverTimestamp() }
+                      : mealToSave;
+                    setDoc(doc(db, 'users', user.uid, 'meals', mealToSave.id), payload, { merge: true }).catch(console.error);
                   }
                   setEditingMeal(null);
                 }}
@@ -4150,10 +4172,22 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   </div>
                 )}
 
-                <div className="pt-4">
-                  <button type="submit" className={`w-full ${themeStyles.accentBg} text-zinc-950 font-bold uppercase tracking-wider py-4 rounded-xl hover:${themeStyles.accentBg} transition-colors`}>
-                    Guardar Registro
+                <div className="pt-4 flex flex-col gap-2">
+                  <button type="submit" className={`w-full ${themeStyles.accentBg} text-zinc-950 font-bold uppercase tracking-wider py-4 rounded-xl transition-colors`}>
+                    {mealEditMode === 'edit' ? 'Actualizar' : 'Guardar Registro'}
                   </button>
+                  {mealEditMode === 'edit' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        removeMeal(editingMeal.id);
+                        setEditingMeal(null);
+                      }}
+                      className="w-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold uppercase tracking-wider py-3 rounded-xl hover:bg-rose-500/20 transition-colors text-sm"
+                    >
+                      Borrar registro
+                    </button>
+                  )}
                 </div>
               </form>
             </motion.div>
