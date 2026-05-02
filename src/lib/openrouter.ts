@@ -23,11 +23,19 @@ function parseJsonFromText(text: string): NutritionalInfo {
   return JSON.parse(match[0]) as NutritionalInfo;
 }
 
-async function callGroqVision(base64Image: string, mimeType: string, userPrompt: string): Promise<NutritionalInfo> {
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), ms)
+    ),
+  ]);
+}
+
+async function callGroqVision(model: string, base64Image: string, mimeType: string, userPrompt: string): Promise<NutritionalInfo> {
   const response = await groqVision.chat.completions.create({
-    model: 'meta-llama/llama-3.2-11b-vision-preview',
+    model,
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
       {
         role: 'user',
         content: [
@@ -35,7 +43,7 @@ async function callGroqVision(base64Image: string, mimeType: string, userPrompt:
             type: 'image_url',
             image_url: { url: `data:${mimeType};base64,${base64Image}` },
           },
-          { type: 'text', text: userPrompt },
+          { type: 'text', text: `${SYSTEM_PROMPT}\n\n${userPrompt}` },
         ] as any,
       },
     ],
@@ -89,44 +97,29 @@ async function callOpenRouterVision(model: string, base64Image: string, mimeType
   return parseJsonFromText(text);
 }
 
-function isRetryableError(msg: string): boolean {
-  return (
-    msg.includes('503') ||
-    msg.includes('Service Unavailable') ||
-    msg.includes('unavailable') ||
-    msg.includes('overloaded') ||
-    msg.includes('No endpoints') ||
-    msg.includes('404') ||
-    msg.includes('NOT_FOUND') ||
-    msg.includes('model_not_found') ||
-    msg.includes('decommissioned')
-  );
-}
+type Provider = { label: string; fn: () => Promise<NutritionalInfo> };
 
 export async function analyzeFoodImage(base64Image: string, mimeType: string, contextStr?: string): Promise<NutritionalInfo> {
   const userPrompt = contextStr
     ? `Analiza esta imagen de comida. Contexto del usuario: "${contextStr}".`
     : 'Analiza esta imagen de comida.';
 
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('timeout')), 50000)
-  );
-
-  // Attempt order: Groq (primary), OpenRouter free, OpenRouter paid fallback
-  const attempts: Array<() => Promise<NutritionalInfo>> = [
-    () => callGroqVision(base64Image, mimeType, userPrompt),
-    () => callOpenRouterVision('meta-llama/llama-3.2-11b-vision-instruct:free', base64Image, mimeType, userPrompt),
-    () => callOpenRouterVision('google/gemini-flash-1.5-8b', base64Image, mimeType, userPrompt),
+  const providers: Provider[] = [
+    { label: 'Groq:llama-3.2-11b', fn: () => callGroqVision('llama-3.2-11b-vision-preview', base64Image, mimeType, userPrompt) },
+    { label: 'Groq:llama-3.2-90b', fn: () => callGroqVision('llama-3.2-90b-vision-preview', base64Image, mimeType, userPrompt) },
+    { label: 'OR:llama-free', fn: () => callOpenRouterVision('meta-llama/llama-3.2-11b-vision-instruct:free', base64Image, mimeType, userPrompt) },
+    { label: 'OR:gemini-flash', fn: () => callOpenRouterVision('google/gemini-flash-1.5-8b', base64Image, mimeType, userPrompt) },
   ];
 
-  let lastError: Error = new Error('No se pudo analizar la imagen. Inténtalo de nuevo.');
+  const errors: string[] = [];
 
-  for (const attempt of attempts) {
+  for (const { label, fn } of providers) {
     try {
-      return await Promise.race([attempt(), timeoutPromise]);
+      return await withTimeout(fn(), 30000);
     } catch (error: any) {
       const msg: string = error?.message ?? '';
-      console.error('analyzeFoodImage error:', msg);
+      console.error(`[vision][${label}] ${msg}`);
+      errors.push(`${label}: ${msg}`);
 
       if (msg.includes('timeout')) {
         throw new Error('El análisis está tardando demasiado. Comprueba tu conexión e inténtalo de nuevo.');
@@ -134,24 +127,15 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
       if (msg.includes('429') || msg.includes('rate_limit') || msg.includes('Rate limit')) {
         throw new Error('Límite de análisis alcanzado. Espera un momento e inténtalo de nuevo.');
       }
-      if (msg.includes('401') || msg.includes('Unauthorized') || msg.includes('No auth') || msg.includes('invalid_api_key') || msg.includes('No API key')) {
-        // Auth error on this provider — try next
-        lastError = new Error('No se pudo analizar la imagen. Inténtalo de nuevo.');
-        continue;
-      }
       if (msg.includes('400') || msg.includes('Bad Request') || msg.includes('invalid_image')) {
         throw new Error('Imagen no compatible. Prueba con una foto más clara.');
       }
-
-      if (isRetryableError(msg)) {
-        lastError = new Error('No se pudo analizar la imagen. Inténtalo de nuevo.');
-        continue;
-      }
-
-      // JSON parse errors or unexpected — try next provider
-      lastError = new Error('No se pudo analizar la imagen. Inténtalo de nuevo.');
+      // Auth, availability, model errors → try next provider
     }
   }
 
-  throw lastError;
+  // All providers failed — surface debug info in dev, generic in prod
+  const debugInfo = errors.join(' | ');
+  console.error('[vision] All providers failed:', debugInfo);
+  throw new Error(`No se pudo analizar la imagen. [${debugInfo}]`);
 }
