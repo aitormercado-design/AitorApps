@@ -127,10 +127,7 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
       if (msg.includes('429') || msg.includes('rate_limit') || msg.includes('Rate limit')) {
         throw new Error('Límite de análisis alcanzado. Espera un momento e inténtalo de nuevo.');
       }
-      if (msg.includes('400') || msg.includes('Bad Request') || msg.includes('invalid_image')) {
-        throw new Error('Imagen no compatible. Prueba con una foto más clara.');
-      }
-      // Auth, availability, model errors → try next provider
+      // Any other error (400, 401, 404, 503, model issues) → try next provider
     }
   }
 

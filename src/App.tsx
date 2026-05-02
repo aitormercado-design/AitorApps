@@ -1127,7 +1127,7 @@ export default function App() {
     setAppError(null);
 
     try {
-      const base64String = await compressImage(file);
+      const base64String = await compressImage(file, 640);
       setPreviewImage(base64String);
 
       const match = base64String.match(/^data:(image\/[a-zA-Z+.-]+);base64,(.+)$/);
