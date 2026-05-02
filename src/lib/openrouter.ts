@@ -105,10 +105,10 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
     : 'Analiza esta imagen de comida.';
 
   const providers: Provider[] = [
-    { label: 'Groq:llama-3.2-11b', fn: () => callGroqVision('llama-3.2-11b-vision-preview', base64Image, mimeType, userPrompt) },
-    { label: 'Groq:llama-3.2-90b', fn: () => callGroqVision('llama-3.2-90b-vision-preview', base64Image, mimeType, userPrompt) },
-    { label: 'OR:llama-free', fn: () => callOpenRouterVision('meta-llama/llama-3.2-11b-vision-instruct:free', base64Image, mimeType, userPrompt) },
-    { label: 'OR:gemini-flash', fn: () => callOpenRouterVision('google/gemini-flash-1.5-8b', base64Image, mimeType, userPrompt) },
+    { label: 'Groq:llama-4-scout', fn: () => callGroqVision('meta-llama/llama-4-scout-17b-16e-instruct', base64Image, mimeType, userPrompt) },
+    { label: 'Groq:llama-4-maverick', fn: () => callGroqVision('meta-llama/llama-4-maverick-17b-128e-instruct', base64Image, mimeType, userPrompt) },
+    { label: 'OR:gemini-flash-1.5', fn: () => callOpenRouterVision('google/gemini-flash-1.5', base64Image, mimeType, userPrompt) },
+    { label: 'OR:gemini-2.0-flash', fn: () => callOpenRouterVision('google/gemini-2.0-flash-lite', base64Image, mimeType, userPrompt) },
   ];
 
   const errors: string[] = [];
