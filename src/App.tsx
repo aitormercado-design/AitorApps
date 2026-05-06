@@ -369,7 +369,8 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<'today' | 'gym' | 'meals'>('today');
   const [mealsSubTab, setMealsSubTab] = useState<'daily' | 'plan' | 'shopping'>('daily');
-  const [menuSelectedDay, setMenuSelectedDay] = useState<number>(0);
+  const getTodayDayIndex = () => (new Date().getDay() + 6) % 7; // Mon=0 … Sun=6
+  const [menuSelectedDay, setMenuSelectedDay] = useState<number>(getTodayDayIndex);
   const [expandedMeal, setExpandedMeal] = useState<number>(0);
   const [evolutionPeriod, setEvolutionPeriod] = useState<'today' | 'weekly' | 'monthly' | 'quarterly' | 'semiannually' | 'annually'>('today');
   const [gymSubTab, setGymSubTab] = useState<'manual' | 'plan'>('plan');
@@ -765,6 +766,21 @@ export default function App() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workoutPlan]);
+
+  // When generatedMenu loads or changes, set the active tab to today's day
+  useEffect(() => {
+    if (!generatedMenu?.days?.length) return;
+    const todayNorm = new Date()
+      .toLocaleDateString('es-ES', { weekday: 'long' })
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '');
+    const idx = generatedMenu.days.findIndex((d: any) =>
+      (d.day || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').startsWith(todayNorm.slice(0, 3))
+    );
+    setMenuSelectedDay(idx >= 0 ? idx : Math.min(getTodayDayIndex(), generatedMenu.days.length - 1));
+  }, [generatedMenu]);
+
 
   // Calculate today's totals
   const todaysMeals = useMemo(() => {
@@ -1449,7 +1465,7 @@ export default function App() {
     setGeneratedMenu(null);
     setShoppingList(null);
     setAppError(null);
-    setMenuSelectedDay(0);
+    setMenuSelectedDay(getTodayDayIndex());
     setExpandedMeal(0);
     if (menuTabsRef.current) menuTabsRef.current.scrollLeft = 0;
     try {
