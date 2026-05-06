@@ -15,7 +15,7 @@ import { extractIngredients, calcularBMR } from './utils/nutrition';
 import { calculateMETCalories, ACTIVITY_OPTIONS } from './utils/metCalculator';
 import { getSuggestions, type ProfileSuggestion } from './utils/profileSuggestions';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer, onSnapshot, deleteField, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer, onSnapshot, deleteField, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 enum OperationType {
@@ -542,14 +542,17 @@ export default function App() {
             if (data.workoutPlan) setWorkoutPlan(data.workoutPlan);
             if (data.checkedItems) setCheckedItems(data.checkedItems);
             
-            // Load subcollections — meals via real-time listener
+            // Load subcollections — meals via real-time listener ordered server-side
             if (mealsListenerRef.current) mealsListenerRef.current();
-            mealsListenerRef.current = onSnapshot(
+            const mealsQ = query(
               collection(db, 'users', currentUser.uid, 'meals'),
+              orderBy('timestamp', 'desc')
+            );
+            mealsListenerRef.current = onSnapshot(
+              mealsQ,
               (snap) => {
-                const loadedMeals: Meal[] = [];
-                snap.forEach(d => loadedMeals.push(d.data() as Meal));
-                setMeals(loadedMeals.sort((a, b) => b.timestamp - a.timestamp));
+                const loadedMeals = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Meal[];
+                setMeals(loadedMeals);
               },
               (err) => handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}/meals`)
             );
