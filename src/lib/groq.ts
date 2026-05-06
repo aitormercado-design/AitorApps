@@ -481,3 +481,62 @@ Responde ÚNICAMENTE con JSON válido con exactamente estos campos:
     throw friendlyGroqError(error, 'No se pudo recalcular. Inténtalo de nuevo.');
   }
 }
+
+export interface WeekDaySummary {
+  date: string;
+  dayName: string;
+  status: 'green' | 'yellow' | 'red' | 'future' | 'empty';
+  caloriesConsumed: number;
+  caloriesGoal: number;
+  workoutDone: boolean;
+  hadWorkoutPlanned: boolean;
+  workoutCalories: number;
+}
+
+export async function generateWeeklyAnalysis(
+  userName: string,
+  days: WeekDaySummary[],
+  caloriesGoal: number,
+  gymDaysPerWeek: number
+): Promise<string> {
+  const pastDays = days.filter(d => d.status !== 'future');
+
+  const dayLines = pastDays
+    .map(d => {
+      const pct = d.caloriesGoal > 0 ? Math.round((d.caloriesConsumed / d.caloriesGoal) * 100) : 0;
+      const workout = d.hadWorkoutPlanned
+        ? (d.workoutDone ? `entreno completado (${d.workoutCalories}kcal)` : 'entreno NO completado')
+        : (d.workoutDone ? `entreno libre (${d.workoutCalories}kcal)` : 'sin entreno');
+      return `- ${d.dayName}: ${Math.round(d.caloriesConsumed)}kcal (${pct}% objetivo), ${workout} [${d.status}]`;
+    })
+    .join('\n');
+
+  const systemPrompt = `Eres el coach personal de ${userName || 'el usuario'}. Hablas en español, eres directo, motivador y específico. NUNCA uses saludos ni despedidas.`;
+
+  const userPrompt = `Analiza esta semana de ${userName || 'tu usuario'}:
+
+${dayLines}
+
+Objetivo diario: ${caloriesGoal}kcal. Días de gym planificados: ${gymDaysPerWeek}.
+
+Responde con exactamente 4 frases numeradas:
+1. Valoración general de la semana (usa datos concretos)
+2. Lo que hizo bien (específico, menciona días o números)
+3. Lo que debe mejorar (accionable y concreto)
+4. Un consejo para la próxima semana`;
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.75,
+      max_tokens: 350,
+    });
+    return completion.choices[0].message.content ?? '';
+  } catch (error: any) {
+    throw friendlyGroqError(error, 'No se pudo generar el análisis. Inténtalo de nuevo.');
+  }
+}

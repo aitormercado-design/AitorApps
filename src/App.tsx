@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, Banana, User as UserIcon, Pizza, Save, Edit2, Trash2, Home } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, ChevronUp, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, Banana, User as UserIcon, Pizza, Save, Edit2, Trash2, Home, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
 import { useCooldown } from './hooks/useCooldown';
 import remarkGfm from 'remark-gfm';
 import { ExerciseDelta } from './components/ExerciseDelta';
-import { analyzeFoodText, streamCompletion, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList } from './lib/groq';
+import { analyzeFoodText, streamCompletion, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateWeeklyAnalysis } from './lib/groq';
+import type { WeekDaySummary } from './lib/groq';
 import { useProactiveCoach } from './hooks/useProactiveCoach';
 import { analyzeFoodImage } from './lib/openrouter';
 import type { NutritionalInfo, WeeklyMenu, ShoppingList } from './types/nutrition';
@@ -445,11 +446,12 @@ export default function App() {
   const [macrosManuallyEdited, setMacrosManuallyEdited] = useState(false);
   const recalcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const menuCooldown     = useCooldown(60);
-  const workoutCooldown  = useCooldown(60);
-  const shoppingCooldown = useCooldown(30);
-  const textFoodCooldown = useCooldown(8);
-  const imageFoodCooldown = useCooldown(8);
+  const menuCooldown          = useCooldown(60);
+  const workoutCooldown       = useCooldown(60);
+  const shoppingCooldown      = useCooldown(30);
+  const textFoodCooldown      = useCooldown(8);
+  const imageFoodCooldown     = useCooldown(8);
+  const weeklyAnalysisCooldown = useCooldown(60);
   const mealsListenerRef = useRef<(() => void) | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuTabsRef = useRef<HTMLDivElement>(null);
@@ -461,6 +463,9 @@ export default function App() {
   const [isGeneratingShoppingList, setIsGeneratingShoppingList] = useState(false);
   const [appError, setAppError] = useState<{ message: string; timestamp: number } | null>(null);
   const [appSuccess, setAppSuccess] = useState<string | null>(null);
+  const [expandedWeekDay, setExpandedWeekDay] = useState<string | null>(null);
+  const [weeklyAnalysis, setWeeklyAnalysis] = useState<string>('');
+  const [weeklyAnalysisLoading, setWeeklyAnalysisLoading] = useState(false);
   const showError = (message: string) => setAppError({ message, timestamp: Date.now() });
   const showSuccess = (message: string) => { setAppSuccess(message); setTimeout(() => setAppSuccess(null), 3000); };
 
@@ -960,6 +965,72 @@ export default function App() {
     };
   }, [goals, weeklyStats, profile, weights]);
 
+  // Build per-day data for the semaphore weekly view
+  const weekDays = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayOfWeek = today.getDay(); // 0=Sunday
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+
+    const dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const plannedDateSet = new Set(Object.values(gymRoutineDates));
+
+    return Array.from({ length: 7 }, (_, i) => {
+      const day = new Date(monday);
+      day.setDate(monday.getDate() + i);
+      const dateStr = getLocalDateStr(day);
+      const isFuture = day > today;
+      const isToday = dateStr === todayStr;
+
+      const dayMeals = meals.filter(m => getLocalDateStr(new Date(m.timestamp)) === dateStr);
+      const caloriesConsumed = dayMeals.reduce((sum, m) => sum + m.calories, 0);
+      const caloriesGoal = goals.calories;
+      const caloriesPct = caloriesGoal > 0 ? caloriesConsumed / caloriesGoal : 0;
+
+      const dayHabits = habits[dateStr];
+      const hadWorkoutPlanned = profile.gymEnabled && plannedDateSet.has(dateStr);
+      const workoutDone = dayHabits?.workoutDone ?? false;
+      const workoutCalories =
+        dayHabits?.workoutCalories ??
+        (dayHabits?.manualWorkout?.caloriesBurned ?? 0);
+
+      let status: 'green' | 'yellow' | 'red' | 'future' | 'empty';
+      if (isFuture) {
+        status = 'future';
+      } else if (caloriesConsumed === 0 && !workoutDone) {
+        status = 'empty';
+      } else if (caloriesPct < 0.7 || caloriesPct > 1.3) {
+        status = 'red';
+      } else if (
+        (caloriesPct >= 0.7 && caloriesPct < 0.85) ||
+        (caloriesPct > 1.1 && caloriesPct <= 1.3) ||
+        (hadWorkoutPlanned && !workoutDone)
+      ) {
+        status = 'yellow';
+      } else {
+        status = 'green';
+      }
+
+      return {
+        date: dateStr,
+        dayName: dayNames[i],
+        dayShort: dayNames[i].substring(0, 3).toUpperCase(),
+        isToday,
+        isFuture,
+        caloriesConsumed,
+        caloriesGoal,
+        caloriesPct,
+        hadWorkoutPlanned,
+        workoutDone,
+        workoutCalories,
+        status,
+        dayMeals,
+      };
+    });
+  }, [meals, habits, goals.calories, gymRoutineDates, profile.gymEnabled, todayStr]);
+
   // Calculate trends based on period
   const trendsData = useMemo(() => {
     const periodDays = {
@@ -1385,6 +1456,36 @@ export default function App() {
       showError(error.message || 'Error al generar el plan. Inténtalo de nuevo.');
     } finally {
       setIsGeneratingMenu(false);
+    }
+  };
+
+  const handleWeeklyAnalysis = async () => {
+    if (weeklyAnalysisCooldown.isActive || weeklyAnalysisLoading) return;
+    setWeeklyAnalysisLoading(true);
+    setWeeklyAnalysis('');
+    try {
+      const summaries: WeekDaySummary[] = weekDays.map(d => ({
+        date: d.date,
+        dayName: d.dayName,
+        status: d.status,
+        caloriesConsumed: d.caloriesConsumed,
+        caloriesGoal: d.caloriesGoal,
+        workoutDone: d.workoutDone,
+        hadWorkoutPlanned: d.hadWorkoutPlanned,
+        workoutCalories: d.workoutCalories,
+      }));
+      const result = await generateWeeklyAnalysis(
+        profile.name,
+        summaries,
+        goals.calories,
+        profile.trainingDaysPerWeek
+      );
+      setWeeklyAnalysis(result);
+      weeklyAnalysisCooldown.start();
+    } catch (e: any) {
+      setWeeklyAnalysis(e.message || 'Error al generar el análisis.');
+    } finally {
+      setWeeklyAnalysisLoading(false);
     }
   };
 
@@ -2238,11 +2339,255 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </div>
                       </div>
                     </div>
+            ) : evolutionPeriod === 'weekly' ? (
+              /* ── SEMAPHORE WEEKLY VIEW ── */
+              <div className="space-y-4">
+
+                {/* Grid card */}
+                <div className={`${themeStyles.bento} p-6 space-y-5`}>
+                  {/* Header */}
+                  <div className="flex items-center gap-4">
+                    <div className={`p-3 ${themeStyles.accentBg} rounded-2xl shadow-lg`}>
+                      <Calendar className={`w-5 h-5 ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`} />
+                    </div>
+                    <div>
+                      <h2 className={`text-lg font-display font-black ${themeStyles.textMain} tracking-tight uppercase`}>Resumen Semanal</h2>
+                      <p className={`text-[10px] font-black ${themeStyles.accent} uppercase tracking-widest opacity-70`}>
+                        {weekDays.length === 7 && (() => {
+                          const fmt = (d: string) =>
+                            new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).toUpperCase();
+                          return `Semana del ${fmt(weekDays[0].date)} al ${fmt(weekDays[6].date)}`;
+                        })()}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 7-day row */}
+                  <div className="flex gap-1 overflow-x-auto pb-1">
+                    {(weekDays as any[]).map((day) => {
+                      const isExpanded = expandedWeekDay === day.date;
+                      const accentDot   = profile.theme === 'light' ? 'bg-emerald-500 shadow-emerald-500/30' : 'bg-lime-400 shadow-lime-400/30';
+                      const accentRing  = profile.theme === 'light' ? 'ring-emerald-500/20' : 'ring-lime-400/20';
+                      const dotCfg: Record<string, string> = {
+                        green:  accentDot,
+                        yellow: 'bg-amber-500 shadow-amber-500/30',
+                        red:    'bg-red-500 shadow-red-500/30',
+                        empty:  profile.theme === 'light' ? 'bg-zinc-400' : 'bg-zinc-700',
+                        future: '',
+                      };
+                      const ringCfg: Record<string, string> = {
+                        green:  accentRing,
+                        yellow: 'ring-amber-500/20',
+                        red:    'ring-red-500/20',
+                        empty:  'ring-zinc-500/10',
+                        future: '',
+                      };
+
+                      return (
+                        <div key={day.date} className="flex-1 min-w-[2.75rem]">
+                          <button
+                            onClick={() => { if (!day.isFuture) setExpandedWeekDay(isExpanded ? null : day.date); }}
+                            disabled={day.isFuture}
+                            className={`w-full flex flex-col items-center gap-1 py-3 px-0.5 rounded-2xl transition-all
+                              ${day.isToday ? `ring-2 ${ringCfg[day.status]} ${profile.theme === 'light' ? 'bg-slate-50' : 'bg-white/5'}` : ''}
+                              ${!day.isFuture ? `cursor-pointer ${profile.theme === 'light' ? 'hover:bg-slate-50' : 'hover:bg-white/5'}` : 'cursor-default opacity-40'}
+                              ${isExpanded ? (profile.theme === 'light' ? 'bg-slate-100' : 'bg-white/[0.06]') : ''}
+                            `}
+                          >
+                            <span className={`text-[8px] font-black uppercase tracking-wider ${day.isToday ? themeStyles.accent : themeStyles.textMuted}`}>
+                              {day.dayShort}
+                            </span>
+                            <span className={`text-[9px] font-black ${themeStyles.textMuted}`}>
+                              {new Date(day.date + 'T12:00:00').getDate()}
+                            </span>
+
+                            {/* Semaphore dot */}
+                            {day.isFuture ? (
+                              <div className={`w-8 h-8 rounded-full border-2 border-dashed ${profile.theme === 'light' ? 'border-slate-300' : 'border-zinc-700'} flex items-center justify-center`}>
+                                <span className={`text-[8px] font-black ${themeStyles.textMuted}`}>—</span>
+                              </div>
+                            ) : (
+                              <div className={`w-8 h-8 rounded-full ${dotCfg[day.status]} shadow-lg ring-4 ${ringCfg[day.status]} flex items-center justify-center`}>
+                                {day.status === 'green'  && <CheckCircle2 className={`w-4 h-4 ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`} />}
+                                {day.status === 'yellow' && <AlertTriangle className="w-3.5 h-3.5 text-white" />}
+                                {(day.status === 'red' || day.status === 'empty') && <X className="w-3.5 h-3.5 text-white" />}
+                              </div>
+                            )}
+
+                            {/* kcal + workout badge */}
+                            <div className="flex flex-col items-center gap-0.5 min-h-[2.5rem] justify-center">
+                              {!day.isFuture && day.caloriesConsumed > 0 ? (
+                                <span className={`text-[8px] font-black leading-none text-center ${themeStyles.textMain}`}>
+                                  {Math.round(day.caloriesConsumed)}<br/>
+                                  <span className={`${themeStyles.textMuted} font-normal`}>kcal</span>
+                                </span>
+                              ) : !day.isFuture ? (
+                                <span className={`text-[7px] font-black ${themeStyles.textMuted} text-center leading-tight`}>Sin<br/>datos</span>
+                              ) : null}
+                              {day.workoutDone && !day.isFuture && (
+                                <Dumbbell className={`w-2.5 h-2.5 ${themeStyles.accent}`} />
+                              )}
+                            </div>
+
+                            {/* Chevron toggle */}
+                            {!day.isFuture && (
+                              isExpanded
+                                ? <ChevronUp className={`w-3 h-3 ${themeStyles.textMuted}`} />
+                                : <ChevronDown className={`w-3 h-3 ${themeStyles.textMuted} opacity-30`} />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Expanded day detail */}
+                  <AnimatePresence>
+                    {expandedWeekDay && (() => {
+                      const day = (weekDays as any[]).find(d => d.date === expandedWeekDay);
+                      if (!day) return null;
+                      const pct = Math.round(day.caloriesPct * 100);
+                      const statusLabel: Record<string, string> = { green: 'Bien', yellow: 'Atención', red: 'Mal', empty: 'Sin datos', future: '' };
+                      const statusColor: Record<string, string> = {
+                        green:  profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400',
+                        yellow: 'text-amber-500',
+                        red:    'text-red-500',
+                        empty:  themeStyles.textMuted,
+                        future: '',
+                      };
+                      const barColor: Record<string, string> = {
+                        green:  profile.theme === 'light' ? 'bg-emerald-500' : 'bg-lime-400',
+                        yellow: 'bg-amber-500',
+                        red:    'bg-red-500',
+                        empty:  profile.theme === 'light' ? 'bg-zinc-400' : 'bg-zinc-700',
+                        future: '',
+                      };
+
+                      return (
+                        <motion.div
+                          key={expandedWeekDay}
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className={`rounded-2xl border ${themeStyles.border} ${profile.theme === 'light' ? 'bg-slate-50' : 'bg-white/[0.03]'} p-5 space-y-4`}>
+
+                            {/* Day title + status */}
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[11px] font-black ${themeStyles.textMain} uppercase tracking-widest`}>
+                                {day.dayName} {new Date(day.date + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' }).toUpperCase()}
+                              </span>
+                              <span className={`text-[10px] font-black uppercase tracking-widest ${statusColor[day.status]}`}>
+                                {statusLabel[day.status]}
+                              </span>
+                            </div>
+
+                            {/* Calorie progress bar */}
+                            <div className="space-y-1.5">
+                              <div className="flex justify-between items-end">
+                                <span className={`text-[9px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Calorías</span>
+                                <span className={`text-[10px] font-black ${themeStyles.textMain}`}>
+                                  {Math.round(day.caloriesConsumed).toLocaleString('es-ES')} / {day.caloriesGoal.toLocaleString('es-ES')} kcal
+                                  <span className={` ml-1 ${statusColor[day.status]}`}>({pct}%)</span>
+                                </span>
+                              </div>
+                              <div className={`h-3 ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-900'} rounded-full overflow-hidden border ${themeStyles.border}`}>
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${Math.min(100, pct)}%` }}
+                                  transition={{ duration: 0.5, ease: 'easeOut' }}
+                                  className={`h-full rounded-full ${barColor[day.status]}`}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Meals list */}
+                            {day.dayMeals.length > 0 ? (
+                              <div className="space-y-1">
+                                <span className={`text-[9px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>
+                                  Comidas registradas: {day.dayMeals.length}
+                                </span>
+                                <div className="mt-1 space-y-1">
+                                  {day.dayMeals.map((m: any) => (
+                                    <div key={m.id} className="flex justify-between items-center gap-2">
+                                      <span className={`text-[10px] ${themeStyles.textMain} truncate`}>• {m.foodName}</span>
+                                      <span className={`text-[10px] font-black ${themeStyles.textMuted} shrink-0`}>{Math.round(m.calories)} kcal</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <p className={`text-[10px] ${themeStyles.textMuted}`}>No hay comidas registradas este día.</p>
+                            )}
+
+                            {/* Workout row */}
+                            {profile.gymEnabled && (
+                              <div className={`flex items-center gap-2 pt-2 border-t ${themeStyles.border}`}>
+                                <Dumbbell className={`w-3.5 h-3.5 shrink-0 ${day.workoutDone ? (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400') : themeStyles.textMuted}`} />
+                                <span className={`text-[9px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Entrenamiento:</span>
+                                <span className={`text-[10px] font-black ${day.workoutDone ? (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400') : 'text-red-500'}`}>
+                                  {day.workoutDone
+                                    ? `✓ Completado — ${Math.round(day.workoutCalories)} kcal quemadas`
+                                    : day.hadWorkoutPlanned
+                                      ? '✗ No completado'
+                                      : '— Sin entrenamiento'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    })()}
+                  </AnimatePresence>
+                </div>
+
+                {/* AI Analysis card */}
+                <div className={`${themeStyles.bento} p-6 space-y-4`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2.5 ${themeStyles.accentBg} rounded-xl shadow-lg`}>
+                      <Bot className={`w-4 h-4 ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`} />
+                    </div>
+                    <div>
+                      <p className={`text-xs font-black ${themeStyles.textMain} uppercase tracking-widest`}>Análisis IA</p>
+                      <p className={`text-[9px] ${themeStyles.textMuted} uppercase tracking-widest`}>Tu coach personal</p>
+                    </div>
+                  </div>
+
+                  {weeklyAnalysis && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`rounded-2xl p-5 ${profile.theme === 'light' ? 'bg-emerald-50 border border-emerald-100' : 'bg-lime-400/5 border border-lime-400/10'}`}
+                    >
+                      <p className={`text-sm leading-relaxed ${themeStyles.textMain} whitespace-pre-line`}>{weeklyAnalysis}</p>
+                    </motion.div>
+                  )}
+
+                  <button
+                    onClick={handleWeeklyAnalysis}
+                    disabled={weeklyAnalysisLoading || weeklyAnalysisCooldown.isActive}
+                    className={`w-full py-4 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                      weeklyAnalysisLoading || weeklyAnalysisCooldown.isActive
+                        ? `${profile.theme === 'light' ? 'bg-slate-100 text-slate-400' : 'bg-zinc-900 text-zinc-600'} cursor-not-allowed`
+                        : themeStyles.buttonPrimary
+                    }`}
+                  >
+                    {weeklyAnalysisLoading ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" />Analizando...</>
+                    ) : weeklyAnalysisCooldown.isActive ? (
+                      <><Loader2 className="w-3.5 h-3.5" />Disponible en {weeklyAnalysisCooldown.remaining}s</>
+                    ) : (
+                      <><Sparkles className="w-4 h-4" />Analizar mi semana con IA</>
+                    )}
+                  </button>
+                </div>
+              </div>
             ) : (
               <section>
                   <div className={`${themeStyles.bento} p-8 relative overflow-hidden`}>
                     <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-3xl`}></div>
-                    
+
                     <div className="flex items-center gap-4 mb-10 relative z-10">
                       <div className={`p-3 ${themeStyles.accentBg} rounded-2xl shadow-lg`}>
                         <TrendingUp className={`w-6 h-6 ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`} />
@@ -2256,52 +2601,52 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <div className="h-72 w-full -ml-4 relative z-10">
                       <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart data={trendsData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                          <XAxis 
-                            dataKey="name" 
+                          <XAxis
+                            dataKey="name"
                             stroke={profile.theme === 'light' ? '#94a3b8' : '#52525b'}
-                            fontSize={8} 
-                            tickLine={false} 
+                            fontSize={8}
+                            tickLine={false}
                             axisLine={false}
                             tick={{ fill: profile.theme === 'light' ? '#64748b' : '#71717a', fontWeight: 800 }}
                             dy={10}
-                            interval={evolutionPeriod === 'weekly' ? 0 : evolutionPeriod === 'monthly' ? 4 : Math.floor(trendsData.length / 8)}
+                            interval={evolutionPeriod === 'monthly' ? 4 : Math.floor(trendsData.length / 8)}
                           />
                           <YAxis yAxisId="cal" orientation="left" hide domain={[0, 'auto']} />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: profile.theme === 'light' ? '#ffffff' : '#18181b', 
-                              borderColor: profile.theme === 'light' ? '#e2e8f0' : 'rgba(163, 230, 53, 0.2)', 
-                              borderRadius: '20px', 
-                              color: profile.theme === 'light' ? '#0f172a' : '#fff', 
-                              fontSize: '11px', 
-                              boxShadow: '0 10px 30px rgba(0,0,0,0.1)' 
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: profile.theme === 'light' ? '#ffffff' : '#18181b',
+                              borderColor: profile.theme === 'light' ? '#e2e8f0' : 'rgba(163, 230, 53, 0.2)',
+                              borderRadius: '20px',
+                              color: profile.theme === 'light' ? '#0f172a' : '#fff',
+                              fontSize: '11px',
+                              boxShadow: '0 10px 30px rgba(0,0,0,0.1)'
                             }}
                             itemStyle={{ fontSize: '11px', fontWeight: 700, padding: '2px 0' }}
                             labelStyle={{ color: profile.theme === 'light' ? '#10b981' : '#a3e635', marginBottom: '6px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}
                             cursor={{ fill: profile.theme === 'light' ? '#10b981' : '#a3e635', opacity: 0.05 }}
                           />
-                          <Bar 
-                            yAxisId="cal" 
-                            dataKey="calories" 
-                            fill={profile.theme === 'light' ? '#10b981' : '#a3e635'} 
-                            radius={[2, 2, 0, 0]} 
-                            barSize={evolutionPeriod === 'weekly' ? 24 : evolutionPeriod === 'monthly' ? 12 : 4} 
-                            name="Consumidas" 
+                          <Bar
+                            yAxisId="cal"
+                            dataKey="calories"
+                            fill={profile.theme === 'light' ? '#10b981' : '#a3e635'}
+                            radius={[2, 2, 0, 0]}
+                            barSize={evolutionPeriod === 'monthly' ? 12 : 4}
+                            name="Consumidas"
                           />
-                          <Line 
-                            yAxisId="cal" 
-                            type="monotone" 
-                            dataKey="goal" 
-                            stroke="#818cf8" 
-                            strokeWidth={2} 
+                          <Line
+                            yAxisId="cal"
+                            type="monotone"
+                            dataKey="goal"
+                            stroke="#818cf8"
+                            strokeWidth={2}
                             strokeDasharray="6 6"
                             dot={false}
-                            name="Puedes llegar a" 
+                            name="Puedes llegar a"
                           />
                         </ComposedChart>
                       </ResponsiveContainer>
                     </div>
-                    
+
                     <div className={`mt-10 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-[10px] font-black uppercase tracking-widest ${themeStyles.textMuted} border-t ${themeStyles.border} pt-8`}>
                       <div className="flex items-center gap-3">
                         <div className={`w-3 h-3 rounded-sm ${themeStyles.accentBg} shadow-sm`}></div>
