@@ -511,18 +511,18 @@ export async function generateWeeklyAnalysis(
     })
     .join('\n');
 
-  const systemPrompt = `Eres el coach personal de ${userName || 'el usuario'}. Hablas en español, eres directo, motivador y específico. NUNCA uses saludos ni despedidas.`;
+  const systemPrompt = `Eres el coach personal de ${userName || 'el usuario'}. Hablas en español, SIEMPRE en segunda persona (tú/te/tu/has/tienes). NUNCA uses tercera persona ni el nombre del usuario como sujeto. NUNCA uses saludos ni despedidas. Sé directo, motivador y específico.`;
 
-  const userPrompt = `Analiza esta semana de ${userName || 'tu usuario'}:
+  const userPrompt = `Analiza esta semana:
 
 ${dayLines}
 
 Objetivo diario: ${caloriesGoal}kcal. Días de gym planificados: ${gymDaysPerWeek}.
 
-Responde con exactamente 4 frases numeradas:
+Responde con exactamente 4 frases numeradas dirigiéndote directamente al usuario (usa "has", "tienes", "te"):
 1. Valoración general de la semana (usa datos concretos)
-2. Lo que hizo bien (específico, menciona días o números)
-3. Lo que debe mejorar (accionable y concreto)
+2. Lo que has hecho bien (específico, menciona días o números)
+3. Lo que puedes mejorar (accionable y concreto)
 4. Un consejo para la próxima semana`;
 
   try {

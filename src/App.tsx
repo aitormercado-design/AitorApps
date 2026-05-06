@@ -466,6 +466,7 @@ export default function App() {
   const [expandedWeekDay, setExpandedWeekDay] = useState<string | null>(null);
   const [weeklyAnalysis, setWeeklyAnalysis] = useState<string>('');
   const [weeklyAnalysisLoading, setWeeklyAnalysisLoading] = useState(false);
+  const [weekOffset, setWeekOffset] = useState(0);
   const showError = (message: string) => setAppError({ message, timestamp: Date.now() });
   const showSuccess = (message: string) => { setAppSuccess(message); setTimeout(() => setAppSuccess(null), 3000); };
 
@@ -972,7 +973,7 @@ export default function App() {
     const dayOfWeek = today.getDay(); // 0=Sunday
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const monday = new Date(today);
-    monday.setDate(today.getDate() + mondayOffset);
+    monday.setDate(today.getDate() + mondayOffset + weekOffset * 7);
 
     const dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     const plannedDateSet = new Set(Object.values(gymRoutineDates));
@@ -1029,7 +1030,7 @@ export default function App() {
         dayMeals,
       };
     });
-  }, [meals, habits, goals.calories, gymRoutineDates, profile.gymEnabled, todayStr]);
+  }, [meals, habits, goals.calories, gymRoutineDates, profile.gymEnabled, todayStr, weekOffset]);
 
   // Calculate trends based on period
   const trendsData = useMemo(() => {
@@ -2203,21 +2204,20 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               className="space-y-6 pb-32"
             >
               <div className="flex flex-col gap-4">
-                {/* Period Selector Dropdown */}
-                <div className="relative w-full">
-                  <select 
-                    value={evolutionPeriod}
-                    onChange={(e) => setEvolutionPeriod(e.target.value as any)}
-                    className={`w-full ${themeStyles.card} rounded-2xl px-5 py-4 text-xs font-black uppercase tracking-widest ${themeStyles.textMain} shadow-xl focus:outline-none focus:${themeStyles.accentBorder} appearance-none cursor-pointer transition-all ${profile.theme === 'light' ? 'hover:bg-slate-50' : 'hover:bg-zinc-800'}`}
+                {/* Period Toggle: Hoy / Semana */}
+                <div className={`grid grid-cols-2 ${profile.theme === 'light' ? 'bg-slate-200/50' : 'bg-zinc-950/80'} p-1.5 rounded-2xl border ${profile.theme === 'light' ? 'border-slate-300/50' : 'border-white/5'} shadow-xl`}>
+                  <button
+                    onClick={() => setEvolutionPeriod('today')}
+                    className={`py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${evolutionPeriod === 'today' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-lg` : themeStyles.textMuted}`}
                   >
-                    <option value="today" className={profile.theme === 'light' ? 'text-slate-900 bg-white' : 'text-white bg-zinc-900'}>Hoy</option>
-                    <option value="weekly" className={profile.theme === 'light' ? 'text-slate-900 bg-white' : 'text-white bg-zinc-900'}>Semanal</option>
-                    <option value="monthly" className={profile.theme === 'light' ? 'text-slate-900 bg-white' : 'text-white bg-zinc-900'}>Mensual</option>
-                    <option value="quarterly" className={profile.theme === 'light' ? 'text-slate-900 bg-white' : 'text-white bg-zinc-900'}>Trimestral</option>
-                    <option value="semiannually" className={profile.theme === 'light' ? 'text-slate-900 bg-white' : 'text-white bg-zinc-900'}>Semestral</option>
-                    <option value="annually" className={profile.theme === 'light' ? 'text-slate-900 bg-white' : 'text-white bg-zinc-900'}>Anual</option>
-                  </select>
-                  <ChevronDown className={`absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 ${themeStyles.accent} pointer-events-none`} />
+                    Hoy
+                  </button>
+                  <button
+                    onClick={() => { setEvolutionPeriod('weekly'); setWeekOffset(0); setExpandedWeekDay(null); setWeeklyAnalysis(''); }}
+                    className={`py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${evolutionPeriod === 'weekly' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-lg` : themeStyles.textMuted}`}
+                  >
+                    Esta semana
+                  </button>
                 </div>
 
                 {evolutionPeriod === 'today' ? (
@@ -2345,21 +2345,37 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                 {/* Grid card */}
                 <div className={`${themeStyles.bento} p-6 space-y-5`}>
-                  {/* Header */}
-                  <div className="flex items-center gap-4">
-                    <div className={`p-3 ${themeStyles.accentBg} rounded-2xl shadow-lg`}>
-                      <Calendar className={`w-5 h-5 ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`} />
+                  {/* Header with week navigation */}
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => { setWeekOffset(w => w - 1); setExpandedWeekDay(null); setWeeklyAnalysis(''); }}
+                      className={`p-2.5 rounded-xl ${profile.theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/10'} transition-all`}
+                    >
+                      <ChevronDown className={`w-5 h-5 ${themeStyles.textMuted} rotate-90`} />
+                    </button>
+
+                    <div className="flex flex-col items-center gap-1">
+                      <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>
+                        {weekOffset === 0 ? 'Esta semana' : weekOffset === -1 ? 'Semana pasada' : `Hace ${Math.abs(weekOffset)} semanas`}
+                      </span>
+                      {weekDays.length === 7 && (
+                        <span className={`text-[9px] font-black ${themeStyles.accent} uppercase tracking-widest opacity-70`}>
+                          {(() => {
+                            const fmt = (d: string) =>
+                              new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).toUpperCase();
+                            return `${fmt(weekDays[0].date)} — ${fmt(weekDays[6].date)}`;
+                          })()}
+                        </span>
+                      )}
                     </div>
-                    <div>
-                      <h2 className={`text-lg font-display font-black ${themeStyles.textMain} tracking-tight uppercase`}>Resumen Semanal</h2>
-                      <p className={`text-[10px] font-black ${themeStyles.accent} uppercase tracking-widest opacity-70`}>
-                        {weekDays.length === 7 && (() => {
-                          const fmt = (d: string) =>
-                            new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).toUpperCase();
-                          return `Semana del ${fmt(weekDays[0].date)} al ${fmt(weekDays[6].date)}`;
-                        })()}
-                      </p>
-                    </div>
+
+                    <button
+                      onClick={() => { if (weekOffset < 0) { setWeekOffset(w => w + 1); setExpandedWeekDay(null); setWeeklyAnalysis(''); } }}
+                      disabled={weekOffset === 0}
+                      className={`p-2.5 rounded-xl transition-all ${weekOffset === 0 ? 'opacity-20 cursor-not-allowed' : `${profile.theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-white/10'}`}`}
+                    >
+                      <ChevronDown className={`w-5 h-5 ${themeStyles.textMuted} -rotate-90`} />
+                    </button>
                   </div>
 
                   {/* 7-day row */}
