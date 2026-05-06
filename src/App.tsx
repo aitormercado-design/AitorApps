@@ -468,6 +468,13 @@ export default function App() {
   const [weeklyAnalysis, setWeeklyAnalysis] = useState<string>('');
   const [weeklyAnalysisLoading, setWeeklyAnalysisLoading] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [menuNeedsRegeneration, setMenuNeedsRegeneration] = useState<boolean>(
+    () => localStorage.getItem('menuNeedsRegen') === 'true'
+  );
+  const [workoutNeedsRegeneration, setWorkoutNeedsRegeneration] = useState<boolean>(
+    () => localStorage.getItem('workoutNeedsRegen') === 'true'
+  );
+  const [isAIGenerating, setIsAIGenerating] = useState(false);
   const showError = (message: string) => setAppError({ message, timestamp: Date.now() });
   const showSuccess = (message: string) => { setAppSuccess(message); setTimeout(() => setAppSuccess(null), 3000); };
 
@@ -727,6 +734,17 @@ export default function App() {
       }
     }
   }, [workoutPlan, user, isDataLoaded]);
+
+  // Persist regen flags to localStorage
+  useEffect(() => {
+    if (menuNeedsRegeneration) localStorage.setItem('menuNeedsRegen', 'true');
+    else localStorage.removeItem('menuNeedsRegen');
+  }, [menuNeedsRegeneration]);
+
+  useEffect(() => {
+    if (workoutNeedsRegeneration) localStorage.setItem('workoutNeedsRegen', 'true');
+    else localStorage.removeItem('workoutNeedsRegen');
+  }, [workoutNeedsRegeneration]);
 
   // Auto-dismiss error toast: 10s for rate-limit, 6s for everything else
   useEffect(() => {
@@ -1460,6 +1478,8 @@ export default function App() {
   const handleGenerateMenu = async (customProfile?: UserProfile, customGoals?: typeof goals, customWeight?: number) => {
     const activeProfile = customProfile || profile;
     if (activeProfile.age === 0) return;
+    if (isAIGenerating) { showError('Ya hay una generación en curso. Espera a que termine.'); return; }
+    setIsAIGenerating(true);
     setIsGeneratingMenu(true);
     setProgressMsgIdx(0);
     setGeneratedMenu(null);
@@ -1472,15 +1492,19 @@ export default function App() {
       const currentWeight = customWeight || (weights.length > 0 ? weights[weights.length - 1].weight : 70);
       const menu = await generateWeeklyMenu(activeProfile, currentWeight);
       setGeneratedMenu(menu);
+      setMenuNeedsRegeneration(false);
     } catch (error: any) {
       showError(error.message || 'Error al generar el plan. Inténtalo de nuevo.');
     } finally {
       setIsGeneratingMenu(false);
+      setIsAIGenerating(false);
     }
   };
 
   const handleWeeklyAnalysis = async () => {
     if (weeklyAnalysisCooldown.isActive || weeklyAnalysisLoading) return;
+    if (isAIGenerating) { showError('Ya hay una generación en curso. Espera a que termine.'); return; }
+    setIsAIGenerating(true);
     setWeeklyAnalysisLoading(true);
     setWeeklyAnalysis('');
     try {
@@ -1506,6 +1530,7 @@ export default function App() {
       setWeeklyAnalysis(e.message || 'Error al generar el análisis.');
     } finally {
       setWeeklyAnalysisLoading(false);
+      setIsAIGenerating(false);
     }
   };
 
@@ -1518,6 +1543,8 @@ export default function App() {
 
   const handleGenerateShoppingList = async () => {
     if (!generatedMenu) return;
+    if (isAIGenerating) { showError('Ya hay una generación en curso. Espera a que termine.'); return; }
+    setIsAIGenerating(true);
     setIsGeneratingShoppingList(true);
     setShoppingList(null);
     setAppError(null);
@@ -1530,6 +1557,7 @@ export default function App() {
       showError("Error al generar la lista de la compra. Inténtalo de nuevo.");
     } finally {
       setIsGeneratingShoppingList(false);
+      setIsAIGenerating(false);
     }
   };
 
@@ -1576,18 +1604,12 @@ export default function App() {
       weightVal !== latestWeight;
 
     setProfile(editProfile);
-    
+
     const newGoals = updateGoalsForProfile(editProfile, weightVal);
 
-    // Auto-regenerate menu if diet relevant fields changed
-    if (dietChanged) {
-      handleGenerateMenu(editProfile, newGoals, weightVal);
-    }
-
-    // Auto-regenerate workout plan if gym relevant fields changed
-    if (editProfile.gymEnabled && (gymChanged || !workoutPlan)) {
-      handleGenerateWorkout(editProfile);
-    }
+    // Flag content that needs regeneration — do NOT auto-call Groq
+    if (dietChanged && generatedMenu) setMenuNeedsRegeneration(true);
+    if (editProfile.gymEnabled && gymChanged && workoutPlan) setWorkoutNeedsRegeneration(true);
 
     // One-time migration: remove persisted chatMessages from Firestore
     if (user) {
@@ -1718,6 +1740,7 @@ export default function App() {
   const handleGenerateWorkout = async (customProfile?: UserProfile) => {
     const targetProfile = customProfile || profile;
     const days = targetProfile.trainingDaysPerWeek || 3;
+    if (isAIGenerating) { showError('Ya hay una generación en curso. Espera a que termine.'); return; }
 
     // Set dates eagerly so inputs never show empty
     const base = new Date(todayStr + 'T12:00:00');
@@ -1730,6 +1753,7 @@ export default function App() {
     setGymRoutineDates(newDates);
     setGymDayDone({});
 
+    setIsAIGenerating(true);
     setIsGeneratingWorkout(true);
     try {
       const profileStr = JSON.stringify({
@@ -1739,11 +1763,13 @@ export default function App() {
       });
       const plan = await generateWorkoutPlan(profileStr);
       setWorkoutPlan(plan);
+      setWorkoutNeedsRegeneration(false);
     } catch (error: any) {
       console.error("Error generating workout:", error);
       showError(error?.message || "Error al generar tu rutina de entrenamiento.");
     } finally {
       setIsGeneratingWorkout(false);
+      setIsAIGenerating(false);
     }
   };
 
@@ -2722,6 +2748,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 >
                   <ClipboardList className="w-3.5 h-3.5" />
                   Plan
+                  {menuNeedsRegeneration && (
+                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                  )}
                 </button>
                 {generatedMenu && (
                   <button
@@ -2863,6 +2892,25 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 <p className={`${themeStyles.textMain} text-sm font-medium mb-4`}>
                     Esta es una propuesta de menú semanal para ayudarte a cumplir con tus objetivos de calorías y macronutrientes.
                 </p>
+
+                {/* Invalidation banner */}
+                {menuNeedsRegeneration && generatedMenu && (
+                  <div className={`rounded-2xl border border-amber-500/40 ${profile.theme === 'light' ? 'bg-amber-50' : 'bg-amber-500/5'} p-4 flex items-start gap-3`}>
+                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-black text-amber-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
+                      <p className={`text-[11px] mt-0.5 ${profile.theme === 'light' ? 'text-amber-700' : 'text-amber-400/80'}`}>El menú puede no reflejar tus nuevos datos.</p>
+                    </div>
+                    <button
+                      disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
+                      onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
+                      className="shrink-0 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isGeneratingMenu ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Regenerar ahora'}
+                    </button>
+                  </div>
+                )}
+
               {profile.age === 0 ? (
                 <div className={`${themeStyles.bento} text-center`}>
                   <UserIcon className={`w-12 h-12 ${themeStyles.accent} mx-auto mb-4 opacity-50`} />
@@ -2935,7 +2983,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             </p>
                           </div>
                           <button
-                            disabled={menuCooldown.isActive || isGeneratingMenu}
+                            disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
                             onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
                             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} ${themeStyles.textMuted} text-[9px] font-black uppercase tracking-widest hover:${themeStyles.textMain} transition-all disabled:opacity-50`}
                           >
@@ -3042,7 +3090,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className="text-center py-8">
                         <p className={`${themeStyles.textMuted} text-center py-8`}>Genera tu menú semanal y lista de la compra adaptados a tus preferencias.</p>
                         <button
-                          disabled={menuCooldown.isActive || isGeneratingMenu}
+                          disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
                           onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
                           className={`${themeStyles.buttonPrimary} px-6 py-2 rounded-xl font-bold uppercase tracking-wider text-xs disabled:opacity-50`}
                         >
@@ -3183,13 +3231,16 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           key={st.id}
                           onClick={() => setGymSubTab(st.id as any)}
                           className={`py-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${
-                            gymSubTab === st.id 
-                              ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` 
+                            gymSubTab === st.id
+                              ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md`
                               : `${themeStyles.textMuted} hover:text-current`
                           }`}
                         >
                           <st.icon className="w-4 h-4" />
                           {st.label}
+                          {st.id === 'plan' && workoutNeedsRegeneration && (
+                            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                          )}
                         </button>
                       ))}
                     </div>
@@ -3229,6 +3280,24 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   >
                     {gymSubTab === 'plan' ? (
                       <div className="space-y-6">
+                        {/* Invalidation banner */}
+                        {workoutNeedsRegeneration && workoutPlan && (
+                          <div className={`rounded-2xl border border-amber-500/40 ${profile.theme === 'light' ? 'bg-amber-50' : 'bg-amber-500/5'} p-4 flex items-start gap-3`}>
+                            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-black text-amber-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
+                              <p className={`text-[11px] mt-0.5 ${profile.theme === 'light' ? 'text-amber-700' : 'text-amber-400/80'}`}>La rutina puede no reflejar tus nuevos datos.</p>
+                            </div>
+                            <button
+                              disabled={isAIGenerating || isGeneratingWorkout || workoutCooldown.isActive}
+                              onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
+                              className="shrink-0 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isGeneratingWorkout ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Regenerar ahora'}
+                            </button>
+                          </div>
+                        )}
+
                         {/* Premium Gym Header */}
                         <div className={`${themeStyles.bento} p-8 relative overflow-hidden`}>
                           <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-3xl`}></div>
@@ -3252,7 +3321,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             </div>
                             <button
                               onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
-                              disabled={isGeneratingWorkout || workoutCooldown.isActive}
+                              disabled={isAIGenerating || isGeneratingWorkout || workoutCooldown.isActive}
                               className={`shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent} disabled:opacity-40`}
                             >
                               <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingWorkout ? 'animate-spin' : ''}`} />
