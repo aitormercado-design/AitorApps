@@ -81,6 +81,14 @@ type WeightEntry = {
   timestamp: number;
 };
 
+type MedicalConditions = {
+  diabetes: boolean;
+  highCholesterol: boolean;
+  hypertension: boolean;
+  hypothyroidism: boolean;
+  insulinResistance: boolean;
+};
+
 type UserProfile = {
   name: string;
   age: number;
@@ -90,6 +98,7 @@ type UserProfile = {
   allergies: string[];
   otherAllergies: string;
   diabetesType: 'none' | 'type1' | 'type2' | 'prediabetes';
+  medicalConditions: MedicalConditions;
   dislikedFoods: string;
   goal: 'lose' | 'maintain' | 'gain';
   macroDistribution: 'balanced' | 'low_carb' | 'high_protein' | 'keto';
@@ -350,6 +359,7 @@ export default function App() {
     allergies: [],
     otherAllergies: '',
     diabetesType: 'none',
+    medicalConditions: { diabetes: false, highCholesterol: false, hypertension: false, hypothyroidism: false, insulinResistance: false },
     dislikedFoods: '',
     goal: 'maintain',
     macroDistribution: 'balanced',
@@ -420,6 +430,7 @@ export default function App() {
     allergies: [],
     otherAllergies: '',
     diabetesType: 'none',
+    medicalConditions: { diabetes: false, highCholesterol: false, hypertension: false, hypothyroidism: false, insulinResistance: false },
     dislikedFoods: '',
     goal: 'maintain',
     macroDistribution: 'balanced',
@@ -522,12 +533,20 @@ export default function App() {
           if (docSnap.exists()) {
             const data = docSnap.data();
             if (data.profile) {
+              const _diabetesType = data.profile.diabetesType || 'none';
               const loadedProfile = {
                 ...data.profile,
                 name: data.profile.name || '',
                 allergies: Array.isArray(data.profile.allergies) ? data.profile.allergies : [],
                 otherAllergies: data.profile.otherAllergies || '',
-                diabetesType: data.profile.diabetesType || 'none',
+                diabetesType: _diabetesType,
+                medicalConditions: data.profile.medicalConditions || {
+                  diabetes: _diabetesType !== 'none',
+                  highCholesterol: false,
+                  hypertension: false,
+                  hypothyroidism: false,
+                  insulinResistance: false,
+                },
                 dislikedFoods: data.profile.dislikedFoods || '',
                 freeMealEnabled: data.profile.freeMealEnabled || false,
                 freeMealDay: data.profile.freeMealDay || 'Sábado',
@@ -601,12 +620,20 @@ export default function App() {
 
           if (savedProfile) {
             const parsed = JSON.parse(savedProfile);
+            const _parsedDiabetesType = parsed.diabetesType || 'none';
             setProfile({
               ...parsed,
               name: parsed.name || '',
               allergies: Array.isArray(parsed.allergies) ? parsed.allergies : [],
               otherAllergies: parsed.otherAllergies || '',
-              diabetesType: parsed.diabetesType || 'none',
+              diabetesType: _parsedDiabetesType,
+              medicalConditions: parsed.medicalConditions || {
+                diabetes: _parsedDiabetesType !== 'none',
+                highCholesterol: false,
+                hypertension: false,
+                hypothyroidism: false,
+                insulinResistance: false,
+              },
               dislikedFoods: parsed.dislikedFoods || '',
               freeMealEnabled: parsed.freeMealEnabled || false,
               freeMealDay: parsed.freeMealDay || 'Sábado',
@@ -1585,10 +1612,11 @@ export default function App() {
     }
 
     // Compare key fields to decide on regeneration
-    const dietChanged = 
-      editProfile.dietType !== profile.dietType || 
-      editProfile.goal !== profile.goal || 
+    const dietChanged =
+      editProfile.dietType !== profile.dietType ||
+      editProfile.goal !== profile.goal ||
       editProfile.diabetesType !== profile.diabetesType ||
+      JSON.stringify(editProfile.medicalConditions) !== JSON.stringify(profile.medicalConditions) ||
       editProfile.dislikedFoods !== profile.dislikedFoods ||
       JSON.stringify(editProfile.allergies) !== JSON.stringify(profile.allergies) ||
       editProfile.macroDistribution !== profile.macroDistribution;
@@ -3994,42 +4022,109 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </select>
                       </div>
 
-                    <div className={`${profile.theme === 'light' ? 'bg-indigo-50/80 border-indigo-200' : 'bg-indigo-500/5 border-indigo-500/10'} p-4 rounded-2xl border space-y-4`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Activity className={`w-3.5 h-3.5 ${profile.theme === 'light' ? 'text-indigo-500' : 'text-indigo-400'}`} />
-                          <label className={`block text-[10px] font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-200/60'}`}>¿Tienes Diabetes?</label>
-                        </div>
-                        <button 
-                          type="button"
-                          onClick={() => setEditProfile({
-                            ...editProfile, 
-                            diabetesType: editProfile.diabetesType !== 'none' ? 'none' : 'type2'
-                          })}
-                          className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.diabetesType !== 'none' ? 'bg-indigo-500' : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
-                        >
-                          <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.diabetesType !== 'none' ? 'left-6' : 'left-0'}`} />
-                        </button>
+                    <div className={`${profile.theme === 'light' ? 'bg-rose-50/80 border-rose-200' : 'bg-rose-500/5 border-rose-500/10'} p-4 rounded-2xl border space-y-3`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Activity className={`w-3.5 h-3.5 ${profile.theme === 'light' ? 'text-rose-500' : 'text-rose-400'}`} />
+                        <span className={`text-[10px] font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-rose-700' : 'text-rose-300/70'}`}>🩺 Condiciones Médicas</span>
                       </div>
 
-                      {editProfile.diabetesType !== 'none' && (
-                        <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
-                          <label className={`block text-[10px] font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-indigo-900/60' : 'text-indigo-200/40'}`}>Tipo de Diabetes</label>
-                          <select 
-                            value={editProfile.diabetesType}
-                            onChange={(e) => setEditProfile({...editProfile, diabetesType: e.target.value as any})}
-                            className={`w-full ${profile.theme === 'light' ? 'bg-white border-indigo-200 text-indigo-900 focus:border-indigo-400' : 'bg-zinc-900 border-zinc-800 text-white focus:border-indigo-500/50'} rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-colors appearance-none shadow-sm`}
+                      {/* Diabetes */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-medium ${themeStyles.textMain}`}>Diabetes</span>
+                          <button type="button"
+                            onClick={() => setEditProfile({ ...editProfile,
+                              medicalConditions: { ...editProfile.medicalConditions, diabetes: !editProfile.medicalConditions.diabetes },
+                              diabetesType: !editProfile.medicalConditions.diabetes ? 'type2' : 'none'
+                            })}
+                            className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.medicalConditions.diabetes ? 'bg-rose-500' : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
                           >
-                            <option value="type1">Diabetes Tipo 1</option>
-                            <option value="type2">Diabetes Tipo 2</option>
-                            <option value="prediabetes">Pre-diabetes</option>
-                          </select>
+                            <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.medicalConditions.diabetes ? 'left-6' : 'left-0'}`} />
+                          </button>
                         </div>
-                      )}
+                        {editProfile.medicalConditions.diabetes && (
+                          <div className="animate-in fade-in slide-in-from-top-1 space-y-1.5">
+                            <p className={`text-[9px] ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Limitamos carbos a 60g/ingesta</p>
+                            <select
+                              value={editProfile.diabetesType}
+                              onChange={(e) => setEditProfile({ ...editProfile, diabetesType: e.target.value as any })}
+                              className={`w-full ${profile.theme === 'light' ? 'bg-white border-rose-200 text-rose-900 focus:border-rose-400' : 'bg-zinc-900 border-zinc-800 text-white focus:border-rose-500/50'} border rounded-xl px-3 py-2 text-xs focus:outline-none transition-colors appearance-none shadow-sm`}
+                            >
+                              <option value="type1">Diabetes Tipo 1</option>
+                              <option value="type2">Diabetes Tipo 2</option>
+                              <option value="prediabetes">Pre-diabetes</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
 
-                      <div className="flex gap-2">
-                        <Info className="w-3 h-3 text-indigo-400 shrink-0 mt-0.5" />
-                        <p className="text-[9px] text-zinc-500 leading-tight">Esta información es vital para ajustar el índice glucémico de las comidas y la intensidad del ejercicio.</p>
+                      {/* Colesterol alto */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-medium ${themeStyles.textMain}`}>Colesterol alto</span>
+                          <button type="button"
+                            onClick={() => setEditProfile({ ...editProfile, medicalConditions: { ...editProfile.medicalConditions, highCholesterol: !editProfile.medicalConditions.highCholesterol } })}
+                            className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.medicalConditions.highCholesterol ? 'bg-rose-500' : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
+                          >
+                            <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.medicalConditions.highCholesterol ? 'left-6' : 'left-0'}`} />
+                          </button>
+                        </div>
+                        {editProfile.medicalConditions.highCholesterol && (
+                          <p className={`text-[9px] animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Reducimos grasas saturadas</p>
+                        )}
+                      </div>
+
+                      {/* Hipertensión */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-medium ${themeStyles.textMain}`}>Hipertensión</span>
+                          <button type="button"
+                            onClick={() => setEditProfile({ ...editProfile, medicalConditions: { ...editProfile.medicalConditions, hypertension: !editProfile.medicalConditions.hypertension } })}
+                            className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.medicalConditions.hypertension ? 'bg-rose-500' : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
+                          >
+                            <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.medicalConditions.hypertension ? 'left-6' : 'left-0'}`} />
+                          </button>
+                        </div>
+                        {editProfile.medicalConditions.hypertension && (
+                          <p className={`text-[9px] animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Limitamos sodio y procesados</p>
+                        )}
+                      </div>
+
+                      {/* Hipotiroidismo */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-medium ${themeStyles.textMain}`}>Hipotiroidismo</span>
+                          <button type="button"
+                            onClick={() => setEditProfile({ ...editProfile, medicalConditions: { ...editProfile.medicalConditions, hypothyroidism: !editProfile.medicalConditions.hypothyroidism } })}
+                            className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.medicalConditions.hypothyroidism ? 'bg-rose-500' : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
+                          >
+                            <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.medicalConditions.hypothyroidism ? 'left-6' : 'left-0'}`} />
+                          </button>
+                        </div>
+                        {editProfile.medicalConditions.hypothyroidism && (
+                          <p className={`text-[9px] animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Moderamos soja y crucíferas</p>
+                        )}
+                      </div>
+
+                      {/* Resistencia a la insulina */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-medium ${themeStyles.textMain}`}>Resistencia a la insulina</span>
+                          <button type="button"
+                            onClick={() => setEditProfile({ ...editProfile, medicalConditions: { ...editProfile.medicalConditions, insulinResistance: !editProfile.medicalConditions.insulinResistance } })}
+                            className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.medicalConditions.insulinResistance ? 'bg-rose-500' : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
+                          >
+                            <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.medicalConditions.insulinResistance ? 'left-6' : 'left-0'}`} />
+                          </button>
+                        </div>
+                        {editProfile.medicalConditions.insulinResistance && (
+                          <p className={`text-[9px] animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Priorizamos bajo IG</p>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2 pt-1 border-t border-dashed border-rose-200/50">
+                        <Info className="w-3 h-3 text-rose-400 shrink-0 mt-0.5" />
+                        <p className="text-[9px] text-zinc-500 leading-tight">Esta información ayuda a personalizar tu plan nutricional. No sustituye el consejo médico profesional.</p>
                       </div>
                     </div>
                   </div>

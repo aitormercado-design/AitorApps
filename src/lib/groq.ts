@@ -109,7 +109,16 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
     goal_exceeded: `El usuario ha superado su objetivo calórico en ${Math.round(event.data.excess ?? 0)}kcal. Mensaje tranquilizador, sin dramatizar, con consejo práctico para el resto del día.`,
   };
 
-  const systemPrompt = `Eres el coach personal de ${profile.name || 'usuario'}. Conoces su perfil y su plan de la semana. Responde en máximo 2 frases. Tono directo y motivador. NUNCA uses saludos largos ni despedidas. Solo el mensaje esencial.`;
+  const activeConditions = profile.medicalConditions
+    ? Object.entries(profile.medicalConditions as Record<string, boolean>)
+        .filter(([_, v]) => v)
+        .map(([k]) => ({ diabetes: 'diabetes', highCholesterol: 'colesterol alto', hypertension: 'hipertensión', hypothyroidism: 'hipotiroidismo', insulinResistance: 'resistencia a la insulina' }[k] ?? k))
+        .join(', ')
+    : (profile.diabetesType && profile.diabetesType !== 'none' ? `diabetes tipo ${profile.diabetesType}` : '');
+
+  const conditionsNote = activeConditions ? `\n- Condiciones médicas del usuario: ${activeConditions}. Adáptate a ellas en tus consejos.` : '';
+
+  const systemPrompt = `Eres el coach personal de ${profile.name || 'usuario'}. Conoces su perfil y su plan de la semana. Responde en máximo 2 frases. Tono directo y motivador. NUNCA uses saludos largos ni despedidas. Solo el mensaje esencial.${conditionsNote}`;
 
   try {
     const completion = await groq.chat.completions.create({
@@ -217,19 +226,75 @@ export async function generateWeeklyMenu(profile: any, currentWeight: number): P
     ? profile.allergies.join(', ')
     : 'Ninguna';
 
+  // Resolve medical conditions — support both new medicalConditions object and legacy diabetesType
+  const conditions = profile.medicalConditions ?? {
+    diabetes: profile.diabetesType && profile.diabetesType !== 'none',
+    highCholesterol: false,
+    hypertension: false,
+    hypothyroidism: false,
+    insulinResistance: false,
+  };
+  const hasDiabetes = conditions.diabetes || (profile.diabetesType && profile.diabetesType !== 'none');
+
   const adjustedTargets = { ...targets };
-  if (profile.diabetesType !== 'none' && adjustedTargets.carbs > 240) {
+  if (hasDiabetes && adjustedTargets.carbs > 240) {
     const excessKcal = (adjustedTargets.carbs - 240) * 4;
     adjustedTargets.carbs = 240;
     adjustedTargets.fat = Math.round(adjustedTargets.fat + excessKcal / 9);
   }
+
+  // Build medical rules
+  const medicalRules: string[] = [];
+  if (hasDiabetes) {
+    medicalRules.push(
+      `DIABETES${profile.diabetesType && profile.diabetesType !== 'none' ? ` tipo ${profile.diabetesType}` : ''}: Máximo 60g carbohidratos por ingesta. ` +
+      'Prohibido: azúcar, arroz blanco, pan blanco, patata, zumos. Priorizar bajo índice glucémico.'
+    );
+  }
+  if (conditions.highCholesterol) {
+    medicalRules.push(
+      'COLESTEROL ALTO: Eliminar grasas saturadas y trans. ' +
+      'Prohibido: mantequilla, embutidos, fritos, lácteos enteros. Máximo 2 huevos por semana. ' +
+      'Priorizar omega-3, fibra soluble, esteroles vegetales.'
+    );
+  }
+  if (conditions.hypertension) {
+    medicalRules.push(
+      'HIPERTENSIÓN: Dieta baja en sodio (<2g/día). ' +
+      'Prohibido: sal añadida, embutidos, conservas, snacks salados, quesos curados. ' +
+      'Priorizar potasio (plátano, patata, legumbres), magnesio y calcio.'
+    );
+  }
+  if (conditions.hypothyroidism) {
+    medicalRules.push(
+      'HIPOTIROIDISMO: Moderar soja y derivados. ' +
+      'Moderar crucíferas crudas (brócoli, coliflor, col) — cocinadas son aceptables. ' +
+      'Priorizar yodo (pescado, marisco, lácteos) y selenio (nueces de Brasil, atún).'
+    );
+  }
+  if (conditions.insulinResistance) {
+    medicalRules.push(
+      'RESISTENCIA A LA INSULINA: Priorizar alimentos de bajo índice glucémico. ' +
+      'Evitar carbohidratos refinados y azúcares simples. ' +
+      'Distribuir carbohidratos uniformemente en todas las comidas. ' +
+      'Combinar siempre carbos con proteína o grasa para reducir picos glucémicos.'
+    );
+  }
+
+  const activeConditionsStr = [
+    hasDiabetes ? `Diabetes${profile.diabetesType && profile.diabetesType !== 'none' ? ` tipo ${profile.diabetesType}` : ''}` : '',
+    conditions.highCholesterol ? 'Colesterol alto' : '',
+    conditions.hypertension ? 'Hipertensión' : '',
+    conditions.hypothyroidism ? 'Hipotiroidismo' : '',
+    conditions.insulinResistance ? 'Resistencia a la insulina' : '',
+  ].filter(Boolean).join(', ') || 'Ninguna';
 
   const userPrompt = `Genera el menú semanal con estos datos:
 
 PERFIL CALCULADO (no recalcules esto, úsalo tal cual):
 - Calorías diarias objetivo: ${adjustedTargets.calories} kcal
 - Proteína diaria: ${adjustedTargets.protein}g
-- Carbohidratos diarios: ${adjustedTargets.carbs}g${profile.diabetesType !== 'none' ? ` (máximo absoluto — diabetes)` : ''}
+- Carbohidratos diarios: ${adjustedTargets.carbs}g${hasDiabetes ? ` (máximo absoluto — diabetes)` : ''}
 - Grasa diaria: ${adjustedTargets.fat}g
 
 DATOS DEL USUARIO:
@@ -237,7 +302,7 @@ DATOS DEL USUARIO:
 - Objetivo: ${profile.goal === 'lose' ? 'Perder grasa' : profile.goal === 'gain' ? 'Ganar músculo' : 'Mantener peso'}
 - Tipo de dieta: ${profile.dietType || 'Normal'}
 - Días de gimnasio esta semana: ${profile.trainingDaysPerWeek} (distribúyelos a tu criterio)
-- Condiciones médicas: ${profile.diabetesType !== 'none' ? `Diabetes tipo ${profile.diabetesType}` : 'Ninguna'}
+- Condiciones médicas: ${activeConditionsStr}
 - Alergias absolutas: ${allergiesStr}
 - Alimentos que no le gustan: ${profile.dislikedFoods || 'Ninguno'}
 
@@ -247,12 +312,16 @@ COMIDA LIBRE:
 - Día: ${profile.freeMealDay || ''}
 - Tipo: ${profile.freeMealType || ''}`;
 
-  const diabetesRule = profile.diabetesType !== 'none'
-    ? `- RESTRICCIÓN ABSOLUTA DIABETES tipo ${profile.diabetesType}: NINGUNA comida individual puede superar 60g de carbohidratos. Este límite es INVIOLABLE. El total diario de ${adjustedTargets.carbs}g repartido en máximo 60g por ingesta. Alimentos de índice glucémico bajo.`
+  const diabetesRule = hasDiabetes
+    ? `- RESTRICCIÓN ABSOLUTA DIABETES: NINGUNA comida individual puede superar 60g de carbohidratos. Este límite es INVIOLABLE. El total diario de ${adjustedTargets.carbs}g repartido en máximo 60g por ingesta. Alimentos de índice glucémico bajo.`
     : '';
 
   const freeMealRule = profile.freeMealEnabled
     ? `- Comida libre el ${profile.freeMealDay} en ${profile.freeMealType}: usa exactamente {"t":"${profile.freeMealType}","n":"COMIDA LIBRE","k":0,"p":0,"c":0,"g":0,"i":"libre"}. Distribución ese día: libre=50%, desayuno=18%, almuerzo=21%, merienda=11%.`
+    : '';
+
+  const medicalRestrictionsBlock = medicalRules.length > 0
+    ? '\n\nRESTRICCIONES MÉDICAS OBLIGATORIAS (prioridad máxima, no negociables):\n' + medicalRules.join('\n')
     : '';
 
   const systemPrompt = `Eres un sistema de planificación nutricional clínica.
@@ -283,7 +352,7 @@ VARIEDAD OBLIGATORIA:
 Estructura del JSON — usa EXACTAMENTE estas claves abreviadas:
 - "d": array de 7 días
 - Cada día: "n" (nombre), "k" (kcal), "p" (proteína g), "c" (carbs g), "g" (grasa g), "m" (array de comidas)
-- Cada comida: "t" (tipo), "n" (nombre plato), "k" (kcal), "p" (proteína g), "c" (carbs g), "g" (grasa g), "i" (máx 4 ingredientes separados por coma, sin cantidades)`;
+- Cada comida: "t" (tipo), "n" (nombre plato), "k" (kcal), "p" (proteína g), "c" (carbs g), "g" (grasa g), "i" (máx 4 ingredientes separados por coma, sin cantidades)${medicalRestrictionsBlock}`;
 
   try {
     const completion = await Promise.race([
