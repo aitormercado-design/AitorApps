@@ -52,8 +52,6 @@ export function useProactiveCoach({
   const prevWorkoutDone = useRef(habits[todayStr]?.workoutDone);
   const prevWorkoutCalories = useRef(habits[todayStr]?.workoutCalories ?? 0);
   const prevWeightsCount = useRef(weights.length);
-  const hasTriggeredDayStart = useRef(false);
-
   // Event: new meal registered today
   useEffect(() => {
     if (!isDataLoaded) {
@@ -155,10 +153,12 @@ export function useProactiveCoach({
     prevWeightsCount.current = weights.length;
   }, [weights.length, isDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Event: day start — fires once per session after data is loaded, with a short delay
+  // Event: day start — fires once per calendar day after data is loaded, with a short delay
+  const DAY_START_KEY = 'kilokalo_coach_day_start';
   useEffect(() => {
-    if (!isDataLoaded || hasTriggeredDayStart.current) return;
-    hasTriggeredDayStart.current = true;
+    if (!isDataLoaded) return;
+    if (localStorage.getItem(DAY_START_KEY) === todayStr) return;
+    localStorage.setItem(DAY_START_KEY, todayStr);
     const timer = setTimeout(() => {
       triggerMessage({
         type: 'day_start',

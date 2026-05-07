@@ -128,7 +128,7 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
         { role: 'user', content: eventPrompts[event.type] },
       ],
       temperature: 0.8,
-      max_tokens: 150,
+      max_tokens: 80,
     });
     return completion.choices[0].message.content ?? '';
   } catch {

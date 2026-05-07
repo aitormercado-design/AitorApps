@@ -925,7 +925,7 @@ export default function App() {
 
   useEffect(() => {
     if (!proactiveMessage) return;
-    const timer = setTimeout(clearMessage, 10000);
+    const timer = setTimeout(clearMessage, 8000);
     return () => clearTimeout(timer);
   }, [proactiveMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2239,9 +2239,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               transition={{ duration: 0.25 }}
               className={`rounded-2xl border-l-4 ${profile.theme === 'light' ? 'bg-emerald-50 border-emerald-400' : 'bg-emerald-950/30 border-lime-400/70'} p-4 flex items-start gap-3 shadow-sm`}
             >
-              <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${themeStyles.accentBg}`}>
-                <Bot className={`w-3.5 h-3.5 ${profile.theme === 'light' ? 'text-white' : 'text-zinc-900'}`} />
-              </div>
+              <img
+                src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'}
+                alt="KiloKalo"
+                className="w-7 h-7 rounded-xl shrink-0 mt-0.5"
+              />
               <div className="flex-1 min-w-0">
                 <span className={`text-xs font-bold uppercase tracking-widest ${themeStyles.accent}`}>Coach</span>
                 <p className={`text-[13px] leading-snug mt-0.5 ${themeStyles.textMain}`}>{proactiveMessage}</p>
