@@ -63,7 +63,7 @@ async function callOpenRouterVision(model: string, base64Image: string, mimeType
       'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': 'https://aitor-apps.vercel.app',
-      'X-Title': 'NutritivApp',
+      'X-Title': 'KiloKalo',
     },
     body: JSON.stringify({
       model,

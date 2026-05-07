@@ -12,22 +12,22 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['icon.svg'],
+        includeAssets: ['favicon.png'],
         workbox: {
           maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
         },
         manifest: {
-          name: 'NutritivApp',
-          short_name: 'NutritivApp',
-          description: 'Tu nutricionista y coach personal',
-          theme_color: '#a3e635',
+          name: 'KiloKalo',
+          short_name: 'KiloKalo',
+          description: 'Come. Entrena. Equilibra.',
+          theme_color: '#1A6B3C',
           background_color: '#09090b',
           display: 'standalone',
           icons: [
             {
-              src: 'icon.svg',
+              src: 'favicon.png',
               sizes: '192x192 512x512',
-              type: 'image/svg+xml',
+              type: 'image/png',
               purpose: 'any maskable'
             }
           ]

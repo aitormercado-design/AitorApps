@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, ChevronUp, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, Banana, User as UserIcon, Pizza, Save, Edit2, Trash2, Home, Sparkles } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, ChevronUp, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, User as UserIcon, Pizza, Save, Edit2, Trash2, Home, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
@@ -1373,7 +1373,7 @@ export default function App() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lista de la Compra - NutritivApp</title>
+    <title>Lista de la Compra - KiloKalo</title>
     <style>
         :root {
           --accent: ${isDark ? '#a3e635' : '#16a34a'};
@@ -1405,7 +1405,7 @@ export default function App() {
 </head>
 <body>
     <div class="container">
-        <h1>Nutritiv<span style="color: var(--lime)">App</span></h1>
+        <h1>KiloKalo</h1>
         <div class="subtitle">Lista de la Compra Interactiva</div>
         ${shoppingList.categories.map(cat => `
             <div class="category">
@@ -1427,7 +1427,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `lista-compra-nutritivapp.html`;
+    a.download = `lista-compra-kilokalo.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -2008,11 +2008,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           animate={{ opacity: 1, y: 0 }}
           className="max-w-md w-full bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-3xl p-8 text-center"
         >
-          <div className={`w-16 h-16 ${themeStyles.accentBg} rounded-full flex items-center justify-center mx-auto mb-8 shadow-lg`}>
-            <Banana className="w-10 h-10 text-zinc-950" />
+          <div className="flex items-center justify-center mx-auto mb-8">
+            <img src="/favicon.png" alt="KiloKalo" className="w-16 h-16 rounded-2xl shadow-lg" />
           </div>
           <h1 className="text-3xl font-display font-black tracking-tighter text-white mb-8 text-center">
-            {isRegistering ? 'Regístrate para empezar' : 'Inicia sesión en NutritivApp'}
+            {isRegistering ? 'Regístrate para empezar' : 'Inicia sesión en KiloKalo'}
           </h1>
           
           <div className="space-y-3 mb-8">
@@ -2113,7 +2113,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   }}
                   className={`text-white font-bold hover:${themeStyles.accent} hover:underline transition-all`}
                 >
-                  {isRegistering ? 'Inicia sesión aquí' : 'Regístrate en NutritivApp'}
+                  {isRegistering ? 'Inicia sesión aquí' : 'Regístrate en KiloKalo'}
                 </button>
               </div>
             </div>
@@ -2134,10 +2134,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             className="flex flex-col"
           >
             <h1 className={`text-2xl font-display font-black tracking-tighter ${themeStyles.textMain} flex items-center gap-2`}>
-              <Banana className={`w-6 h-6 ${themeStyles.accent} fill-current/20`} />
-              Nutritiv<span className={themeStyles.accent}>App</span>
+              <img src="/favicon.png" alt="KiloKalo" className="w-8 h-8 rounded-lg" />
+              KiloKalo
             </h1>
-            <p className={`${themeStyles.textMuted} text-[10px] font-bold tracking-[0.2em] uppercase mt-0.5`}>Coach de Rendimiento</p>
+            <p className={`${themeStyles.textMuted} text-[10px] font-bold tracking-[0.2em] uppercase mt-0.5`}>Come. Entrena. Equilibra.</p>
           </motion.div>
           <div className="flex items-center gap-3">
             <motion.button
