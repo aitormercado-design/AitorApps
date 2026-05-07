@@ -506,8 +506,6 @@ export default function App() {
     setDismissedSuggestions(prev => [...prev, `${s.field}:${s.suggestedValue}`]);
   };
 
-  // Chatbot State
-
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
@@ -617,7 +615,6 @@ export default function App() {
           const savedShoppingList = localStorage.getItem('nutritivapp_shopping_list');
           const savedMeals = localStorage.getItem('nutritivapp_meals');
           const savedWeights = localStorage.getItem('nutritivapp_weights');
-          const savedChat = localStorage.getItem('nutritivapp_chat');
           const savedChecked = localStorage.getItem('nutritivapp_checked_items');
 
           if (savedProfile) {
@@ -1649,13 +1646,6 @@ export default function App() {
     if (dietChanged && generatedMenu) setMenuNeedsRegeneration(true);
     if (editProfile.gymEnabled && gymChanged && workoutPlan) setWorkoutNeedsRegeneration(true);
 
-    // One-time migration: remove persisted chatMessages from Firestore
-    if (user) {
-      import('firebase/firestore').then(({ updateDoc, deleteField: df }) => {
-        updateDoc(doc(db, 'users', user.uid), { chatMessages: df() }).catch(() => {});
-      });
-    }
-
     setIsGoalModalOpen(false);
   };
 
@@ -1972,7 +1962,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
       localStorage.removeItem('nutritivapp_habits');
       localStorage.removeItem('nutritivapp_generated_menu');
       localStorage.removeItem('nutritivapp_shopping_list');
-      localStorage.removeItem('nutritivapp_chat');
 
       // Reset state on logout
       setMeals([]);
