@@ -2142,7 +2142,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               <img src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'} alt="KiloKalo" className="w-8 h-8 rounded-lg" />
               KiloKalo
             </h1>
-            <p className={`${themeStyles.textMuted} text-xs font-bold tracking-[0.2em] uppercase mt-0.5 whitespace-nowrap`}>COME · ENTRENA · EQUILIBRA</p>
+            <p className={`${themeStyles.textMuted} text-[10px] font-bold tracking-wide uppercase mt-0.5 whitespace-nowrap`}>COME · ENTRENA · EQUILIBRA</p>
           </motion.div>
           <div className="flex items-center gap-3">
             <motion.button
@@ -3410,12 +3410,13 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         {planSubTab === 'info' && (
                         <motion.div initial={{opacity:0}} animate={{opacity:1}} layout className="space-y-6">
                           <div className={`${themeStyles.card} rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border}`}>
-                            <div className={`prose ${profile.theme === 'light' ? 'prose-slate' : 'prose-invert prose-zinc'} max-w-none
+                            <div className={`prose max-w-none ${profile.theme === 'light' ? 'prose-slate prose-h2:text-emerald-500 prose-h3:text-emerald-600 prose-strong:text-orange-600' : 'prose-invert prose-zinc prose-h2:text-lime-400 prose-h3:text-lime-300 prose-strong:text-orange-400'}
                               prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
-                              prose-h2:text-2xl prose-h2:${themeStyles.accent} prose-h2:border-b prose-h2:border-white/10 prose-h2:pb-4 prose-h2:mb-6
-                              prose-strong:text-orange-500 prose-strong:font-black
-                              prose-p:text-zinc-700 dark:prose-p:text-zinc-400 prose-p:leading-relaxed prose-p:text-sm prose-p:font-medium
-                              prose-li:text-zinc-800 dark:prose-li:text-zinc-300 prose-li:my-1 prose-li:text-sm prose-li:font-medium
+                              prose-h2:text-2xl prose-h2:border-b prose-h2:pb-4 prose-h2:mb-6
+                              prose-h3:text-base prose-h3:border-b prose-h3:pb-2 prose-h3:mb-3
+                              prose-strong:font-black
+                              prose-p:leading-relaxed prose-p:text-sm prose-p:font-medium
+                              prose-li:my-1 prose-li:text-sm prose-li:font-medium
                             `}>
                               <Markdown remarkPlugins={[remarkGfm]}>
                                 {getWorkoutSection(workoutPlan, 'info')}
@@ -3617,12 +3618,13 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         {planSubTab === 'tips' && (
                         <motion.div initial={{opacity:0}} animate={{opacity:1}} layout className="space-y-6">
                           <div className={`${themeStyles.card} rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border}`}>
-                            <div className={`prose ${profile.theme === 'light' ? 'prose-slate' : 'prose-invert prose-zinc'} max-w-none
+                            <div className={`prose max-w-none ${profile.theme === 'light' ? 'prose-slate prose-h2:text-emerald-500 prose-h3:text-emerald-600 prose-strong:text-orange-600' : 'prose-invert prose-zinc prose-h2:text-lime-400 prose-h3:text-lime-300 prose-strong:text-orange-400'}
                               prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
-                              prose-h2:text-2xl prose-h2:${themeStyles.accent} prose-h2:border-b prose-h2:border-white/10 prose-h2:pb-4 prose-h2:mb-6
-                              prose-strong:text-orange-500 prose-strong:font-black
-                              prose-p:text-zinc-700 dark:prose-p:text-zinc-400 prose-p:leading-relaxed prose-p:text-sm prose-p:font-medium
-                              prose-li:text-zinc-800 dark:prose-li:text-zinc-300 prose-li:my-1 prose-li:text-sm prose-li:font-medium
+                              prose-h2:text-2xl prose-h2:border-b prose-h2:pb-4 prose-h2:mb-6
+                              prose-h3:text-base prose-h3:border-b prose-h3:pb-2 prose-h3:mb-3
+                              prose-strong:font-black
+                              prose-p:leading-relaxed prose-p:text-sm prose-p:font-medium
+                              prose-li:my-1 prose-li:text-sm prose-li:font-medium
                             `}>
                               <Markdown remarkPlugins={[remarkGfm]}>
                                 {getWorkoutSection(workoutPlan, 'safety')}
