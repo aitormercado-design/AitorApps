@@ -6,6 +6,7 @@ import Markdown from 'react-markdown';
 import { useCooldown } from './hooks/useCooldown';
 import remarkGfm from 'remark-gfm';
 import { ExerciseDelta } from './components/ExerciseDelta';
+import { Onboarding } from './components/Onboarding';
 import { analyzeFoodText, streamCompletion, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateWeeklyAnalysis } from './lib/groq';
 import type { WeekDaySummary } from './lib/groq';
 import { useProactiveCoach } from './hooks/useProactiveCoach';
@@ -338,6 +339,7 @@ const translateGymGoal = (goal: string) => {
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   
   // Auth Form State
   const [authEmail, setAuthEmail] = useState('');
@@ -602,6 +604,10 @@ export default function App() {
               handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}/habits`);
             }
           }
+        // Show onboarding for new users (no Firestore doc) who haven't done it yet
+        if (!docSnap.exists() && !localStorage.getItem('kilokalo_onboarding_done')) {
+          setShowOnboarding(true);
+        }
         } catch (error) {
           handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
         }
@@ -1457,6 +1463,41 @@ export default function App() {
     setEditingMeal(meal);
   };
 
+  const handleOnboardingComplete = async (data: { name: string; goal: 'lose' | 'maintain' | 'gain'; weight: number; gender: 'male' | 'female'; age: number }) => {
+    const estimatedHeight = data.gender === 'male' ? 175 : 163;
+    const newProfile: UserProfile = {
+      ...profile,
+      name: data.name,
+      goal: data.goal,
+      gender: data.gender,
+      age: data.age,
+      height: estimatedHeight,
+    };
+    setProfile(newProfile);
+    const ts = Date.now();
+    const newWeight: WeightEntry = { id: String(ts), weight: data.weight, timestamp: ts };
+    setWeights([newWeight]);
+    // Compute initial goals from profile
+    const bmrVal = calcularBMR(newProfile, data.weight);
+    const tdee = Math.round(bmrVal * 1.2);
+    const kcal = data.goal === 'lose' ? tdee - 400 : data.goal === 'gain' ? tdee + 300 : tdee;
+    const newGoals = {
+      calories: kcal,
+      protein: Math.round((kcal * 0.30) / 4),
+      carbs: Math.round((kcal * 0.40) / 4),
+      fat: Math.round((kcal * 0.30) / 9),
+    };
+    setGoals(newGoals);
+    localStorage.setItem('kilokalo_onboarding_done', '1');
+    if (user) {
+      try {
+        await setDoc(doc(db, 'users', user.uid), { profile: newProfile, goals: newGoals }, { merge: true });
+        await setDoc(doc(db, 'users', user.uid, 'weights', newWeight.id), newWeight);
+      } catch (e) { console.error('Onboarding save error', e); }
+    }
+    setShowOnboarding(false);
+  };
+
   const updateGoalsForProfile = (prof: UserProfile, currentWeight: number) => {
     let bmr = calcularBMR(prof, currentWeight);
 
@@ -1952,6 +1993,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
     // Block persistence effects BEFORE resetting state — prevents overwriting
     // Firestore with empty state while user is still set in React state
     setIsDataLoaded(false);
+    setShowOnboarding(false);
     try {
       await signOut(auth);
       // Clear localStorage on logout
@@ -2003,6 +2045,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         <Loader2 className={`w-8 h-8 ${themeStyles.accent} animate-spin`} />
       </div>
     );
+  }
+
+  if (user && showOnboarding) {
+    return <Onboarding theme={profile.theme} onComplete={handleOnboardingComplete} />;
   }
 
   if (!user) {
