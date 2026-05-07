@@ -933,7 +933,7 @@ export default function App() {
       headerBg: isLight ? 'bg-white/95' : 'bg-black/90',
       card: isLight ? 'bg-white border-slate-100 shadow-xl shadow-slate-100/50 opacity-100' : 'bg-zinc-950/40 backdrop-blur-md border-white/5 shadow-2xl',
       glass: isLight ? 'bg-white backdrop-blur-2xl border-white/20 shadow-2xl shadow-slate-100/50' : 'bg-zinc-950/80 backdrop-blur-xl border-white/5 shadow-2xl',
-      bento: isLight ? 'bg-white border-slate-100 shadow-xl shadow-slate-100/50 p-6 rounded-[2.5rem]' : 'bg-[#050505] border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] p-6 rounded-[2.5rem]',
+      bento: isLight ? 'bg-white border-slate-100 shadow-xl shadow-slate-100/50 p-5 rounded-2xl' : 'bg-[#050505] border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] p-5 rounded-2xl',
       input: isLight ? 'bg-slate-50 border-slate-300 text-zinc-950 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-emerald-500/20' : 'bg-black border-white/10 text-white placeholder:text-zinc-600 focus:border-lime-400 focus:ring-lime-400/20 shadow-inner',
       textMain: isLight ? 'text-zinc-950' : 'text-white',
       textMuted: isLight ? 'text-slate-500' : 'text-zinc-400',
@@ -943,7 +943,7 @@ export default function App() {
       accentMuted: isLight ? 'bg-emerald-50' : 'bg-lime-400/10',
       iconBg: isLight ? 'bg-slate-50' : 'bg-[#0a0a0a]',
       border: isLight ? 'border-slate-200' : 'border-white/10',
-      buttonPrimary: isLight ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' : 'bg-lime-400 hover:bg-lime-500 text-black shadow-[0_0_20px_rgba(163,230,53,0.3)]',
+      buttonPrimary: isLight ? 'bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white shadow-lg shadow-emerald-500/20 transition-transform' : 'bg-lime-400 hover:bg-lime-500 active:scale-95 text-black shadow-[0_0_20px_rgba(163,230,53,0.3)] transition-transform',
       buttonSecondary: isLight ? 'bg-white border-slate-200 text-zinc-900 hover:bg-slate-50' : 'bg-black border-white/20 text-zinc-200 hover:bg-white/5 hover:border-white/30',
       macroProtein: isLight ? 'text-blue-600' : 'text-blue-400',
       macroCarbs: isLight ? 'text-amber-600' : 'text-amber-400',
@@ -952,7 +952,7 @@ export default function App() {
       macroCarbsBg: isLight ? 'bg-amber-500' : 'bg-amber-400',
       macroFatBg: isLight ? 'bg-rose-500' : 'bg-rose-400',
       tabActiveText: isLight ? 'text-white' : 'text-zinc-950',
-      tabActiveShadow: isLight ? 'shadow-emerald-500/20' : 'shadow-lime-400/20',
+      tabActiveShadow: '[box-shadow:var(--shadow-tab)]',
     };
   }, [profile.theme]);
 
@@ -2011,7 +2011,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`max-w-md w-full backdrop-blur-xl rounded-3xl p-8 text-center ${profile.theme === 'light' ? 'bg-white border border-slate-200 shadow-2xl' : 'bg-zinc-900/50 border border-white/10'}`}
+          className={`max-w-md w-full backdrop-blur-xl rounded-2xl p-8 text-center ${profile.theme === 'light' ? 'bg-white border border-slate-200 shadow-2xl' : 'bg-zinc-900/50 border border-white/10'}`}
         >
           <div className="flex items-center justify-center mx-auto mb-8">
             <img src="/favicon-dark.png" alt="KiloKalo" className="w-16 h-16 rounded-2xl shadow-lg" />
@@ -2304,7 +2304,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <div className="space-y-6">
                     <div className="space-y-6">
                       {/* 1. Calories Summary Card */}
-                        <div className={`${themeStyles.bento} p-8 relative overflow-hidden group border-b-4 ${assistant.stateType === 'over' ? 'border-amber-500' : (profile.theme === 'light' ? 'border-emerald-500' : themeStyles.accentBorder)} shadow-2xl`}>
+                        <div className={`${themeStyles.bento} p-5 relative overflow-hidden group border-b-4 ${assistant.stateType === 'over' ? 'border-amber-500' : (profile.theme === 'light' ? 'border-emerald-500' : themeStyles.accentBorder)} shadow-2xl`}>
                           <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-3xl`} />
                           <div className="relative z-10">
                             <div className="flex flex-col md:flex-row gap-8 items-start md:items-center justify-between">
@@ -2375,7 +2375,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         )}
 
                         {/* 3. Distribution (Macros) */}
-                        <div className={`${themeStyles.bento} p-6 space-y-6 relative overflow-hidden`}>
+                        <div className={`${themeStyles.bento} p-4 space-y-6 relative overflow-hidden`}>
                            <div className="flex items-center justify-between">
                              <h4 className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-widest`}>Distribución de Macros</h4>
                              <PieChart className={`w-4 h-4 ${themeStyles.textMuted}`} />
@@ -2424,7 +2424,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               <div className="space-y-4">
 
                 {/* Grid card */}
-                <div className={`${themeStyles.bento} p-6 space-y-5`}>
+                <div className={`${themeStyles.bento} p-4 space-y-5`}>
                   {/* Header with week navigation */}
                   <div className="flex items-center justify-between">
                     <button
@@ -2639,7 +2639,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 </div>
 
                 {/* AI Analysis card */}
-                <div className={`${themeStyles.bento} p-6 space-y-4`}>
+                <div className={`${themeStyles.bento} p-4 space-y-4`}>
                   <div className="flex items-center gap-3">
                     <div className={`p-2.5 ${themeStyles.accentBg} rounded-xl shadow-lg`}>
                       <Bot className={`w-4 h-4 ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`} />
@@ -2681,7 +2681,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               </div>
             ) : (
               <section>
-                  <div className={`${themeStyles.bento} p-8 relative overflow-hidden`}>
+                  <div className={`${themeStyles.bento} p-5 relative overflow-hidden`}>
                     <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-3xl`}></div>
 
                     <div className="flex items-center gap-4 mb-10 relative z-10">
@@ -2804,7 +2804,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               {mealsSubTab === 'daily' ? (
                 <div className="space-y-8">
                 {/* Primary Food Entry */}
-                <div className={`${themeStyles.bento} p-6 relative overflow-hidden`}>
+                <div className={`${themeStyles.bento} p-4 relative overflow-hidden`}>
                   <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-2xl`}></div>
                   <h3 className={`text-lg font-display font-bold ${themeStyles.textMain} tracking-tight uppercase mb-4 relative z-10 flex items-center gap-2`}>
                     <Plus className={`w-5 h-5 ${themeStyles.accent}`} />
@@ -3350,7 +3350,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         )}
 
                         {/* Premium Gym Header */}
-                        <div className={`${themeStyles.bento} p-8 relative overflow-hidden`}>
+                        <div className={`${themeStyles.bento} p-5 relative overflow-hidden`}>
                           <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-3xl`}></div>
                           
                           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 text-left">
@@ -3489,7 +3489,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                 key={gymDay}
                                 initial={{ opacity: 0, scale: 0.98 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className={`${themeStyles.bento} p-6 md:p-8 shadow-2xl space-y-8 relative overflow-hidden`}
+                                className={`${themeStyles.bento} p-4 md:p-5 shadow-2xl space-y-8 relative overflow-hidden`}
                               >
                                 <div className={`absolute top-0 right-0 w-32 h-32 ${themeStyles.accentMuted} opacity-20 rounded-full blur-2xl mr-[-10%] mt-[-10%]`} />
 
@@ -3753,7 +3753,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </form>
                         
                         {habits[todayStr]?.manualWorkout && (
-                          <div className={`${themeStyles.card} rounded-[2rem] p-6 border ${themeStyles.border} relative overflow-hidden group shadow-xl mt-6`}>
+                          <div className={`${themeStyles.card} rounded-2xl p-4 border ${themeStyles.border} relative overflow-hidden group shadow-xl mt-6`}>
                              <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-3">
                                    <div className={`p-2.5 ${themeStyles.accentMuted} rounded-xl shadow-inner border ${themeStyles.accentBorder}`}>
@@ -3895,7 +3895,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className={`rounded-3xl p-6 w-full max-w-sm ${themeStyles.card} ${themeStyles.border} shadow-2xl`}
+              className={`rounded-2xl p-5 w-full max-w-sm ${themeStyles.card} ${themeStyles.border} shadow-2xl`}
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className={`text-xl font-display font-bold ${themeStyles.textMain}`}>Registrar Peso</h3>
@@ -3940,7 +3940,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className={`${themeStyles.card} border ${themeStyles.border} rounded-3xl p-6 w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden`}
+              className={`${themeStyles.card} border ${themeStyles.border} rounded-2xl p-5 w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden`}
             >
               <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-2xl pointer-events-none`}></div>
               
@@ -4509,7 +4509,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className={`${themeStyles.card} border ${themeStyles.border} rounded-3xl p-6 w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh]`}
+              className={`${themeStyles.card} border ${themeStyles.border} rounded-2xl p-5 w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh]`}
             >
               <div className={`flex justify-between items-center mb-6 sticky top-0 z-10 pb-2 border-b ${themeStyles.border}`} style={{background: "inherit"}}>
                 <h3 className={`text-xl font-display font-bold ${themeStyles.textMain}`}>
