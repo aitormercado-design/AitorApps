@@ -1947,6 +1947,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
 
   const handleLogout = async () => {
+    // Block persistence effects BEFORE resetting state — prevents overwriting
+    // Firestore with empty state while user is still set in React state
+    setIsDataLoaded(false);
     try {
       await signOut(auth);
       // Clear localStorage on logout
@@ -1972,6 +1975,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         allergies: [],
         otherAllergies: '',
         diabetesType: 'none',
+        medicalConditions: { diabetes: false, highCholesterol: false, hypertension: false, hypothyroidism: false, insulinResistance: false },
         dislikedFoods: '',
         goal: 'maintain',
         macroDistribution: 'balanced',
