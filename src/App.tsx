@@ -2046,7 +2046,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           
           <form onSubmit={handleEmailAuth} className="space-y-5 text-left">
             {authError && (
-              <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-400 text-sm">
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-2 text-red-400 text-sm">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                 <p>{authError}</p>
               </div>
@@ -2183,8 +2183,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               </span>
               {profile.age === 0 && (
                 <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                 </span>
               )}
             </motion.button>
@@ -2204,11 +2204,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
       {/* Global Profile Warning */}
       {profile.age === 0 && (
         <div className="max-w-md mx-auto px-6 pt-4">
-          <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
             <div>
-              <h3 className="text-rose-400 font-bold text-sm mb-1">Perfil incompleto</h3>
-              <p className="text-rose-400/80 text-xs">
+              <h3 className="text-red-400 font-bold text-sm mb-1">Perfil incompleto</h3>
+              <p className="text-red-400/80 text-xs">
                 Para calcular tus macros y generar planes personalizados, necesitas configurar tu perfil. Toca el botón resaltado arriba a la derecha.
               </p>
             </div>
@@ -2785,8 +2785,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   Plan
                   {menuNeedsRegeneration && profile.age !== 0 && (
                     <span className="relative flex h-2.5 w-2.5 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
                     </span>
                   )}
                 </button>
@@ -2882,11 +2882,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           <p className={`${themeStyles.textMuted} text-xs mt-1 opacity-60`}>Usa el buscador o la cámara para empezar</p>
                         </motion.div>
                       ) : (
-                        todaysMeals.map((meal) => (
+                        todaysMeals.map((meal, index) => (
                           <motion.div
                             key={meal.id} layout
-                            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                            className={`${themeStyles.card} rounded-2xl p-5 flex gap-5 group transition-all`}
+                            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
+                            transition={{ duration: 0.2, delay: index * 0.05 }}
+                            className={`${themeStyles.card} rounded-2xl p-4 flex gap-4 group transition-all`}
                           >
                             <div className={`w-16 h-16 rounded-2xl overflow-hidden ${themeStyles.iconBg} shrink-0 shadow-xl border ${themeStyles.border}`}>
                               <img src={meal.imageUrl} alt={meal.foodName} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
@@ -2933,19 +2934,19 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                 {/* Invalidation banner */}
                 {menuNeedsRegeneration && generatedMenu && profile.age !== 0 && (
-                  <div className={`rounded-2xl border border-rose-500/40 ${profile.theme === 'light' ? 'bg-rose-50' : 'bg-rose-500/5'} p-4 flex items-center gap-3`}>
+                  <div className={`rounded-2xl border border-red-500/40 ${profile.theme === 'light' ? 'bg-red-50' : 'bg-red-500/5'} p-4 flex items-center gap-3`}>
                     <span className="relative flex h-3 w-3 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-rose-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
-                      <p className={`text-xs mt-0.5 ${profile.theme === 'light' ? 'text-rose-700' : 'text-rose-400/80'}`}>El menú puede no reflejar tus nuevos datos.</p>
+                      <p className="text-xs font-bold text-red-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
+                      <p className={`text-xs mt-0.5 ${profile.theme === 'light' ? 'text-red-700' : 'text-red-400/80'}`}>El menú puede no reflejar tus nuevos datos.</p>
                     </div>
                     <button
                       disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
                       onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
-                      className="shrink-0 px-3 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="shrink-0 px-3 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isGeneratingMenu ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Regenerar ahora'}
                     </button>
@@ -3128,16 +3129,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         )}
                       </div>
                     ) : (
-                      <div className="text-center py-8">
-                        <p className={`${themeStyles.textMuted} text-center py-8`}>Genera tu menú semanal y lista de la compra adaptados a tus preferencias.</p>
-                        <button
-                          disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
-                          onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
-                          className={`${themeStyles.buttonPrimary} px-6 py-2 rounded-xl font-bold uppercase tracking-wider text-xs disabled:opacity-50`}
-                        >
-                          {menuCooldown.isActive ? `Espera ${menuCooldown.remaining}s` : isGeneratingMenu ? 'Generando...' : 'Generar Plan'}
-                        </button>
-                      </div>
+                      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`text-center py-20 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border} border-dashed space-y-3`}>
+                        <ChefHat className={`w-10 h-10 ${themeStyles.textMuted} mx-auto opacity-20`} />
+                        <p className={`${themeStyles.textMuted} font-bold uppercase tracking-widest text-xs`}>Sin menú esta semana</p>
+                        <p className={`${themeStyles.textMuted} text-xs opacity-60`}>Genera tu plan semanal personalizado</p>
+                      </motion.div>
                     )}
                   </div>
                 </>
@@ -3281,8 +3277,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           {st.label}
                           {st.id === 'plan' && workoutNeedsRegeneration && (
                             <span className="relative flex h-2.5 w-2.5 shrink-0">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
                             </span>
                           )}
                         </button>
@@ -3330,19 +3326,19 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className="space-y-6">
                         {/* Invalidation banner */}
                         {workoutNeedsRegeneration && workoutPlan && (
-                          <div className={`rounded-2xl border border-rose-500/40 ${profile.theme === 'light' ? 'bg-rose-50' : 'bg-rose-500/5'} p-4 flex items-center gap-3`}>
+                          <div className={`rounded-2xl border border-red-500/40 ${profile.theme === 'light' ? 'bg-red-50' : 'bg-red-500/5'} p-4 flex items-center gap-3`}>
                             <span className="relative flex h-3 w-3 shrink-0">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                             </span>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-bold text-rose-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
-                              <p className={`text-xs mt-0.5 ${profile.theme === 'light' ? 'text-rose-700' : 'text-rose-400/80'}`}>La rutina puede no reflejar tus nuevos datos.</p>
+                              <p className="text-xs font-bold text-red-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
+                              <p className={`text-xs mt-0.5 ${profile.theme === 'light' ? 'text-red-700' : 'text-red-400/80'}`}>La rutina puede no reflejar tus nuevos datos.</p>
                             </div>
                             <button
                               disabled={isAIGenerating || isGeneratingWorkout || workoutCooldown.isActive}
                               onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
-                              className="shrink-0 px-3 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="shrink-0 px-3 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {isGeneratingWorkout ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Regenerar ahora'}
                             </button>
@@ -4478,7 +4474,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                 <div className="pt-4 border-t border-zinc-800 shrink-0">
                   {(!editWeight || !editProfile.name || !editProfile.age || !editProfile.height) && profileTab !== 'user' && (
-                    <p className="text-xs text-rose-500 text-center font-bold mb-3 uppercase tracking-widest bg-rose-500/10 py-2 rounded-xl">Falta información en pestaña Personal</p>
+                    <p className="text-xs text-red-500 text-center font-bold mb-3 uppercase tracking-widest bg-red-500/10 py-2 rounded-xl">Falta información en pestaña Personal</p>
                   )}
                   <button 
                     type="submit"
@@ -4570,7 +4566,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           handleRecalculateMacros(editingMeal.foodName, editingMeal);
                         }
                       }}
-                      className={`w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:${themeStyles.accentBorder} transition-colors`}
+                      className={`w-full ${themeStyles.input} rounded-xl px-4 py-3 focus:outline-none transition-colors`}
                       required
                     />
 
@@ -4752,7 +4748,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         removeMeal(editingMeal.id);
                         setEditingMeal(null);
                       }}
-                      className="w-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold uppercase tracking-wider py-3 rounded-xl hover:bg-rose-500/20 transition-colors text-sm"
+                      className="w-full bg-red-500/10 text-red-400 border border-red-500/20 font-bold uppercase tracking-wider py-3 rounded-xl hover:bg-red-500/20 transition-colors text-sm"
                     >
                       Borrar registro
                     </button>
@@ -4788,12 +4784,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
             className="fixed bottom-24 left-4 right-4 z-[60] flex justify-center pointer-events-none"
           >
-            <div className="bg-rose-500 text-white px-6 py-4 rounded-2xl shadow-2xl font-medium text-sm flex items-center gap-3 pointer-events-auto max-w-md w-full border border-rose-400/50">
+            <div className="bg-red-500 text-white px-6 py-4 rounded-2xl shadow-2xl font-medium text-sm flex items-center gap-3 pointer-events-auto max-w-md w-full border border-red-400/50">
               <AlertTriangle className="w-5 h-5 shrink-0" />
               <p className="flex-1">{appError.message}</p>
               <button
                 onClick={() => setAppError(null)}
-                className="p-1 hover:bg-rose-600 rounded-lg transition-colors shrink-0"
+                className="p-1 hover:bg-red-600 rounded-lg transition-colors shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
