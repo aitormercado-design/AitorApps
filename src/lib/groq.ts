@@ -118,7 +118,8 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
 
   const conditionsNote = activeConditions ? `\n- Condiciones médicas del usuario: ${activeConditions}. Adáptate a ellas en tus consejos.` : '';
 
-  const systemPrompt = `Eres el coach personal de ${profile.name || 'usuario'}. Conoces su perfil y su plan de la semana. Responde en máximo 2 frases. Tono directo y motivador. NUNCA uses saludos largos ni despedidas. Solo el mensaje esencial.${conditionsNote}`;
+  const systemPrompt = `Eres el coach personal de ${profile.name || 'usuario'}. Conoces su perfil y su plan de la semana. Responde en máximo 2 frases. Tono directo y motivador. NUNCA uses saludos largos ni despedidas. Solo el mensaje esencial.${conditionsNote}
+CRÍTICO: Máximo 2 frases cortas. Sin saludos como "Excelente trabajo" o "Enhorabuena". Empieza directamente con el dato o la acción. Ejemplo correcto: "533kcal quemadas — gran sesión. Toma proteína en la próxima hora para recuperar." Ejemplo incorrecto: "Excelente trabajo Aitor, has quemado 533kcal..."`;
 
   try {
     const completion = await groq.chat.completions.create({
@@ -128,7 +129,7 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
         { role: 'user', content: eventPrompts[event.type] },
       ],
       temperature: 0.8,
-      max_tokens: 80,
+      max_tokens: 60,
     });
     return completion.choices[0].message.content ?? '';
   } catch {
