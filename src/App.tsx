@@ -2153,7 +2153,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               <img src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'} alt="KiloKalo" className="w-8 h-8 rounded-lg" />
               KiloKalo
             </h1>
-            <p className={`${themeStyles.textMuted} text-xs font-bold tracking-[0.2em] uppercase mt-0.5`}>Come. Entrena. Equilibra.</p>
+            <p className={`${themeStyles.textMuted} text-xs font-bold tracking-[0.2em] uppercase mt-0.5 whitespace-nowrap`}>COME · ENTRENA · EQUILIBRA</p>
           </motion.div>
           <div className="flex items-center gap-3">
             <motion.button
