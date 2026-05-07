@@ -230,9 +230,9 @@ const RulerPicker = ({ value, onChange, min, max, step, unit, label, theme }: an
   const stopDragging = () => setIsDragging(false);
 
   return (
-    <div className={`space-y-2 p-4 rounded-3xl border shadow-inner ${theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-zinc-950/50 border-white/5'}`}>
+    <div className={`space-y-2 p-4 rounded-2xl border shadow-inner ${theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-zinc-950/50 border-white/5'}`}>
       <div className="flex justify-between items-end px-1">
-        <label className={`text-[10px] font-black uppercase tracking-widest ${theme === 'light' ? 'text-slate-500' : 'text-zinc-500'}`}>{label}</label>
+        <label className={`text-xs font-bold uppercase tracking-widest ${theme === 'light' ? 'text-slate-500' : 'text-zinc-500'}`}>{label}</label>
         <div className="flex items-baseline gap-1">
           <input
             type="number"
@@ -254,7 +254,7 @@ const RulerPicker = ({ value, onChange, min, max, step, unit, label, theme }: an
             className={`text-2xl font-display font-black bg-transparent border-none focus:outline-none w-20 text-right appearance-none ${theme === 'light' ? 'text-emerald-500' : 'text-lime-400'}`}
             style={{ MozAppearance: 'textfield' }}
           />
-          <span className={`text-[10px] font-bold uppercase ${theme === 'light' ? 'text-slate-400' : 'text-zinc-600'}`}>{unit}</span>
+          <span className={`text-xs font-bold uppercase ${theme === 'light' ? 'text-slate-400' : 'text-zinc-600'}`}>{unit}</span>
         </div>
       </div>
       
@@ -284,7 +284,7 @@ const RulerPicker = ({ value, onChange, min, max, step, unit, label, theme }: an
                     }`}
                   />
                   {isMajor && (
-                    <span className={`text-[8px] font-bold tabular-nums ${theme === 'light' ? 'text-slate-400' : 'text-zinc-600'}`}>{val}</span>
+                    <span className={`text-xs font-bold tabular-nums ${theme === 'light' ? 'text-slate-400' : 'text-zinc-600'}`}>{val}</span>
                   )}
                 </div>
               );
@@ -304,7 +304,7 @@ const NumberInput = ({ value, onChange, label, step = 1, min = 0, max = 300, pla
   return (
     <div className={`space-y-2 p-3 rounded-xl border ${theme === 'light' ? 'bg-white border-slate-200' : 'bg-zinc-950 border-zinc-800'}`}>
       <div className="flex justify-between items-center">
-        <label className={`block text-[10px] font-bold uppercase tracking-widest ${theme === 'light' ? 'text-slate-500' : 'text-zinc-500'}`}>{cleanLabel}</label>
+        <label className={`block text-xs font-bold uppercase tracking-widest ${theme === 'light' ? 'text-slate-500' : 'text-zinc-500'}`}>{cleanLabel}</label>
         <div className="flex items-baseline gap-1">
           <input 
             type="number" 
@@ -316,7 +316,7 @@ const NumberInput = ({ value, onChange, label, step = 1, min = 0, max = 300, pla
             className={`bg-transparent text-right text-lg font-display font-bold ${theme === 'light' ? 'text-emerald-500' : 'text-lime-400'} focus:outline-none w-16`}
             placeholder={placeholder}
           />
-          {unit && <span className={`text-[10px] font-medium ${theme === 'light' ? 'text-slate-400' : 'text-zinc-600'}`}>{unit}</span>}
+          {unit && <span className={`text-xs font-medium ${theme === 'light' ? 'text-slate-400' : 'text-zinc-600'}`}>{unit}</span>}
         </div>
       </div>
     </div>
@@ -932,7 +932,7 @@ export default function App() {
     const isLight = profile.theme === 'light';
     return {
       mainBg: isLight ? 'bg-white' : 'bg-black',
-      headerBg: isLight ? 'bg-white/95' : 'bg-black/90 font-black',
+      headerBg: isLight ? 'bg-white/95' : 'bg-black/90',
       card: isLight ? 'bg-white border-slate-100 shadow-xl shadow-slate-100/50 opacity-100' : 'bg-zinc-950/40 backdrop-blur-md border-white/5 shadow-2xl',
       glass: isLight ? 'bg-white backdrop-blur-2xl border-white/20 shadow-2xl shadow-slate-100/50' : 'bg-zinc-950/80 backdrop-blur-xl border-white/5 shadow-2xl',
       bento: isLight ? 'bg-white border-slate-100 shadow-xl shadow-slate-100/50 p-6 rounded-[2.5rem]' : 'bg-[#050505] border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] p-6 rounded-[2.5rem]',
@@ -947,6 +947,14 @@ export default function App() {
       border: isLight ? 'border-slate-200' : 'border-white/10',
       buttonPrimary: isLight ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' : 'bg-lime-400 hover:bg-lime-500 text-black shadow-[0_0_20px_rgba(163,230,53,0.3)]',
       buttonSecondary: isLight ? 'bg-white border-slate-200 text-zinc-900 hover:bg-slate-50' : 'bg-black border-white/20 text-zinc-200 hover:bg-white/5 hover:border-white/30',
+      macroProtein: isLight ? 'text-blue-600' : 'text-blue-400',
+      macroCarbs: isLight ? 'text-amber-600' : 'text-amber-400',
+      macroFat: isLight ? 'text-rose-600' : 'text-rose-400',
+      macroProteinBg: isLight ? 'bg-blue-500' : 'bg-blue-400',
+      macroCarbsBg: isLight ? 'bg-amber-500' : 'bg-amber-400',
+      macroFatBg: isLight ? 'bg-rose-500' : 'bg-rose-400',
+      tabActiveText: isLight ? 'text-white' : 'text-zinc-950',
+      tabActiveShadow: isLight ? 'shadow-emerald-500/20' : 'shadow-lime-400/20',
     };
   }, [profile.theme]);
 
@@ -2009,23 +2017,23 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-zinc-950 flex flex-col items-center justify-center p-6">
+      <div className={`min-h-screen flex flex-col items-center justify-center p-6 ${profile.theme === 'light' ? 'bg-gradient-to-b from-slate-100 to-slate-50' : 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-zinc-950'}`}>
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-md w-full bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-3xl p-8 text-center"
+          className={`max-w-md w-full backdrop-blur-xl rounded-3xl p-8 text-center ${profile.theme === 'light' ? 'bg-white border border-slate-200 shadow-2xl' : 'bg-zinc-900/50 border border-white/10'}`}
         >
           <div className="flex items-center justify-center mx-auto mb-8">
             <img src="/favicon-dark.png" alt="KiloKalo" className="w-16 h-16 rounded-2xl shadow-lg" />
           </div>
-          <h1 className="text-3xl font-display font-black tracking-tighter text-white mb-8 text-center">
+          <h1 className={`text-3xl font-display font-black tracking-tighter mb-8 text-center ${themeStyles.textMain}`}>
             {isRegistering ? 'Regístrate para empezar' : 'Inicia sesión en KiloKalo'}
           </h1>
           
           <div className="space-y-3 mb-8">
             <button
               onClick={handleGoogleLogin}
-              className={`w-full bg-transparent border border-zinc-500 text-white font-bold py-3 px-6 rounded-full flex items-center justify-center gap-3 hover:${themeStyles.accentBorder} hover:${themeStyles.accent} transition-all`}
+              className={`w-full bg-transparent border font-bold py-3 px-6 rounded-full flex items-center justify-center gap-3 transition-all ${themeStyles.border} ${themeStyles.textMain} hover:${themeStyles.accentBorder} hover:${themeStyles.accent}`}
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -2039,10 +2047,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
           <div className="relative mb-8">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-zinc-800"></div>
+              <div className={`w-full border-t ${themeStyles.border}`}></div>
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-zinc-950 px-4 text-zinc-400">o</span>
+              <span className={`px-4 ${themeStyles.textMuted} ${profile.theme === 'light' ? 'bg-white' : 'bg-zinc-950'}`}>o</span>
             </div>
           </div>
           
@@ -2062,20 +2070,20 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             )}
             
             <div>
-              <label className="block text-sm font-bold text-white mb-2">Dirección de correo electrónico</label>
+              <label className={`block text-sm font-bold mb-2 ${themeStyles.textMain}`}>Dirección de correo electrónico</label>
               <input 
                 type="email" 
                 value={authEmail}
                 onChange={(e) => setAuthEmail(e.target.value)}
                 required
-                className={`w-full bg-zinc-900 border border-zinc-700 rounded-md px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-current transition-all placeholder:text-zinc-500 ${themeStyles.accent}`}
+                className={`w-full rounded-md px-4 py-3 focus:outline-none focus:ring-2 focus:ring-current transition-all ${themeStyles.input}`}
                 placeholder="Correo electrónico"
               />
             </div>
             
             <div>
               <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-bold text-white">Contraseña</label>
+                <label className={`block text-sm font-bold ${themeStyles.textMain}`}>Contraseña</label>
               </div>
               <input 
                 type="password" 
@@ -2083,7 +2091,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 onChange={(e) => setAuthPassword(e.target.value)}
                 required
                 minLength={6}
-                className={`w-full bg-zinc-900 border border-zinc-700 rounded-md px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-current transition-all placeholder:text-zinc-500 ${themeStyles.accent}`}
+                className={`w-full rounded-md px-4 py-3 focus:outline-none focus:ring-2 focus:ring-current transition-all ${themeStyles.input}`}
                 placeholder="Contraseña"
               />
             </div>
@@ -2108,8 +2116,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 </button>
               )}
               
-              <div className="pt-8 border-t border-zinc-800">
-                <p className="text-zinc-400 text-sm mb-4">
+              <div className={`pt-8 border-t ${themeStyles.border}`}>
+                <p className={`text-sm mb-4 ${themeStyles.textMuted}`}>
                   {isRegistering ? '¿Ya tienes una cuenta?' : '¿No tienes cuenta?'}
                 </p>
                 <button
@@ -2118,7 +2126,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     setIsRegistering(!isRegistering);
                     setAuthError(null);
                   }}
-                  className={`text-white font-bold hover:${themeStyles.accent} hover:underline transition-all`}
+                  className={`font-bold hover:underline transition-all ${themeStyles.textMain} hover:${themeStyles.accent}`}
                 >
                   {isRegistering ? 'Inicia sesión aquí' : 'Regístrate en KiloKalo'}
                 </button>
@@ -2144,7 +2152,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               <img src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'} alt="KiloKalo" className="w-8 h-8 rounded-lg" />
               KiloKalo
             </h1>
-            <p className={`${themeStyles.textMuted} text-[10px] font-bold tracking-[0.2em] uppercase mt-0.5`}>Come. Entrena. Equilibra.</p>
+            <p className={`${themeStyles.textMuted} text-xs font-bold tracking-[0.2em] uppercase mt-0.5`}>Come. Entrena. Equilibra.</p>
           </motion.div>
           <div className="flex items-center gap-3">
             <motion.button
@@ -2180,7 +2188,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               }`}
             >
               <UserIcon className={`w-5 h-5 ${profile.age === 0 ? 'text-zinc-950' : themeStyles.accent}`} />
-              <span className={`text-[10px] font-bold uppercase tracking-wider hidden sm:block ${profile.age === 0 ? 'text-zinc-950' : themeStyles.accent}`}>
+              <span className={`text-xs font-bold uppercase tracking-wider hidden sm:block ${profile.age === 0 ? 'text-zinc-950' : themeStyles.accent}`}>
                 Perfil
               </span>
               {profile.age === 0 && (
@@ -2234,7 +2242,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 <Bot className={`w-3.5 h-3.5 ${profile.theme === 'light' ? 'text-white' : 'text-zinc-900'}`} />
               </div>
               <div className="flex-1 min-w-0">
-                <span className={`text-[9px] font-black uppercase tracking-widest ${themeStyles.accent}`}>Coach</span>
+                <span className={`text-xs font-bold uppercase tracking-widest ${themeStyles.accent}`}>Coach</span>
                 <p className={`text-[13px] leading-snug mt-0.5 ${themeStyles.textMain}`}>{proactiveMessage}</p>
               </div>
               <button
@@ -2251,14 +2259,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         <div className={`flex flex-nowrap overflow-x-auto hide-scrollbar ${profile.theme === 'light' ? 'bg-slate-200/50' : 'bg-zinc-950/80'} backdrop-blur-md p-1.5 rounded-2xl border ${profile.theme === 'light' ? 'border-slate-300/50' : 'border-white/5'} mb-8 shadow-2xl gap-1`}>
           <button 
             onClick={() => setActiveTab('today')}
-            className={`flex-1 shrink-0 px-4 py-2.5 text-[10px] flex items-center justify-center gap-1.5 font-black uppercase tracking-wider rounded-xl transition-all whitespace-nowrap ${activeTab === 'today' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white shadow-emerald-500/20' : 'text-zinc-950 shadow-lime-400/20'} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
+            className={`flex-1 shrink-0 px-4 py-2.5 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap ${activeTab === 'today' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} ${themeStyles.tabActiveShadow} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
           >
             <Activity className="w-3.5 h-3.5" />
             Resumen
           </button>
           <button 
             onClick={() => setActiveTab('meals')}
-            className={`flex-[1.2] shrink-0 px-4 py-2.5 text-[10px] flex items-center justify-center gap-1.5 font-black uppercase tracking-wider rounded-xl transition-all whitespace-nowrap ${activeTab === 'meals' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white shadow-emerald-500/20' : 'text-zinc-950 shadow-lime-400/20'} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
+            className={`flex-[1.2] shrink-0 px-4 py-2.5 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap ${activeTab === 'meals' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} ${themeStyles.tabActiveShadow} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
           >
             <Utensils className="w-3.5 h-3.5" />
             Consumir Calorías
@@ -2266,7 +2274,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           {profile.gymEnabled && (
             <button 
               onClick={() => setActiveTab('gym')}
-              className={`flex-[1.2] shrink-0 px-4 py-2.5 text-[10px] flex items-center justify-center gap-1.5 font-black uppercase tracking-wider rounded-xl transition-all whitespace-nowrap ${activeTab === 'gym' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white shadow-emerald-500/20' : 'text-zinc-950 shadow-lime-400/20'} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
+              className={`flex-[1.2] shrink-0 px-4 py-2.5 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap ${activeTab === 'gym' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} ${themeStyles.tabActiveShadow} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
             >
               <Flame className="w-3.5 h-3.5" />
               Quemar Calorías
@@ -2288,13 +2296,13 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 <div className={`grid grid-cols-2 ${profile.theme === 'light' ? 'bg-slate-200/50' : 'bg-zinc-950/80'} p-1.5 rounded-2xl border ${profile.theme === 'light' ? 'border-slate-300/50' : 'border-white/5'} shadow-xl`}>
                   <button
                     onClick={() => setEvolutionPeriod('today')}
-                    className={`py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${evolutionPeriod === 'today' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-lg` : themeStyles.textMuted}`}
+                    className={`py-3 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${evolutionPeriod === 'today' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-lg` : themeStyles.textMuted}`}
                   >
                     Hoy
                   </button>
                   <button
                     onClick={() => { setEvolutionPeriod('weekly'); setWeekOffset(0); setExpandedWeekDay(null); setWeeklyAnalysis(''); }}
-                    className={`py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${evolutionPeriod === 'weekly' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-lg` : themeStyles.textMuted}`}
+                    className={`py-3 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${evolutionPeriod === 'weekly' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-lg` : themeStyles.textMuted}`}
                   >
                     Esta semana
                   </button>
@@ -2309,11 +2317,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           <div className="relative z-10">
                             <div className="flex flex-col md:flex-row gap-8 items-start md:items-center justify-between">
                                <div className="space-y-2 max-w-xl text-center md:text-left">
-                                  <span className={`text-[10px] font-black ${themeStyles.accent} uppercase tracking-[0.25em]`}>Resumen del día</span>
+                                  <span className={`text-xs font-bold ${themeStyles.accent} uppercase tracking-[0.25em]`}>Resumen del día</span>
                                   <p className={`text-sm ${themeStyles.textMuted} font-medium`}>{profile.name ? `Hola, ${profile.name}` : 'Resumen calórico de hoy'}</p>
                                </div>
                                <div className="flex flex-col items-center md:items-end gap-2 group-hover:scale-105 transition-transform">
-                                  <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Margen de hoy</span>
+                                  <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Margen de hoy</span>
                                   <span className={`text-6xl font-display font-black tracking-tighter ${
                                     assistant.remainingCalories < 0 ? 'text-amber-500' :
                                     (assistant.burnedCalories > assistant.impliedCalories)
@@ -2322,7 +2330,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                   }`}>
                                     {Math.round(assistant.remainingCalories)}
                                   </span>
-                                  <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>kcal restantes</span>
+                                  <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>kcal restantes</span>
                                </div>
                             </div>
 
@@ -2331,19 +2339,19 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                <div className="flex justify-between items-end">
                                   <div className="flex items-center gap-3">
                                     <div className="flex flex-col">
-                                      <span className={`text-[9px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Consumido</span>
-                                      <span className={`text-xl font-black ${themeStyles.textMain}`}>{Math.round(assistant.consumedCalories)} <span className="text-[10px] opacity-40">kcal</span></span>
+                                      <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Consumido</span>
+                                      <span className={`text-xl font-black ${themeStyles.textMain}`}>{Math.round(assistant.consumedCalories)} <span className="text-xs opacity-40">kcal</span></span>
                                     </div>
                                   </div>
                                   <div className="text-right">
-                                    <span className={`text-[9px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Puedes llegar a</span>
+                                    <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Puedes llegar a</span>
                                     <span className={`text-xl font-black ${
                                       (assistant.burnedCalories > assistant.impliedCalories)
                                         ? (profile.theme === 'light' ? 'text-emerald-500' : 'text-lime-400')
                                         : themeStyles.textMain
                                     }`}>
                                       {Math.round(assistant.totalTarget)} 
-                                      <span className="text-[10px] ml-1 opacity-40">kcal</span>
+                                      <span className="text-xs ml-1 opacity-40">kcal</span>
                                     </span>
                                   </div>
                                </div>
@@ -2377,32 +2385,32 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         {/* 3. Distribution (Macros) */}
                         <div className={`${themeStyles.bento} p-6 space-y-6 relative overflow-hidden`}>
                            <div className="flex items-center justify-between">
-                             <h4 className={`text-xs font-black ${themeStyles.textMain} uppercase tracking-widest`}>Distribución de Macros</h4>
+                             <h4 className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-widest`}>Distribución de Macros</h4>
                              <PieChart className={`w-4 h-4 ${themeStyles.textMuted}`} />
                            </div>
                            <div className="space-y-5">
                              {/* Protein */}
-                             <div className="space-y-1.5 text-xs font-black">
+                             <div className="space-y-1.5 text-xs font-bold">
                                <div className="flex justify-between uppercase tracking-tighter">
                                  <span className={themeStyles.accent}>Proteínas</span>
                                  <span className={themeStyles.textMuted}>{Math.round(totals.protein)}<span className="opacity-40"> / {goals.protein}g</span></span>
                                </div>
                                <div className={`h-3 ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-900'} rounded-full border ${themeStyles.border} overflow-hidden shadow-inner`}>
-                                 <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, (totals.protein / goals.protein) * 100)}%` }} className={`h-full ${profile.theme === 'light' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-lime-400 shadow-[0_0_15px_rgba(163,230,53,0.6)]'} rounded-full font-black`} />
+                                 <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, (totals.protein / goals.protein) * 100)}%` }} className={`h-full ${profile.theme === 'light' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-lime-400 shadow-[0_0_15px_rgba(163,230,53,0.6)]'} rounded-full`} />
                                </div>
                              </div>
                              {/* Carbs */}
-                             <div className="space-y-1.5 text-xs font-black">
+                             <div className="space-y-1.5 text-xs font-bold">
                                <div className="flex justify-between uppercase tracking-tighter">
                                  <span className={themeStyles.accent}>Hidratos</span>
                                  <span className={themeStyles.textMuted}>{Math.round(totals.carbs)}<span className="opacity-40"> / {goals.carbs}g</span></span>
                                </div>
                                <div className={`h-3 ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-900'} rounded-full border ${themeStyles.border} overflow-hidden shadow-inner`}>
-                                 <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, (totals.carbs / goals.carbs) * 100)}%` }} className={`h-full ${profile.theme === 'light' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-lime-400 shadow-[0_0_15px_rgba(163,230,53,0.6)]'} rounded-full font-black`} />
+                                 <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, (totals.carbs / goals.carbs) * 100)}%` }} className={`h-full ${profile.theme === 'light' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-lime-400 shadow-[0_0_15px_rgba(163,230,53,0.6)]'} rounded-full`} />
                                </div>
                              </div>
                              {/* Fats */}
-                             <div className="space-y-1.5 text-xs font-black">
+                             <div className="space-y-1.5 text-xs font-bold">
                                <div className="flex justify-between uppercase tracking-tighter">
                                  <span className={themeStyles.accent}>Grasas</span>
                                  <span className={themeStyles.textMuted}>{Math.round(totals.fat)}<span className="opacity-40"> / {goals.fat}g</span></span>
@@ -2411,7 +2419,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                  <motion.div 
                                    initial={{ width: 0 }} 
                                    animate={{ width: `${Math.min(100, (totals.fat / goals.fat) * 100)}%` }} 
-                                   className={`h-full ${profile.theme === 'light' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-lime-400 shadow-[0_0_15px_rgba(163,230,53,0.6)]'} rounded-full font-black`} 
+                                   className={`h-full ${profile.theme === 'light' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-lime-400 shadow-[0_0_15px_rgba(163,230,53,0.6)]'} rounded-full`} 
                                  />
                                </div>
                              </div>
@@ -2435,11 +2443,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     </button>
 
                     <div className="flex flex-col items-center gap-1">
-                      <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>
+                      <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>
                         {weekOffset === 0 ? 'Esta semana' : weekOffset === -1 ? 'Semana pasada' : `Hace ${Math.abs(weekOffset)} semanas`}
                       </span>
                       {weekDays.length === 7 && (
-                        <span className={`text-[9px] font-black ${themeStyles.accent} uppercase tracking-widest opacity-70`}>
+                        <span className={`text-xs font-bold ${themeStyles.accent} uppercase tracking-widest opacity-70`}>
                           {(() => {
                             const fmt = (d: string) =>
                               new Date(d + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }).toUpperCase();
@@ -2490,17 +2498,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               ${isExpanded ? (profile.theme === 'light' ? 'bg-slate-100' : 'bg-white/[0.06]') : ''}
                             `}
                           >
-                            <span className={`text-[8px] font-black uppercase tracking-wider ${day.isToday ? themeStyles.accent : themeStyles.textMuted}`}>
+                            <span className={`text-xs font-bold uppercase tracking-wider ${day.isToday ? themeStyles.accent : themeStyles.textMuted}`}>
                               {day.dayShort}
                             </span>
-                            <span className={`text-[9px] font-black ${themeStyles.textMuted}`}>
+                            <span className={`text-xs font-bold ${themeStyles.textMuted}`}>
                               {new Date(day.date + 'T12:00:00').getDate()}
                             </span>
 
                             {/* Semaphore dot */}
                             {day.isFuture ? (
                               <div className={`w-8 h-8 rounded-full border-2 border-dashed ${profile.theme === 'light' ? 'border-slate-300' : 'border-zinc-700'} flex items-center justify-center`}>
-                                <span className={`text-[8px] font-black ${themeStyles.textMuted}`}>—</span>
+                                <span className={`text-xs font-bold ${themeStyles.textMuted}`}>—</span>
                               </div>
                             ) : (
                               <div className={`w-8 h-8 rounded-full ${dotCfg[day.status]} shadow-lg ring-4 ${ringCfg[day.status]} flex items-center justify-center`}>
@@ -2513,12 +2521,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             {/* kcal + workout badge */}
                             <div className="flex flex-col items-center gap-0.5 min-h-[2.5rem] justify-center">
                               {!day.isFuture && day.caloriesConsumed > 0 ? (
-                                <span className={`text-[8px] font-black leading-none text-center ${themeStyles.textMain}`}>
+                                <span className={`text-xs font-bold leading-none text-center ${themeStyles.textMain}`}>
                                   {Math.round(day.caloriesConsumed)}<br/>
                                   <span className={`${themeStyles.textMuted} font-normal`}>kcal</span>
                                 </span>
                               ) : !day.isFuture ? (
-                                <span className={`text-[7px] font-black ${themeStyles.textMuted} text-center leading-tight`}>Sin<br/>datos</span>
+                                <span className={`text-xs font-bold ${themeStyles.textMuted} text-center leading-tight`}>Sin<br/>datos</span>
                               ) : null}
                               {day.workoutDone && !day.isFuture && (
                                 <Dumbbell className={`w-2.5 h-2.5 ${themeStyles.accent}`} />
@@ -2571,10 +2579,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                             {/* Day title + status */}
                             <div className="flex items-center justify-between">
-                              <span className={`text-[11px] font-black ${themeStyles.textMain} uppercase tracking-widest`}>
+                              <span className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-widest`}>
                                 {day.dayName} {new Date(day.date + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' }).toUpperCase()}
                               </span>
-                              <span className={`text-[10px] font-black uppercase tracking-widest ${statusColor[day.status]}`}>
+                              <span className={`text-xs font-bold uppercase tracking-widest ${statusColor[day.status]}`}>
                                 {statusLabel[day.status]}
                               </span>
                             </div>
@@ -2582,8 +2590,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             {/* Calorie progress bar */}
                             <div className="space-y-1.5">
                               <div className="flex justify-between items-end">
-                                <span className={`text-[9px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Calorías</span>
-                                <span className={`text-[10px] font-black ${themeStyles.textMain}`}>
+                                <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Calorías</span>
+                                <span className={`text-xs font-bold ${themeStyles.textMain}`}>
                                   {Math.round(day.caloriesConsumed).toLocaleString('es-ES')} / {day.caloriesGoal.toLocaleString('es-ES')} kcal
                                   <span className={` ml-1 ${statusColor[day.status]}`}>({pct}%)</span>
                                 </span>
@@ -2601,28 +2609,28 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             {/* Meals list */}
                             {day.dayMeals.length > 0 ? (
                               <div className="space-y-1">
-                                <span className={`text-[9px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>
+                                <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>
                                   Comidas registradas: {day.dayMeals.length}
                                 </span>
                                 <div className="mt-1 space-y-1">
                                   {day.dayMeals.map((m: any) => (
                                     <div key={m.id} className="flex justify-between items-center gap-2">
-                                      <span className={`text-[10px] ${themeStyles.textMain} truncate`}>• {m.foodName}</span>
-                                      <span className={`text-[10px] font-black ${themeStyles.textMuted} shrink-0`}>{Math.round(m.calories)} kcal</span>
+                                      <span className={`text-xs ${themeStyles.textMain} truncate`}>• {m.foodName}</span>
+                                      <span className={`text-xs font-bold ${themeStyles.textMuted} shrink-0`}>{Math.round(m.calories)} kcal</span>
                                     </div>
                                   ))}
                                 </div>
                               </div>
                             ) : (
-                              <p className={`text-[10px] ${themeStyles.textMuted}`}>No hay comidas registradas este día.</p>
+                              <p className={`text-xs ${themeStyles.textMuted}`}>No hay comidas registradas este día.</p>
                             )}
 
                             {/* Workout row */}
                             {profile.gymEnabled && (
                               <div className={`flex items-center gap-2 pt-2 border-t ${themeStyles.border}`}>
                                 <Dumbbell className={`w-3.5 h-3.5 shrink-0 ${day.workoutDone ? (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400') : themeStyles.textMuted}`} />
-                                <span className={`text-[9px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Entrenamiento:</span>
-                                <span className={`text-[10px] font-black ${day.workoutDone ? (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400') : 'text-red-500'}`}>
+                                <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Entrenamiento:</span>
+                                <span className={`text-xs font-bold ${day.workoutDone ? (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400') : 'text-red-500'}`}>
                                   {day.workoutDone
                                     ? `✓ Completado — ${Math.round(day.workoutCalories)} kcal quemadas`
                                     : day.hadWorkoutPlanned
@@ -2645,8 +2653,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <Bot className={`w-4 h-4 ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`} />
                     </div>
                     <div>
-                      <p className={`text-xs font-black ${themeStyles.textMain} uppercase tracking-widest`}>Análisis IA</p>
-                      <p className={`text-[9px] ${themeStyles.textMuted} uppercase tracking-widest`}>Tu coach personal</p>
+                      <p className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-widest`}>Análisis IA</p>
+                      <p className={`text-xs ${themeStyles.textMuted} uppercase tracking-widest`}>Tu coach personal</p>
                     </div>
                   </div>
 
@@ -2663,7 +2671,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <button
                     onClick={handleWeeklyAnalysis}
                     disabled={weeklyAnalysisLoading || weeklyAnalysisCooldown.isActive}
-                    className={`w-full py-4 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                    className={`w-full py-4 px-6 rounded-2xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
                       weeklyAnalysisLoading || weeklyAnalysisCooldown.isActive
                         ? `${profile.theme === 'light' ? 'bg-slate-100 text-slate-400' : 'bg-zinc-900 text-zinc-600'} cursor-not-allowed`
                         : themeStyles.buttonPrimary
@@ -2690,7 +2698,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       </div>
                       <div>
                         <h2 className={`text-xl font-display font-black ${themeStyles.textMain} tracking-tight uppercase`}>Análisis Histórico</h2>
-                        <p className={`text-[10px] font-black ${themeStyles.accent} uppercase tracking-widest opacity-60`}>Seguimiento de Calorías</p>
+                        <p className={`text-xs font-bold ${themeStyles.accent} uppercase tracking-widest opacity-60`}>Seguimiento de Calorías</p>
                       </div>
                     </div>
 
@@ -2743,7 +2751,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       </ResponsiveContainer>
                     </div>
 
-                    <div className={`mt-10 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-[10px] font-black uppercase tracking-widest ${themeStyles.textMuted} border-t ${themeStyles.border} pt-8`}>
+                    <div className={`mt-10 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted} border-t ${themeStyles.border} pt-8`}>
                       <div className="flex items-center gap-3">
                         <div className={`w-3 h-3 rounded-sm ${themeStyles.accentBg} shadow-sm`}></div>
                         <span className={themeStyles.textMain}>Consumidas</span>
@@ -2771,7 +2779,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               <div className={`grid ${generatedMenu ? 'grid-cols-3' : 'grid-cols-2'} ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border} shadow-lg mb-6`}>
                 <button
                   onClick={() => setMealsSubTab('daily')}
-                  className={`py-3 text-[10px] flex items-center justify-center gap-1.5 font-black uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'daily' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                  className={`py-3 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'daily' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
                 >
                   <Utensils className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Comidas del día</span>
@@ -2779,7 +2787,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 </button>
                 <button
                   onClick={() => setMealsSubTab('plan')}
-                  className={`py-3 text-[10px] flex items-center justify-center gap-1.5 font-black uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'plan' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                  className={`py-3 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'plan' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
                 >
                   <ClipboardList className="w-3.5 h-3.5" />
                   Plan
@@ -2790,7 +2798,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 {generatedMenu && (
                   <button
                     onClick={() => setMealsSubTab('shopping')}
-                    className={`py-3 text-[10px] flex items-center justify-center gap-1.5 font-black uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'shopping' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                    className={`py-3 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'shopping' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
                   >
                     <ShoppingCart className="w-3.5 h-3.5" />
                     Compra
@@ -2850,7 +2858,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     className={`w-full flex items-center justify-center gap-3 ${themeStyles.buttonSecondary} p-5 rounded-2xl transition-all border group relative z-10 disabled:opacity-50`}
                   >
                     <Camera className={`w-5 h-5 ${themeStyles.accent} group-hover:scale-110 transition-transform`} />
-                    <span className="text-sm font-black uppercase tracking-widest">
+                    <span className="text-sm font-bold uppercase tracking-widest">
                       {imageFoodCooldown.isActive ? `Espera ${imageFoodCooldown.remaining}s` : 'Escanear comida'}
                     </span>
                   </button>
@@ -2865,7 +2873,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       </div>
                       <h2 className={`text-lg font-display font-bold ${themeStyles.textMain} tracking-tight uppercase`}>Registros de hoy</h2>
                     </div>
-                    <span className={`text-[10px] font-black ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} px-3 py-1 rounded-full shadow-lg uppercase tracking-widest`}>
+                    <span className={`text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} px-3 py-1 rounded-full shadow-lg uppercase tracking-widest`}>
                       {todaysMeals.length} ítems
                     </span>
                   </div>
@@ -2873,17 +2881,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <div className="space-y-4">
                     <AnimatePresence mode="popLayout">
                       {todaysMeals.length === 0 ? (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`text-center py-16 ${themeStyles.iconBg} rounded-[2.5rem] border ${themeStyles.border} border-dashed`}>
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`text-center py-16 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border} border-dashed`}>
                           <Utensils className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-3 opacity-20`} />
                           <p className={`${themeStyles.textMuted} font-bold uppercase tracking-widest text-xs`}>No hay registros hoy</p>
-                          <p className={`${themeStyles.textMuted} text-[10px] mt-1 opacity-60`}>Usa el buscador o la cámara para empezar</p>
+                          <p className={`${themeStyles.textMuted} text-xs mt-1 opacity-60`}>Usa el buscador o la cámara para empezar</p>
                         </motion.div>
                       ) : (
                         todaysMeals.map((meal) => (
                           <motion.div
                             key={meal.id} layout
                             initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
-                            className={`${themeStyles.card} rounded-3xl p-5 flex gap-5 group transition-all`}
+                            className={`${themeStyles.card} rounded-2xl p-5 flex gap-5 group transition-all`}
                           >
                             <div className={`w-16 h-16 rounded-2xl overflow-hidden ${themeStyles.iconBg} shrink-0 shadow-xl border ${themeStyles.border}`}>
                               <img src={meal.imageUrl} alt={meal.foodName} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
@@ -2901,8 +2909,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                 </div>
                               </div>
                               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
-                                <span className={`${themeStyles.accent} font-black text-xs tracking-tight`}>{Math.round(meal.calories)} Kcal</span>
-                                <div className={`flex items-center gap-3 text-[10px] font-black uppercase ${themeStyles.textMuted} tracking-wider`}>
+                                <span className={`${themeStyles.accent} font-bold text-xs tracking-tight`}>{Math.round(meal.calories)} Kcal</span>
+                                <div className={`flex items-center gap-3 text-xs font-bold uppercase ${themeStyles.textMuted} tracking-wider`}>
                                   <span className={themeStyles.textMain}>P:{Math.round(meal.protein)}g</span>
                                   <span className={themeStyles.textMain}>H:{Math.round(meal.carbs)}g</span>
                                   <span className={themeStyles.textMain}>G:{Math.round(meal.fat)}g</span>
@@ -2911,7 +2919,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               <div className="flex items-center gap-2">
                                 <NutriScoreBadge score={meal.nutriScore} />
                                 {meal.isHealthy && (
-                                  <span className={`px-2 py-0.5 rounded-full ${themeStyles.accentMuted} ${themeStyles.accent} text-[9px] font-black uppercase tracking-widest border ${themeStyles.accentBorder}`}>Saludable</span>
+                                  <span className={`px-2 py-0.5 rounded-full ${themeStyles.accentMuted} ${themeStyles.accent} text-xs font-bold uppercase tracking-widest border ${themeStyles.accentBorder}`}>Saludable</span>
                                 )}
                               </div>
                             </div>
@@ -2933,13 +2941,13 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <div className={`rounded-2xl border border-amber-500/40 ${profile.theme === 'light' ? 'bg-amber-50' : 'bg-amber-500/5'} p-4 flex items-start gap-3`}>
                     <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-black text-amber-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
-                      <p className={`text-[11px] mt-0.5 ${profile.theme === 'light' ? 'text-amber-700' : 'text-amber-400/80'}`}>El menú puede no reflejar tus nuevos datos.</p>
+                      <p className="text-xs font-bold text-amber-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
+                      <p className={`text-xs mt-0.5 ${profile.theme === 'light' ? 'text-amber-700' : 'text-amber-400/80'}`}>El menú puede no reflejar tus nuevos datos.</p>
                     </div>
                     <button
                       disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
                       onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
-                      className="shrink-0 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="shrink-0 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isGeneratingMenu ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Regenerar ahora'}
                     </button>
@@ -3010,17 +3018,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         {/* Header */}
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className={`text-xs font-black ${themeStyles.textMain} uppercase tracking-widest`}>
+                            <p className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-widest`}>
                               Plan de {profile.name || 'Usuario'}
                             </p>
-                            <p className={`text-[10px] ${themeStyles.textMuted} mt-0.5`}>
+                            <p className={`text-xs ${themeStyles.textMuted} mt-0.5`}>
                               {generatedMenu.days?.length || 0} días · {profile.goal === 'lose' ? 'Perder grasa' : profile.goal === 'gain' ? 'Ganar músculo' : 'Mantenimiento'}
                             </p>
                           </div>
                           <button
                             disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
                             onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
-                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} ${themeStyles.textMuted} text-[9px] font-black uppercase tracking-widest hover:${themeStyles.textMain} transition-all disabled:opacity-50`}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} ${themeStyles.textMuted} text-xs font-bold uppercase tracking-widest hover:${themeStyles.textMain} transition-all disabled:opacity-50`}
                           >
                             <RefreshCw className="w-3 h-3" />
                             {menuCooldown.isActive ? `Espera ${menuCooldown.remaining}s` : 'Regenerar'}
@@ -3033,7 +3041,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             <button
                               key={dIdx}
                               onClick={() => { setMenuSelectedDay(dIdx); setExpandedMeal(0); }}
-                              className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] uppercase font-black tracking-widest transition-all ${
+                              className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs uppercase font-bold tracking-widest transition-all ${
                                 menuSelectedDay === dIdx
                                   ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md`
                                   : `border ${themeStyles.accentBorder} ${themeStyles.accent} ${themeStyles.iconBg}`
@@ -3049,7 +3057,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           <div className={`${themeStyles.card} rounded-2xl overflow-hidden border ${themeStyles.border}`}>
                             {/* Day summary pills */}
                             <div className={`px-5 py-4 border-b ${themeStyles.border}`}>
-                              <p className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-[0.2em] mb-3`}>
+                              <p className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-[0.2em] mb-3`}>
                                 {generatedMenu.days[menuSelectedDay].day}
                               </p>
                               <div className="flex gap-2 flex-wrap">
@@ -3059,7 +3067,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                   { label: 'C', value: `${generatedMenu.days[menuSelectedDay].carbohidratos ?? '—'}g` },
                                   { label: 'G', value: `${generatedMenu.days[menuSelectedDay].grasas ?? '—'}g` },
                                 ].map(pill => (
-                                  <span key={pill.label || 'kcal'} className={`${themeStyles.accentMuted} ${themeStyles.accent} text-[10px] font-black px-3 py-1 rounded-full border ${themeStyles.accentBorder}`}>
+                                  <span key={pill.label || 'kcal'} className={`${themeStyles.accentMuted} ${themeStyles.accent} text-xs font-bold px-3 py-1 rounded-full border ${themeStyles.accentBorder}`}>
                                     {pill.label ? `${pill.label}:` : ''}{pill.value}
                                   </span>
                                 ))}
@@ -3075,7 +3083,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                       <div className="px-5 py-4 bg-emerald-500/10 flex items-center gap-3">
                                         <span className="text-2xl">🍕</span>
                                         <div>
-                                          <p className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">{meal.type || 'Comida'} · COMIDA LIBRE</p>
+                                          <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">{meal.type || 'Comida'} · COMIDA LIBRE</p>
                                           <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70">¡Disfrútala sin culpa!</p>
                                         </div>
                                       </div>
@@ -3085,11 +3093,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                           onClick={() => setExpandedMeal(expandedMeal === mIdx ? -1 : mIdx)}
                                           className={`w-full px-5 py-4 flex items-center justify-between text-left transition-colors ${expandedMeal === mIdx ? themeStyles.iconBg : ''}`}
                                         >
-                                          <span className={`text-[11px] font-black ${themeStyles.textMain} uppercase tracking-wider`}>
+                                          <span className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-wider`}>
                                             {meal.type || '—'}
                                           </span>
                                           <div className="flex items-center gap-3 shrink-0">
-                                            <span className={`text-[11px] font-black ${themeStyles.accent}`}>{meal.calories ?? '—'} kcal</span>
+                                            <span className={`text-xs font-bold ${themeStyles.accent}`}>{meal.calories ?? '—'} kcal</span>
                                             <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} transition-transform duration-200 ${expandedMeal === mIdx ? 'rotate-0' : '-rotate-90'}`} />
                                           </div>
                                         </button>
@@ -3103,9 +3111,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                             )}
                                             {(meal.proteinas != null || meal.carbohidratos != null || meal.grasas != null) && (
                                               <div className="flex gap-4 pt-1">
-                                                <span className={`text-[10px] font-bold ${themeStyles.accent}`}>P:{meal.proteinas ?? '—'}g</span>
-                                                <span className={`text-[10px] font-bold ${themeStyles.accent}`}>C:{meal.carbohidratos ?? '—'}g</span>
-                                                <span className={`text-[10px] font-bold ${themeStyles.accent}`}>G:{meal.grasas ?? '—'}g</span>
+                                                <span className={`text-xs font-bold ${themeStyles.accent}`}>P:{meal.proteinas ?? '—'}g</span>
+                                                <span className={`text-xs font-bold ${themeStyles.accent}`}>C:{meal.carbohidratos ?? '—'}g</span>
+                                                <span className={`text-xs font-bold ${themeStyles.accent}`}>G:{meal.grasas ?? '—'}g</span>
                                               </div>
                                             )}
                                           </div>
@@ -3140,7 +3148,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               ) : mealsSubTab === 'shopping' ? (
                  <div className="space-y-6">
                  {/* Unified Shopping List Section */}
-                 <div className={`${themeStyles.card} rounded-3xl p-6 md:p-8 space-y-6`}>
+                 <div className={`${themeStyles.card} rounded-2xl p-5 md:p-6 space-y-6`}>
                    <div className="flex items-center gap-4">
                      <div className={`w-12 h-12 rounded-2xl ${themeStyles.accentMuted} border ${themeStyles.accentBorder} flex items-center justify-center`}>
                        <ShoppingCart className={`w-6 h-6 ${themeStyles.accent}`} />
@@ -3194,13 +3202,13 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                      <div className={`text-center py-8 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border}`}>
                        <ShoppingCart className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-4`} />
                        <p className={`${themeStyles.textMain} font-bold mb-2`}>Sin Lista de la Compra</p>
-                       <p className={`${themeStyles.textMuted} text-[10px] uppercase font-bold tracking-widest px-4 mb-6`}>
+                       <p className={`${themeStyles.textMuted} text-xs uppercase font-bold tracking-widest px-4 mb-6`}>
                          Extrae los ingredientes del menú y genera tu lista de la compra semanal
                        </p>
                        <button
                          onClick={() => { shoppingCooldown.start(); handleGenerateShoppingList(); }}
                          disabled={!generatedMenu || shoppingCooldown.isActive}
-                         className={`${themeStyles.buttonPrimary} px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-[10px] mx-auto flex items-center gap-2 disabled:opacity-50`}
+                         className={`${themeStyles.buttonPrimary} px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-xs mx-auto flex items-center gap-2 disabled:opacity-50`}
                        >
                          <ShoppingCart className="w-4 h-4" />
                          {shoppingCooldown.isActive ? `Espera ${shoppingCooldown.remaining}s` : 'Generar Lista'}
@@ -3210,7 +3218,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                      <div className={`text-center py-8 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border}`}>
                        <Info className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-2`} />
                        <p className={`${themeStyles.textMuted} text-sm`}>No se han podido detectar ingredientes.</p>
-                       <p className={`${themeStyles.textMuted} text-[10px] mt-1 opacity-80`}>Intenta generar el menú de nuevo.</p>
+                       <p className={`${themeStyles.textMuted} text-xs mt-1 opacity-80`}>Intenta generar el menú de nuevo.</p>
                      </div>
                    ) : (
                      <div className="space-y-6">
@@ -3219,7 +3227,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                          <p className={`${themeStyles.textMuted} text-xs mb-6`}>Lista de ingredientes para toda la semana. Puedes marcar los productos mientras compras.</p>
                          
                          <div className="space-y-4">
-                           <p className={`${themeStyles.textMuted} text-[10px] uppercase font-bold tracking-widest text-center`}>
+                           <p className={`${themeStyles.textMuted} text-xs uppercase font-bold tracking-widest text-center`}>
                              Puedes ir marcando los productos mientras compras
                            </p>
                            <div className="flex flex-col gap-3">
@@ -3229,7 +3237,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                  e.preventDefault();
                                  downloadShoppingListHTML();
                                }}
-                               className={`w-full flex items-center justify-center gap-2 p-4 rounded-xl ${themeStyles.buttonPrimary} font-bold text-[10px] uppercase tracking-widest`}
+                               className={`w-full flex items-center justify-center gap-2 p-4 rounded-xl ${themeStyles.buttonPrimary} font-bold text-xs uppercase tracking-widest`}
                              >
                                <CheckSquare className="w-4 h-4" />
                                Ver Lista
@@ -3265,7 +3273,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         <button
                           key={st.id}
                           onClick={() => setGymSubTab(st.id as any)}
-                          className={`py-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${
+                          className={`py-3 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${
                             gymSubTab === st.id
                               ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md`
                               : `${themeStyles.textMuted} hover:text-current`
@@ -3286,7 +3294,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <div className={`${themeStyles.bento} p-16 text-center border ${themeStyles.border}`}>
                     <div className="relative w-24 h-24 mx-auto mb-8">
                       <motion.div
-                        className={`absolute inset-0 rounded-3xl ${themeStyles.accentMuted}`}
+                        className={`absolute inset-0 rounded-2xl ${themeStyles.accentMuted}`}
                         animate={{ scale: [1, 1.25, 1], opacity: [0.6, 0.2, 0.6] }}
                         transition={{ repeat: Infinity, duration: 2 }}
                       />
@@ -3324,13 +3332,13 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           <div className={`rounded-2xl border border-amber-500/40 ${profile.theme === 'light' ? 'bg-amber-50' : 'bg-amber-500/5'} p-4 flex items-start gap-3`}>
                             <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-black text-amber-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
-                              <p className={`text-[11px] mt-0.5 ${profile.theme === 'light' ? 'text-amber-700' : 'text-amber-400/80'}`}>La rutina puede no reflejar tus nuevos datos.</p>
+                              <p className="text-xs font-bold text-amber-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
+                              <p className={`text-xs mt-0.5 ${profile.theme === 'light' ? 'text-amber-700' : 'text-amber-400/80'}`}>La rutina puede no reflejar tus nuevos datos.</p>
                             </div>
                             <button
                               disabled={isAIGenerating || isGeneratingWorkout || workoutCooldown.isActive}
                               onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
-                              className="shrink-0 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="shrink-0 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {isGeneratingWorkout ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Regenerar ahora'}
                             </button>
@@ -3349,7 +3357,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                 </div>
                                 <div>
                                   <h2 className={`text-xl font-display font-black ${themeStyles.textMain} uppercase tracking-tight leading-tight`}>Tu Rutina</h2>
-                                  <p className={`${themeStyles.textMuted} text-[9px] font-bold uppercase tracking-widest mt-1`}>
+                                  <p className={`${themeStyles.textMuted} text-xs font-bold uppercase tracking-widest mt-1`}>
                                     {profile.trainingDaysPerWeek} Días • {translateGymGoal(profile.gymGoal)}
                                   </p>
                                 </div>
@@ -3361,7 +3369,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             <button
                               onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
                               disabled={isAIGenerating || isGeneratingWorkout || workoutCooldown.isActive}
-                              className={`shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent} disabled:opacity-40`}
+                              className={`shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl border text-xs font-bold uppercase tracking-widest transition-all ${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent} disabled:opacity-40`}
                             >
                               <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingWorkout ? 'animate-spin' : ''}`} />
                               {workoutCooldown.isActive ? `${workoutCooldown.remaining}s` : 'Regenerar'}
@@ -3373,21 +3381,21 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         <div className={`grid grid-flow-col auto-cols-fr ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border} shadow-lg mb-6`}>
                           <button
                             onClick={() => setPlanSubTab('info')}
-                            className={`py-3 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${planSubTab === 'info' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                            className={`py-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${planSubTab === 'info' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
                           >
                             <Info className="w-3.5 h-3.5" />
                             Info
                           </button>
                           <button
                             onClick={() => setPlanSubTab('ejercicios')}
-                            className={`py-3 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${planSubTab === 'ejercicios' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                            className={`py-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${planSubTab === 'ejercicios' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
                           >
                             <Dumbbell className="w-3.5 h-3.5" />
                             Ejercicios
                           </button>
                           <button
                             onClick={() => setPlanSubTab('tips')}
-                            className={`py-3 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${planSubTab === 'tips' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                            className={`py-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${planSubTab === 'tips' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
                           >
                             <Zap className="w-3.5 h-3.5" />
                             Tips
@@ -3397,7 +3405,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         {/* Info / Intro Section */}
                         {planSubTab === 'info' && (
                         <motion.div initial={{opacity:0}} animate={{opacity:1}} layout className="space-y-6">
-                          <div className={`${themeStyles.card} rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border}`}>
+                          <div className={`${themeStyles.card} rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border}`}>
                             <div className={`prose ${profile.theme === 'light' ? 'prose-slate' : 'prose-invert prose-zinc'} max-w-none
                               prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
                               prose-h2:text-2xl prose-h2:${themeStyles.accent} prose-h2:border-b prose-h2:border-white/10 prose-h2:pb-4 prose-h2:mb-6
@@ -3433,14 +3441,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                 <div className={`w-16 h-16 bg-zinc-900 rounded-2xl flex items-center justify-center mx-auto border ${themeStyles.border}`}>
                                   <AlertTriangle className="w-8 h-8 text-amber-500" />
                                 </div>
-                                <h4 className={`text-sm font-black uppercase tracking-widest ${themeStyles.textMain}`}>Plan no procesable</h4>
+                                <h4 className={`text-sm font-bold uppercase tracking-widest ${themeStyles.textMain}`}>Plan no procesable</h4>
                                 <p className={`text-xs ${themeStyles.textMuted} max-w-xs mx-auto leading-relaxed font-medium`}>
                                   El plan generado no sigue el formato esperado. Intenta regenerarlo.
                                 </p>
                                 <button
                                   onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
                                   disabled={workoutCooldown.isActive}
-                                  className={`mt-4 px-8 py-3 rounded-xl ${themeStyles.accentBg} text-zinc-950 text-[10px] font-black uppercase tracking-widest shadow-lg disabled:opacity-50`}
+                                  className={`mt-4 px-8 py-3 rounded-xl ${themeStyles.accentBg} text-zinc-950 text-xs font-bold uppercase tracking-widest shadow-lg disabled:opacity-50`}
                                 >
                                   {workoutCooldown.isActive ? `Espera ${workoutCooldown.remaining}s` : 'Reintentar Generación'}
                                 </button>
@@ -3460,7 +3468,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                   <button
                                     key={d.dayNumber}
                                     onClick={() => setGymDay(`Día ${d.dayNumber}`)}
-                                    className={`px-6 py-3 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap min-w-[100px] border-solid ${
+                                    className={`px-6 py-3 rounded-xl border text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap min-w-[100px] border-solid ${
                                       gymDay === `Día ${d.dayNumber}`
                                         ? `${themeStyles.buttonPrimary} scale-105`
                                         : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.textMain}`
@@ -3482,7 +3490,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                                 <div className="relative z-10 space-y-6">
                                   <div className="flex flex-col gap-1">
-                                    <div className={`flex items-center gap-1.5 text-[8px] font-black ${themeStyles.accent} uppercase tracking-[0.2em] mb-1`}>
+                                    <div className={`flex items-center gap-1.5 text-xs font-bold ${themeStyles.accent} uppercase tracking-[0.2em] mb-1`}>
                                       <Activity className="w-3 h-3" />
                                       <span>Bloque de entrenamiento</span>
                                     </div>
@@ -3503,7 +3511,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                     </div>
                                     <button
                                       onClick={() => handleToggleGymDay(dayLabel)}
-                                      className={`mt-2 flex items-center gap-2 px-6 py-3 rounded-xl border font-black uppercase tracking-widest text-[10px] transition-all w-full md:w-auto justify-center ${
+                                      className={`mt-2 flex items-center gap-2 px-6 py-3 rounded-xl border font-bold uppercase tracking-widest text-xs transition-all w-full md:w-auto justify-center ${
                                         gymDayDone[dayLabel]
                                           ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} border-transparent shadow-lg`
                                           : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent}`
@@ -3515,7 +3523,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                   </div>
 
                                   <div className="space-y-1 text-left">
-                                    <span className={`text-[8px] font-black ${themeStyles.textMuted} uppercase tracking-[0.2em] pl-1`}>Foco de la sesión</span>
+                                    <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-[0.2em] pl-1`}>Foco de la sesión</span>
                                     <h4 className={`text-sm font-display font-black ${themeStyles.textMain} uppercase tracking-tight`}>{activeDay.focus}</h4>
                                   </div>
 
@@ -3557,18 +3565,18 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                           <div className="my-8 relative group">
                                             <div className="flex items-center gap-3 px-2 mb-4">
                                               <div className={`w-1 h-5 ${isTableCompleted || gymDayDone[dayLabel] ? themeStyles.accentBg : 'bg-zinc-500'} rounded-full`} />
-                                              <h5 className={`text-[11px] font-black uppercase tracking-widest ${isTableCompleted || gymDayDone[dayLabel] ? themeStyles.accent : themeStyles.textMain}`}>{sectionTitle}</h5>
+                                              <h5 className={`text-xs font-bold uppercase tracking-widest ${isTableCompleted || gymDayDone[dayLabel] ? themeStyles.accent : themeStyles.textMain}`}>{sectionTitle}</h5>
                                             </div>
 
-                                            <div className={`overflow-x-auto rounded-[2.5rem] border ${themeStyles.border} ${profile.theme === 'light' ? 'bg-slate-50 shadow-inner' : 'bg-zinc-950/30'} shadow-sm ${gymDayDone[dayLabel] ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+                                            <div className={`overflow-x-auto rounded-2xl border ${themeStyles.border} ${profile.theme === 'light' ? 'bg-slate-50 shadow-inner' : 'bg-zinc-950/30'} shadow-sm ${gymDayDone[dayLabel] ? 'opacity-60 grayscale-[0.5]' : ''}`}>
                                               <table {...props} className="w-full text-left border-collapse" />
                                             </div>
                                           </div>
                                         );
                                       },
                                       thead: ({node, ...props}) => <thead {...props} className={`${profile.theme === 'light' ? 'bg-slate-100' : 'bg-white/5'} border-b ${themeStyles.border}`} />,
-                                      th: ({node, ...props}) => <th {...props} className={`px-3 py-2.5 text-left text-[9px] font-black uppercase tracking-widest ${themeStyles.textMuted} border-b ${themeStyles.border} first:${themeStyles.textMain} first:min-w-[100px]`} />,
-                                      td: ({node, ...props}) => <td {...props} className={`px-3 py-2.5 ${themeStyles.textMuted} border-b ${themeStyles.border} text-[11px] font-medium first:${themeStyles.textMain} first:font-bold`} />,
+                                      th: ({node, ...props}) => <th {...props} className={`px-3 py-2.5 text-left text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted} border-b ${themeStyles.border} first:${themeStyles.textMain} first:min-w-[100px]`} />,
+                                      td: ({node, ...props}) => <td {...props} className={`px-3 py-2.5 ${themeStyles.textMuted} border-b ${themeStyles.border} text-xs font-medium first:${themeStyles.textMain} first:font-bold`} />,
                                       a: ({node, ...props}) => (
                                         <a {...props} className={`inline-flex items-center gap-2 ${themeStyles.accent} font-bold hover:${themeStyles.textMain} transition-colors`} target="_blank" rel="noopener noreferrer">
                                           {props.children}
@@ -3591,8 +3599,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                     { lab: 'Descanso', desc: 'Tiempo' }
                                   ].map((item, idx) => (
                                     <div key={idx} className={`flex items-center gap-1.5 px-3 py-1.5 ${themeStyles.iconBg} rounded-xl border ${themeStyles.border} shadow-sm`}>
-                                      <span className={`text-[8px] font-black ${themeStyles.accent} uppercase`}>{item.lab}:</span>
-                                      <span className={`text-[8px] ${themeStyles.textMuted} font-bold uppercase tracking-tighter`}>{item.desc}</span>
+                                      <span className={`text-xs font-bold ${themeStyles.accent} uppercase`}>{item.lab}:</span>
+                                      <span className={`text-xs ${themeStyles.textMuted} font-bold uppercase tracking-tighter`}>{item.desc}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -3604,7 +3612,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         {/* Safety / Tips Section */}
                         {planSubTab === 'tips' && (
                         <motion.div initial={{opacity:0}} animate={{opacity:1}} layout className="space-y-6">
-                          <div className={`${themeStyles.card} rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border}`}>
+                          <div className={`${themeStyles.card} rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border}`}>
                             <div className={`prose ${profile.theme === 'light' ? 'prose-slate' : 'prose-invert prose-zinc'} max-w-none
                               prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
                               prose-h2:text-2xl prose-h2:${themeStyles.accent} prose-h2:border-b prose-h2:border-white/10 prose-h2:pb-4 prose-h2:mb-6
@@ -3622,7 +3630,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                       </div>
                     ) : gymSubTab === 'manual' ? (
-                      <div className={`${themeStyles.card} rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border} space-y-6`}>
+                      <div className={`${themeStyles.card} rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border} space-y-6`}>
                         <div className="space-y-4 mb-6">
                           <h2 className={`text-2xl font-display font-black ${themeStyles.textMain} uppercase tracking-tighter`}>Entrenamiento Libre</h2>
                           <p className={`${themeStyles.textMuted} text-xs font-medium`}>Registra cualquier actividad física extra. Las calorías se calculan automáticamente con valores MET según tu peso.</p>
@@ -3656,7 +3664,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                           {/* 1. Fecha */}
                           <div className="space-y-2">
-                            <label className={`block text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Fecha</label>
+                            <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Fecha</label>
                             <input
                               type="date"
                               value={manualWorkoutDate}
@@ -3668,7 +3676,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                           {/* 2. Tipo de actividad */}
                           <div className="space-y-2">
-                            <label className={`block text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Tipo de actividad</label>
+                            <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Tipo de actividad</label>
                             <select
                               value={manualWorkoutActivity}
                               onChange={e => setManualWorkoutActivity(e.target.value)}
@@ -3682,7 +3690,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                           {/* 3. Duración */}
                           <div className="space-y-2">
-                            <label className={`block text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Duración</label>
+                            <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Duración</label>
                             <div className="relative">
                               <input
                                 type="number"
@@ -3699,14 +3707,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                           {/* 4. Intensidad */}
                           <div className="space-y-2">
-                            <label className={`block text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Intensidad</label>
+                            <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Intensidad</label>
                             <div className={`grid grid-cols-3 gap-2 ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border}`}>
                               {(['suave', 'moderada', 'intensa'] as const).map(level => (
                                 <button
                                   key={level}
                                   type="button"
                                   onClick={() => setManualWorkoutIntensidad(level)}
-                                  className={`py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${manualWorkoutIntensidad === level ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                                  className={`py-2.5 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${manualWorkoutIntensidad === level ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
                                 >
                                   {level}
                                 </button>
@@ -3721,9 +3729,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             const kcal = mins > 0 ? calculateMETCalories(manualWorkoutActivity, manualWorkoutIntensidad, mins, weightKg) : 0;
                             return kcal > 0 ? (
                               <div className={`${themeStyles.iconBg} border ${themeStyles.accentBorder} rounded-2xl p-5 text-center space-y-1`}>
-                                <p className={`text-[9px] font-black ${themeStyles.textMuted} uppercase tracking-[0.2em]`}>Calorías estimadas</p>
+                                <p className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-[0.2em]`}>Calorías estimadas</p>
                                 <p className={`text-4xl font-display font-black ${themeStyles.accent}`}>{kcal}</p>
-                                <p className={`text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider`}>kcal · basado en tu peso ({weightKg} kg)</p>
+                                <p className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider`}>kcal · basado en tu peso ({weightKg} kg)</p>
                               </div>
                             ) : null;
                           })()}
@@ -3731,7 +3739,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           <button
                             type="submit"
                             disabled={!manualWorkoutMinutes || parseFloat(manualWorkoutMinutes) <= 0}
-                            className={`${themeStyles.buttonPrimary} w-full md:w-auto md:min-w-[250px] mx-auto py-3 px-6 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
+                            className={`${themeStyles.buttonPrimary} w-full md:w-auto md:min-w-[250px] mx-auto py-3 px-6 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
                           >
                             <Plus className="w-4 h-4" />
                             Guardar Entrenamiento
@@ -3746,13 +3754,13 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                       <Activity className={`w-4 h-4 ${themeStyles.accent}`} />
                                    </div>
                                    <div>
-                                      <span className={`text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest`}>Ejercicio Extra</span>
+                                      <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Ejercicio Extra</span>
                                       <h4 className={`text-sm font-bold ${themeStyles.textMain} mt-1`}>{habits[todayStr].manualWorkout.activity} · {habits[todayStr].manualWorkout.durationMinutes ?? '?'} min · {habits[todayStr].manualWorkout.intensidad ?? ''}</h4>
                                    </div>
                                 </div>
                                 <div className="text-right flex flex-col items-end">
                                    <span className={`text-xl font-display font-black ${themeStyles.accent}`}>+{habits[todayStr].manualWorkout.caloriesBurned ?? (habits[todayStr].manualWorkout as any).calories ?? 0}</span>
-                                   <span className={`text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest block`}>kcal</span>
+                                   <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest block`}>kcal</span>
                                 </div>
                              </div>
                              <div className="flex items-center gap-2 pt-4 border-t border-dashed border-zinc-500/20">
@@ -3766,7 +3774,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                       setManualWorkoutDate(todayStr);
                                     }
                                   }}
-                                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} text-[10px] font-black uppercase tracking-widest ${themeStyles.textMuted} hover:${themeStyles.accent} transition-all`}
+                                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted} hover:${themeStyles.accent} transition-all`}
                                 >
                                    <Edit2 className="w-3.5 h-3.5" />
                                    Editar
@@ -3780,7 +3788,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                       if (user) setDoc(doc(db, 'users', user.uid, 'habits', todayStr), newHabits[todayStr]).catch(console.error);
                                     }
                                   }}
-                                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} text-[10px] font-black uppercase tracking-widest ${themeStyles.textMuted} hover:text-rose-500 transition-all`}
+                                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted} hover:text-rose-500 transition-all`}
                                 >
                                    <Trash2 className="w-3.5 h-3.5" />
                                    Eliminar
@@ -3793,16 +3801,16 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   </motion.div>
                   </>
                 ) : (
-                  <div className="bg-zinc-950/30 rounded-[3rem] border border-white/5 p-20 text-center">
-                    <div className="w-20 h-20 bg-zinc-900 rounded-3xl flex items-center justify-center mx-auto mb-8 border border-white/5">
-                      <Dumbbell className="w-10 h-10 text-zinc-700" />
+                  <div className={`${themeStyles.iconBg} rounded-2xl border ${themeStyles.border} border-dashed p-16 text-center`}>
+                    <div className={`w-20 h-20 ${themeStyles.card} rounded-2xl flex items-center justify-center mx-auto mb-8 border ${themeStyles.border}`}>
+                      <Dumbbell className={`w-10 h-10 ${themeStyles.textMuted} opacity-40`} />
                     </div>
-                    <h3 className="text-2xl font-display font-black text-white uppercase tracking-tight mb-3">No tienes un plan activo</h3>
-                    <p className="text-zinc-500 text-sm mb-8 max-w-xs mx-auto leading-relaxed">Genera tu primera rutina personalizada basada en tu perfil anatómico y objetivos deportivos.</p>
+                    <h3 className={`text-2xl font-display font-black ${themeStyles.textMain} uppercase tracking-tight mb-3`}>No tienes un plan activo</h3>
+                    <p className={`${themeStyles.textMuted} text-sm mb-8 max-w-xs mx-auto leading-relaxed`}>Genera tu primera rutina personalizada basada en tu perfil anatómico y objetivos deportivos.</p>
                     <button
                       onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
                       disabled={workoutCooldown.isActive}
-                      className={`${themeStyles.accentBg} text-zinc-950 font-black uppercase tracking-widest px-10 py-5 rounded-2xl transition-all shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100`}
+                      className={`${themeStyles.accentBg} text-zinc-950 font-bold uppercase tracking-widest px-10 py-5 rounded-2xl transition-all shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100`}
                     >
                       {workoutCooldown.isActive ? `Espera ${workoutCooldown.remaining}s` : 'Generar Rutina'}
                     </button>
@@ -3833,7 +3841,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6"
           >
             <div className="w-full max-w-sm space-y-8 flex flex-col items-center">
-              <div className="relative w-64 h-64 rounded-3xl overflow-hidden shadow-2xl border border-zinc-800 bg-zinc-900 flex items-center justify-center">
+              <div className={`relative w-64 h-64 rounded-2xl overflow-hidden shadow-2xl border ${themeStyles.border} ${themeStyles.iconBg} flex items-center justify-center`}>
                 {previewImage ? (
                   <>
                     <img src={previewImage} alt="Preview" className="w-full h-full object-cover opacity-50" />
@@ -3952,7 +3960,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     key={tab.id}
                     type="button"
                     onClick={() => setProfileTab(tab.id as any)}
-                    className={`flex-1 shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-[9px] whitespace-nowrap font-black uppercase tracking-wider transition-all ${
+                    className={`flex-1 shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-xs whitespace-nowrap font-bold uppercase tracking-wider transition-all ${
                       profileTab === tab.id 
                         ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` 
                         : `${themeStyles.textMuted} hover:text-current`
@@ -3967,10 +3975,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               <form onSubmit={handleSaveGoal} className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar pb-10 text-left relative z-10">
                 {profileTab === 'user' && (
                   <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
-                    <div className={`${themeStyles.iconBg} p-6 rounded-3xl border ${themeStyles.border} space-y-4 shadow-sm`}>
+                    <div className={`${themeStyles.iconBg} p-5 rounded-2xl border ${themeStyles.border} space-y-4 shadow-sm`}>
                       <div className="flex flex-col md:flex-row gap-4">
                         <div className="flex-1 space-y-2">
-                          <label className={`block text-[10px] font-black ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Nombre completo</label>
+                          <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Nombre completo</label>
                           <input 
                             type="text" 
                             value={editProfile.name}
@@ -4022,7 +4030,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         />
                       </div>
                       <div className="space-y-1.5 px-2">
-                        <label className={`block text-[10px] font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>Género</label>
+                        <label className={`block text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>Género</label>
                         <select 
                           value={editProfile.gender}
                           onChange={(e) => setEditProfile({...editProfile, gender: e.target.value as 'male' | 'female'})}
@@ -4036,7 +4044,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <div className={`${profile.theme === 'light' ? 'bg-rose-50/80 border-rose-200' : 'bg-rose-500/5 border-rose-500/10'} p-4 rounded-2xl border space-y-3`}>
                       <div className="flex items-center gap-2 mb-1">
                         <Activity className={`w-3.5 h-3.5 ${profile.theme === 'light' ? 'text-rose-500' : 'text-rose-400'}`} />
-                        <span className={`text-[10px] font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-rose-700' : 'text-rose-300/70'}`}>🩺 Condiciones Médicas</span>
+                        <span className={`text-xs font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-rose-700' : 'text-rose-300/70'}`}>🩺 Condiciones Médicas</span>
                       </div>
 
                       {/* Diabetes */}
@@ -4055,7 +4063,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </div>
                         {editProfile.medicalConditions.diabetes && (
                           <div className="animate-in fade-in slide-in-from-top-1 space-y-1.5">
-                            <p className={`text-[9px] ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Limitamos carbos a 60g/ingesta</p>
+                            <p className={`text-xs ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Limitamos carbos a 60g/ingesta</p>
                             <select
                               value={editProfile.diabetesType}
                               onChange={(e) => setEditProfile({ ...editProfile, diabetesType: e.target.value as any })}
@@ -4081,7 +4089,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           </button>
                         </div>
                         {editProfile.medicalConditions.highCholesterol && (
-                          <p className={`text-[9px] animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Reducimos grasas saturadas</p>
+                          <p className={`text-xs animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Reducimos grasas saturadas</p>
                         )}
                       </div>
 
@@ -4097,7 +4105,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           </button>
                         </div>
                         {editProfile.medicalConditions.hypertension && (
-                          <p className={`text-[9px] animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Limitamos sodio y procesados</p>
+                          <p className={`text-xs animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Limitamos sodio y procesados</p>
                         )}
                       </div>
 
@@ -4113,7 +4121,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           </button>
                         </div>
                         {editProfile.medicalConditions.hypothyroidism && (
-                          <p className={`text-[9px] animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Moderamos soja y crucíferas</p>
+                          <p className={`text-xs animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Moderamos soja y crucíferas</p>
                         )}
                       </div>
 
@@ -4129,13 +4137,13 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           </button>
                         </div>
                         {editProfile.medicalConditions.insulinResistance && (
-                          <p className={`text-[9px] animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Priorizamos bajo IG</p>
+                          <p className={`text-xs animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Priorizamos bajo IG</p>
                         )}
                       </div>
 
                       <div className="flex gap-2 pt-1 border-t border-dashed border-rose-200/50">
                         <Info className="w-3 h-3 text-rose-400 shrink-0 mt-0.5" />
-                        <p className="text-[9px] text-zinc-500 leading-tight">Esta información ayuda a personalizar tu plan nutricional. No sustituye el consejo médico profesional.</p>
+                        <p className="text-xs text-zinc-500 leading-tight">Esta información ayuda a personalizar tu plan nutricional. No sustituye el consejo médico profesional.</p>
                       </div>
                     </div>
                   </div>
@@ -4144,7 +4152,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 {profileTab === 'diet' && (
                   <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                     <div className="space-y-1.5">
-                      <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Objetivo nutricional</label>
+                      <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Objetivo nutricional</label>
                       <select
                         value={editProfile.goal}
                         onChange={(e) => setEditProfile({...editProfile, goal: e.target.value as any})}
@@ -4158,7 +4166,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         (editProfile.gymGoal === 'fat_loss' && editProfile.goal === 'gain') ||
                         (editProfile.gymGoal === 'muscle' && editProfile.goal === 'lose')
                       ) && (
-                        <p className={`text-[10px] font-medium ${profile.theme === 'light' ? 'text-amber-600' : 'text-amber-400'} leading-snug pt-1`}>
+                        <p className={`text-xs font-medium ${profile.theme === 'light' ? 'text-amber-600' : 'text-amber-400'} leading-snug pt-1`}>
                           ⚠️ Tu objetivo de entrenamiento ({translateGymGoal(editProfile.gymGoal)}) no coincide con tu objetivo nutricional ({editProfile.goal === 'lose' ? 'Perder grasa' : 'Ganar músculo'}). ¿Es correcto?
                         </p>
                       )}
@@ -4167,23 +4175,23 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         return (
                           <div key={key} className={`mt-2 p-2.5 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${profile.theme === 'light' ? 'bg-indigo-50 border-indigo-200' : 'bg-indigo-950/30 border-indigo-800/40'}`}>
                             <div className="flex items-start gap-2 mb-2">
-                              <span className="text-[11px] shrink-0">💡</span>
-                              <p className={`text-[10px] leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>{s.reason}</p>
+                              <span className="text-xs shrink-0">💡</span>
+                              <p className={`text-xs leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>{s.reason}</p>
                             </div>
                             <div className="flex gap-2 justify-end">
-                              <button type="button" onClick={() => dismissSuggestion(s)} className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
-                              <button type="button" onClick={() => applySuggestion(s)} className={`text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
+                              <button type="button" onClick={() => dismissSuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
+                              <button type="button" onClick={() => applySuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
                             </div>
                           </div>
                         );
                       })}
                       {appliedSuggestionKey?.startsWith('goal:') && (
-                        <p className={`text-[10px] font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
+                        <p className={`text-xs font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
                       )}
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Tipo de Dieta</label>
+                      <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Tipo de Dieta</label>
                       <select
                         value={editProfile.dietType}
                         onChange={(e) => setEditProfile({...editProfile, dietType: e.target.value})}
@@ -4199,23 +4207,23 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         return (
                           <div key={key} className={`mt-2 p-2.5 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${profile.theme === 'light' ? 'bg-indigo-50 border-indigo-200' : 'bg-indigo-950/30 border-indigo-800/40'}`}>
                             <div className="flex items-start gap-2 mb-2">
-                              <span className="text-[11px] shrink-0">💡</span>
-                              <p className={`text-[10px] leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>{s.reason}</p>
+                              <span className="text-xs shrink-0">💡</span>
+                              <p className={`text-xs leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>{s.reason}</p>
                             </div>
                             <div className="flex gap-2 justify-end">
-                              <button type="button" onClick={() => dismissSuggestion(s)} className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
-                              <button type="button" onClick={() => applySuggestion(s)} className={`text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
+                              <button type="button" onClick={() => dismissSuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
+                              <button type="button" onClick={() => applySuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
                             </div>
                           </div>
                         );
                       })}
                       {appliedSuggestionKey?.startsWith('dietType:') && (
-                        <p className={`text-[10px] font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
+                        <p className={`text-xs font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
                       )}
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className={`block text-[10px] font-bold uppercase tracking-widest text-left ${themeStyles.textMuted}`}>Distribución Macros</label>
+                      <label className={`block text-xs font-bold uppercase tracking-widest text-left ${themeStyles.textMuted}`}>Distribución Macros</label>
                       <select
                         value={editProfile.macroDistribution}
                         onChange={(e) => setEditProfile({...editProfile, macroDistribution: e.target.value as any})}
@@ -4227,7 +4235,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         <option value="keto">Keto</option>
                       </select>
                       {(['keto', 'low_carb'] as const).includes(editProfile.macroDistribution) && editProfile.goal === 'gain' && (
-                        <p className={`text-[10px] font-medium ${profile.theme === 'light' ? 'text-amber-600' : 'text-amber-400'} leading-snug pt-1`}>
+                        <p className={`text-xs font-medium ${profile.theme === 'light' ? 'text-amber-600' : 'text-amber-400'} leading-snug pt-1`}>
                           ⚠️ Una distribución {editProfile.macroDistribution === 'keto' ? 'keto' : 'baja en carbos'} con objetivo de ganar músculo puede dificultar el rendimiento. Considera &quot;Alta en proteína&quot; para este objetivo.
                         </p>
                       )}
@@ -4236,23 +4244,23 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         return (
                           <div key={key} className={`mt-2 p-2.5 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${profile.theme === 'light' ? 'bg-indigo-50 border-indigo-200' : 'bg-indigo-950/30 border-indigo-800/40'}`}>
                             <div className="flex items-start gap-2 mb-2">
-                              <span className="text-[11px] shrink-0">💡</span>
-                              <p className={`text-[10px] leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>{s.reason}</p>
+                              <span className="text-xs shrink-0">💡</span>
+                              <p className={`text-xs leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>{s.reason}</p>
                             </div>
                             <div className="flex gap-2 justify-end">
-                              <button type="button" onClick={() => dismissSuggestion(s)} className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
-                              <button type="button" onClick={() => applySuggestion(s)} className={`text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
+                              <button type="button" onClick={() => dismissSuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
+                              <button type="button" onClick={() => applySuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
                             </div>
                           </div>
                         );
                       })}
                       {appliedSuggestionKey?.startsWith('macroDistribution:') && (
-                        <p className={`text-[10px] font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
+                        <p className={`text-xs font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
                       )}
                     </div>
 
                     <div className="space-y-3">
-                      <label className={`block text-[10px] font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>Alergias e Intolerancias</label>
+                      <label className={`block text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>Alergias e Intolerancias</label>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {['Gluten', 'Lactosa', 'Frutos Secos', 'Marisco', 'Huevo', 'Otros'].map(id => (
                           <button
@@ -4268,7 +4276,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                   : [...editProfile.allergies, lid]
                               });
                             }}
-                            className={`flex items-center gap-2 p-2.5 rounded-xl border text-[10px] font-bold transition-all ${
+                            className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all ${
                               editProfile.allergies.includes(id.toLowerCase().replace(' ', '_'))
                                 ? `${themeStyles.accentMuted} ${themeStyles.accentBorder} ${themeStyles.accent}`
                                 : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accentBorder}`
@@ -4295,7 +4303,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Pizza className="w-3.5 h-3.5 text-amber-400" />
-                          <label className={`text-[10px] font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-slate-700' : 'text-zinc-200'}`}>Momento Libre Semanal</label>
+                          <label className={`text-xs font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-slate-700' : 'text-zinc-200'}`}>Momento Libre Semanal</label>
                         </div>
                         <button 
                           type="button"
@@ -4335,7 +4343,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Dumbbell className={`w-4 h-4 ${themeStyles.accent}`} />
-                          <label className={`text-[10px] font-black ${themeStyles.textMain} uppercase tracking-widest`}>Plan de Entrenamiento (Act. Física)</label>
+                          <label className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-widest`}>Plan de Entrenamiento (Act. Física)</label>
                         </div>
                         <button 
                           type="button"
@@ -4349,7 +4357,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       {editProfile.gymEnabled ? (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                           <div className="space-y-1.5 text-left">
-                            <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Ubicación</label>
+                            <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Ubicación</label>
                             <div className="grid grid-cols-2 gap-2">
                               <button
                                 type="button"
@@ -4362,7 +4370,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               >
                                 <div className="flex flex-col items-center gap-1">
                                   <Dumbbell className="w-5 h-5" />
-                                  <span className="text-[10px] uppercase tracking-widest font-black">Gimnasio</span>
+                                  <span className="text-xs uppercase tracking-widest font-bold">Gimnasio</span>
                                 </div>
                               </button>
                               <button
@@ -4376,14 +4384,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               >
                                 <div className="flex flex-col items-center gap-1">
                                   <Home className="w-5 h-5" />
-                                  <span className="text-[10px] uppercase tracking-widest font-black">En Casa</span>
+                                  <span className="text-xs uppercase tracking-widest font-bold">En Casa</span>
                                 </div>
                               </button>
                             </div>
                           </div>
 
                           <div className="space-y-1.5 text-left">
-                            <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Objetivo</label>
+                            <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Objetivo</label>
                             <select
                               value={editProfile.gymGoal}
                               onChange={(e) => setEditProfile({...editProfile, gymGoal: e.target.value as any})}
@@ -4404,29 +4412,29 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                 return (
                                   <div key={key} className={`mt-2 p-2.5 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${profile.theme === 'light' ? 'bg-indigo-50 border-indigo-200' : 'bg-indigo-950/30 border-indigo-800/40'}`}>
                                     <div className="flex items-start gap-2 mb-2">
-                                      <span className="text-[11px] shrink-0">💡</span>
-                                      <p className={`text-[10px] leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>
+                                      <span className="text-xs shrink-0">💡</span>
+                                      <p className={`text-xs leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>
                                         <span className="font-bold">{fieldLabel}:</span> {s.reason}
                                       </p>
                                     </div>
                                     <div className="flex gap-2 justify-end">
-                                      <button type="button" onClick={() => dismissSuggestion(s)} className={`text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
-                                      <button type="button" onClick={() => applySuggestion(s)} className={`text-[9px] font-black uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
+                                      <button type="button" onClick={() => dismissSuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
+                                      <button type="button" onClick={() => applySuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
                                     </div>
                                   </div>
                                 );
                               })}
                             {appliedSuggestionKey && ['goal', 'macroDistribution'].some(f => appliedSuggestionKey.startsWith(`${f}:`)) && (
-                              <p className={`text-[10px] font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
+                              <p className={`text-xs font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
                             )}
                           </div>
                           
                           <div className="space-y-1.5 text-left">
-                            <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Frecuencia Semanal</label>
+                            <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Frecuencia Semanal</label>
                             <div className={`${profile.theme === 'light' ? 'bg-slate-50' : 'bg-zinc-950'} border ${themeStyles.border} rounded-2xl p-4 space-y-4`}>
                               <div className="flex justify-between items-baseline">
-                                <span className={`text-xl font-black ${themeStyles.accent}`}>{editProfile.trainingDaysPerWeek} <span className={`text-[10px] ${themeStyles.textMuted} uppercase font-bold tracking-tighter`}>días</span></span>
-                                <span className={`text-[8px] font-bold ${themeStyles.textMuted} uppercase tracking-widest opacity-50`}>Intensidad Sugerida</span>
+                                <span className={`text-xl font-black ${themeStyles.accent}`}>{editProfile.trainingDaysPerWeek} <span className={`text-xs ${themeStyles.textMuted} uppercase font-bold tracking-tighter`}>días</span></span>
+                                <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest opacity-50`}>Intensidad Sugerida</span>
                               </div>
                               <input 
                                 type="range" 
@@ -4437,7 +4445,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                 onChange={(e) => setEditProfile({...editProfile, trainingDaysPerWeek: parseInt(e.target.value)})}
                                 className={`w-full ${profile.theme === 'light' ? 'accent-emerald-500 bg-slate-200' : 'accent-lime-400 bg-zinc-800'} h-2 rounded-lg appearance-none cursor-pointer`}
                               />
-                              <div className="flex justify-between text-[8px] font-bold text-zinc-500 uppercase">
+                              <div className="flex justify-between text-xs font-bold text-zinc-500 uppercase">
                                 <span>0</span>
                                 <span>7</span>
                               </div>
@@ -4446,14 +4454,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                           <div className={`flex gap-2 p-3 ${themeStyles.iconBg} border ${themeStyles.border} rounded-xl`}>
                             <Info className={`w-3.5 h-3.5 ${themeStyles.accent} shrink-0 mt-0.5`} />
-                            <p className={`text-[9px] ${themeStyles.textMuted} italic leading-relaxed`}>
+                            <p className={`text-xs ${themeStyles.textMuted} italic leading-relaxed`}>
                               El sistema ajustará tu gasto calórico (TDEE) basándose en estos días de entreno para que tu dieta sea 100% efectiva.
                             </p>
                           </div>
                         </div>
                       ) : (
                         <div className="py-8 text-center px-4">
-                          <p className={`text-[10px] ${themeStyles.textMuted} font-medium uppercase tracking-widest leading-loose opacity-60`}>
+                          <p className={`text-xs ${themeStyles.textMuted} font-medium uppercase tracking-widest leading-loose opacity-60`}>
                             Activa el plan AI para obtener rutinas profesionales diseñadas para tu edad y nivel.
                           </p>
                         </div>
@@ -4464,12 +4472,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                 <div className="pt-4 border-t border-zinc-800 shrink-0">
                   {(!editWeight || !editProfile.name || !editProfile.age || !editProfile.height) && profileTab !== 'user' && (
-                    <p className="text-[10px] text-rose-500 text-center font-bold mb-3 uppercase tracking-widest bg-rose-500/10 py-2 rounded-xl">Falta información en pestaña Personal</p>
+                    <p className="text-xs text-rose-500 text-center font-bold mb-3 uppercase tracking-widest bg-rose-500/10 py-2 rounded-xl">Falta información en pestaña Personal</p>
                   )}
                   <button 
                     type="submit"
                     disabled={!editWeight || !editProfile.name || !editProfile.age || !editProfile.height}
-                    className={`${themeStyles.buttonPrimary} w-full md:w-auto md:min-w-[250px] mx-auto py-3 px-6 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
+                    className={`${themeStyles.buttonPrimary} w-full md:w-auto md:min-w-[250px] mx-auto py-3 px-6 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     <Save className="w-4 h-4" />
                     Actualizar Perfil
@@ -4495,10 +4503,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-zinc-900 border border-white/10 rounded-3xl p-6 w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh]"
+              className={`${themeStyles.card} border ${themeStyles.border} rounded-3xl p-6 w-full max-w-md shadow-2xl overflow-y-auto max-h-[90vh]`}
             >
-              <div className="flex justify-between items-center mb-6 sticky top-0 bg-zinc-900 z-10 pb-2 border-b border-white/5">
-                <h3 className="text-xl font-display font-bold text-white">
+              <div className={`flex justify-between items-center mb-6 sticky top-0 z-10 pb-2 border-b ${themeStyles.border}`} style={{background: "inherit"}}>
+                <h3 className={`text-xl font-display font-bold ${themeStyles.textMain}`}>
                   {mealEditMode === 'edit' ? 'Editar Comida' : 'Revisar Análisis'}
                 </h3>
                 <button onClick={() => setEditingMeal(null)} className="text-zinc-500 hover:text-white transition-colors">
@@ -4598,10 +4606,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                 {/* Macro Percentages */}
                 <div className="pb-2">
-                  <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">
+                  <div className="flex justify-between text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">
                     <span>Distribución de Macros</span>
                   </div>
-                  <div className="h-2 w-full bg-zinc-950 rounded-full overflow-hidden flex">
+                  <div className={`h-2 w-full ${themeStyles.iconBg} rounded-full overflow-hidden flex`}>
                     {(() => {
                       const total = editingMeal.protein + editingMeal.carbs + editingMeal.fat;
                       if (total === 0) return <div className="w-full bg-zinc-800" />;
@@ -4610,28 +4618,28 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       const fPct = (editingMeal.fat / total) * 100;
                       return (
                         <>
-                          <div style={{ width: `${pPct}%` }} className="bg-blue-400 h-full" title={`Proteínas: ${Math.round(pPct)}%`} />
-                          <div style={{ width: `${cPct}%` }} className="bg-amber-400 h-full" title={`Carbohidratos: ${Math.round(cPct)}%`} />
-                          <div style={{ width: `${fPct}%` }} className="bg-rose-400 h-full" title={`Grasas: ${Math.round(fPct)}%`} />
+                          <div style={{ width: `${pPct}%` }} className={`${themeStyles.macroProteinBg} h-full`} title={`Proteínas: ${Math.round(pPct)}%`} />
+                          <div style={{ width: `${cPct}%` }} className={`${themeStyles.macroCarbsBg} h-full`} title={`Carbohidratos: ${Math.round(cPct)}%`} />
+                          <div style={{ width: `${fPct}%` }} className={`${themeStyles.macroFatBg} h-full`} title={`Grasas: ${Math.round(fPct)}%`} />
                         </>
                       );
                     })()}
                   </div>
-                  <div className="flex justify-between text-[10px] font-medium text-zinc-400 mt-2">
-                    <span className="text-blue-400">Prot: {Math.round((editingMeal.protein / (editingMeal.protein + editingMeal.carbs + editingMeal.fat || 1)) * 100)}%</span>
-                    <span className="text-amber-400">Carbs: {Math.round((editingMeal.carbs / (editingMeal.protein + editingMeal.carbs + editingMeal.fat || 1)) * 100)}%</span>
-                    <span className="text-rose-400">Grasas: {Math.round((editingMeal.fat / (editingMeal.protein + editingMeal.carbs + editingMeal.fat || 1)) * 100)}%</span>
+                  <div className="flex justify-between text-xs font-medium text-zinc-400 mt-2">
+                    <span className={`${themeStyles.macroProtein}`}>Prot: {Math.round((editingMeal.protein / (editingMeal.protein + editingMeal.carbs + editingMeal.fat || 1)) * 100)}%</span>
+                    <span className={`${themeStyles.macroCarbs}`}>Carbs: {Math.round((editingMeal.carbs / (editingMeal.protein + editingMeal.carbs + editingMeal.fat || 1)) * 100)}%</span>
+                    <span className={`${themeStyles.macroFat}`}>Grasas: {Math.round((editingMeal.fat / (editingMeal.protein + editingMeal.carbs + editingMeal.fat || 1)) * 100)}%</span>
                   </div>
                 </div>
 
                 {/* NutriScore & Density Analysis */}
                 {editingMeal.nutriScore && (
-                  <div className="bg-zinc-950 rounded-2xl p-4 border border-white/5 space-y-3">
+                  <div className={`${themeStyles.iconBg} rounded-2xl p-4 border ${themeStyles.border} space-y-3`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Calidad Nutricional</span>
+                      <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Calidad Nutricional</span>
                       <div className="flex items-center gap-3">
                         {editingMeal.totalWeight && (
-                          <span className="text-[10px] font-bold text-zinc-400 bg-zinc-900 px-2 py-1 rounded border border-white/5">
+                          <span className="text-xs font-bold text-zinc-400 bg-zinc-900 px-2 py-1 rounded border border-white/5">
                             {editingMeal.totalWeight}g ESTIMADOS
                           </span>
                         )}
@@ -4649,8 +4657,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
 
                 {/* Portion Multiplier */}
-                <div className="bg-zinc-950 rounded-2xl p-4 border border-white/5">
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-3">Tamaño de la porción</span>
+                <div className={`${themeStyles.iconBg} rounded-2xl p-4 border ${themeStyles.border}`}>
+                  <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest block mb-3">Tamaño de la porción</span>
                   <div className="grid grid-cols-4 gap-2">
                     {([0.5, 1, 1.5, 2] as const).map((m) => (
                       <button
@@ -4681,20 +4689,20 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   )}
                   <div className={`grid grid-cols-2 gap-3 transition-opacity duration-200 ${isRecalculatingMacros ? 'opacity-30' : 'opacity-100'}`}>
                     <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
-                      <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Calorías</span>
+                      <span className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Calorías</span>
                       <span className={`text-lg font-display font-bold ${themeStyles.accent}`}>{Math.round(editingMeal.calories * portionMultiplier)} <span className="text-xs text-zinc-500">kcal</span></span>
                     </div>
                     <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
-                      <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Proteínas</span>
-                      <span className="text-lg font-display font-bold text-blue-400">{Math.round(editingMeal.protein * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
+                      <span className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Proteínas</span>
+                      <span className={`text-lg font-display font-bold ${themeStyles.macroProtein}`}>{Math.round(editingMeal.protein * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
                     </div>
                     <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
-                      <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Carbohidratos</span>
-                      <span className="text-lg font-display font-bold text-amber-400">{Math.round(editingMeal.carbs * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
+                      <span className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Carbohidratos</span>
+                      <span className={`text-lg font-display font-bold ${themeStyles.macroCarbs}`}>{Math.round(editingMeal.carbs * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
                     </div>
                     <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
-                      <span className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Grasas</span>
-                      <span className="text-lg font-display font-bold text-rose-400">{Math.round(editingMeal.fat * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
+                      <span className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Grasas</span>
+                      <span className={`text-lg font-display font-bold ${themeStyles.macroFat}`}>{Math.round(editingMeal.fat * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
                     </div>
                   </div>
                   <AnimatePresence>
@@ -4803,13 +4811,13 @@ function MacroCard({ icon, label, current, goal, color, bgGradient, borderColor,
         <div className="p-1.5 bg-zinc-950/50 rounded-lg border border-white/5">
           {icon}
         </div>
-        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{label}</span>
+        <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">{label}</span>
       </div>
       
       <div className="mt-auto">
         <div className="flex items-baseline gap-1 mb-2">
           <span className="text-2xl font-display font-black text-white tracking-tighter">{Math.round(current)}</span>
-          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">/ {goal}{unit}</span>
+          <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">/ {goal}{unit}</span>
         </div>
         
         <div className="h-1.5 w-full bg-zinc-950/50 rounded-full overflow-hidden border border-white/5">
