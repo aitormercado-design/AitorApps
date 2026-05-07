@@ -526,6 +526,7 @@ export default function App() {
     testConnection();
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setIsDataLoaded(false); // block save effects during any auth transition
       setUser(currentUser);
       if (currentUser) {
         try {
