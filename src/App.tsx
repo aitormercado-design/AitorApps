@@ -914,7 +914,7 @@ export default function App() {
     meals: todaysMeals,
     habits,
     weights,
-    goals,
+    goals: { ...goals, calories: assistant.totalTarget },
     profile,
     todayStr,
     generatedMenu: generatedMenu ?? undefined,
