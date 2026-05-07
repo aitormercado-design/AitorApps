@@ -2792,8 +2792,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 >
                   <ClipboardList className="w-3.5 h-3.5" />
                   Plan
-                  {menuNeedsRegeneration && (
-                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                  {menuNeedsRegeneration && profile.age !== 0 && (
+                    <span className="relative flex h-2.5 w-2.5 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                    </span>
                   )}
                 </button>
                 {generatedMenu && (
@@ -2938,17 +2941,20 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 </p>
 
                 {/* Invalidation banner */}
-                {menuNeedsRegeneration && generatedMenu && (
-                  <div className={`rounded-2xl border border-amber-500/40 ${profile.theme === 'light' ? 'bg-amber-50' : 'bg-amber-500/5'} p-4 flex items-start gap-3`}>
-                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                {menuNeedsRegeneration && generatedMenu && profile.age !== 0 && (
+                  <div className={`rounded-2xl border border-rose-500/40 ${profile.theme === 'light' ? 'bg-rose-50' : 'bg-rose-500/5'} p-4 flex items-center gap-3`}>
+                    <span className="relative flex h-3 w-3 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                    </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-amber-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
-                      <p className={`text-xs mt-0.5 ${profile.theme === 'light' ? 'text-amber-700' : 'text-amber-400/80'}`}>El menú puede no reflejar tus nuevos datos.</p>
+                      <p className="text-xs font-bold text-rose-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
+                      <p className={`text-xs mt-0.5 ${profile.theme === 'light' ? 'text-rose-700' : 'text-rose-400/80'}`}>El menú puede no reflejar tus nuevos datos.</p>
                     </div>
                     <button
                       disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
                       onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
-                      className="shrink-0 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="shrink-0 px-3 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isGeneratingMenu ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Regenerar ahora'}
                     </button>
@@ -3283,7 +3289,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           <st.icon className="w-4 h-4" />
                           {st.label}
                           {st.id === 'plan' && workoutNeedsRegeneration && (
-                            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                            <span className="relative flex h-2.5 w-2.5 shrink-0">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                            </span>
                           )}
                         </button>
                       ))}
@@ -3330,16 +3339,19 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className="space-y-6">
                         {/* Invalidation banner */}
                         {workoutNeedsRegeneration && workoutPlan && (
-                          <div className={`rounded-2xl border border-amber-500/40 ${profile.theme === 'light' ? 'bg-amber-50' : 'bg-amber-500/5'} p-4 flex items-start gap-3`}>
-                            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                          <div className={`rounded-2xl border border-rose-500/40 ${profile.theme === 'light' ? 'bg-rose-50' : 'bg-rose-500/5'} p-4 flex items-center gap-3`}>
+                            <span className="relative flex h-3 w-3 shrink-0">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                            </span>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-bold text-amber-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
-                              <p className={`text-xs mt-0.5 ${profile.theme === 'light' ? 'text-amber-700' : 'text-amber-400/80'}`}>La rutina puede no reflejar tus nuevos datos.</p>
+                              <p className="text-xs font-bold text-rose-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
+                              <p className={`text-xs mt-0.5 ${profile.theme === 'light' ? 'text-rose-700' : 'text-rose-400/80'}`}>La rutina puede no reflejar tus nuevos datos.</p>
                             </div>
                             <button
                               disabled={isAIGenerating || isGeneratingWorkout || workoutCooldown.isActive}
                               onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
-                              className="shrink-0 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="shrink-0 px-3 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {isGeneratingWorkout ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Regenerar ahora'}
                             </button>
