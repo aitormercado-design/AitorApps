@@ -376,6 +376,7 @@ export default function App() {
   const [habits, setHabits] = useState<DailyHabits>({});
   const [workoutPlan, setWorkoutPlan] = useState<string | null>(null);
   const [isGeneratingWorkout, setIsGeneratingWorkout] = useState(false);
+  const [workoutProgressMsg, setWorkoutProgressMsg] = useState('');
 
   const [activeTab, setActiveTab] = useState<'today' | 'gym' | 'meals'>('today');
   const [mealsSubTab, setMealsSubTab] = useState<'daily' | 'plan' | 'shopping'>('daily');
@@ -1783,13 +1784,14 @@ export default function App() {
 
     setIsAIGenerating(true);
     setIsGeneratingWorkout(true);
+    setWorkoutProgressMsg('Iniciando generación...');
     try {
       const profileStr = JSON.stringify({
         ...targetProfile,
         diabetes: targetProfile.diabetesType,
         currentWeight: weights.length > 0 ? weights[weights.length - 1].weight : 'Desconocido'
       });
-      const plan = await generateWorkoutPlan(profileStr);
+      const plan = await generateWorkoutPlan(profileStr, (step) => setWorkoutProgressMsg(step));
       setWorkoutPlan(plan);
       setWorkoutNeedsRegeneration(false);
     } catch (error: any) {
@@ -1798,6 +1800,7 @@ export default function App() {
     } finally {
       setIsGeneratingWorkout(false);
       setIsAIGenerating(false);
+      setWorkoutProgressMsg('');
     }
   };
 
@@ -3293,13 +3296,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     </div>
                     <div className="space-y-4">
                       <p className={`text-xl ${themeStyles.textMain} font-bold tracking-tight`}>Tu experto AI está diseñando la rutina...</p>
-                      <motion.div 
-                        className={`${themeStyles.textMuted} text-xs font-mono h-4 uppercase tracking-[0.2em]`}
-                        animate={{ opacity: [0, 1, 0] }}
-                        transition={{ repeat: Infinity, duration: 1.5 }}
-                      >
-                        {`> Programando microciclo de ${profile.trainingDaysPerWeek || 3} días...`}
-                      </motion.div>
+                      <AnimatePresence mode="wait">
+                        <motion.div
+                          key={workoutProgressMsg}
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          className={`${themeStyles.textMuted} text-xs font-mono uppercase tracking-[0.2em]`}
+                        >
+                          {`> ${workoutProgressMsg || `Programando microciclo de ${profile.trainingDaysPerWeek || 3} días...`}`}
+                        </motion.div>
+                      </AnimatePresence>
                     </div>
                   </div>
                 ) : (workoutPlan && workoutPlan.length > 50) ? (

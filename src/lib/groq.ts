@@ -440,7 +440,10 @@ Estructura del JSON — usa EXACTAMENTE estas claves abreviadas:
   }
 }
 
-export async function generateWorkoutPlan(profileStr: string): Promise<string> {
+export async function generateWorkoutPlan(
+  profileStr: string,
+  onProgress?: (step: string) => void
+): Promise<string> {
   const data = JSON.parse(profileStr);
   const trainingDays: number = data.trainingDaysPerWeek || 3;
   const isHome = data.workoutType === 'home';
@@ -450,7 +453,7 @@ export async function generateWorkoutPlan(profileStr: string): Promise<string> {
     ? `\n- El usuario tiene diabetes tipo ${data.diabetesType}: mantén intensidad moderada (RPE 5-7), NUNCA en ayunas, incluye una nota breve de monitorización de glucosa al inicio del plan.`
     : '';
 
-  const systemPrompt = `Eres un entrenador personal experto en fisiología del ejercicio y rendimiento deportivo.
+  const baseSystem = `Eres un entrenador personal experto en fisiología del ejercicio y rendimiento deportivo.
 
 Perfil del usuario:
 - Edad: ${data.age} años | Sexo: ${data.gender} | Peso: ${data.weight ?? data.currentWeight ?? 'N/A'}kg | Altura: ${data.height}cm
@@ -464,56 +467,103 @@ Reglas:
 - Calentamiento específico al foco del día (no genérico)
 - Vuelta a la calma en todos los días
 - ${isHome ? 'Solo ejercicios sin equipamiento o con silla/suelo/pared' : 'Aprovecha máquinas, poleas y peso libre del gimnasio'}
-- Cada sección de cada día lleva sus ejercicios en una tabla markdown de 3 columnas
-- El nombre de cada ejercicio debe ser un enlace de YouTube: [Nombre](https://www.youtube.com/results?search_query=Nombre+ejercicio+tutorial)
+- Cada sección lleva sus ejercicios en una tabla markdown de 3 columnas
+- El nombre de cada ejercicio debe ser un enlace de YouTube: [Nombre](https://www.youtube.com/results?search_query=Nombre+ejercicio+tutorial)`;
 
-Formato de salida — usa EXACTAMENTE estos encabezados de sección (## INFO, ## EJERCICIOS, ## TIPS):
-
-## INFO
-Descripción general de la rutina: objetivo, duración estimada por sesión y equipamiento necesario.
-
-## EJERCICIOS
-
-# DÍA 1 — [FOCO EN MAYÚSCULAS]
+  const dayFormat = `# DÍA N — [FOCO EN MAYÚSCULAS]
 
 ### Calentamiento
 | Ejercicio | Trabajo | RPE |
 |-----------|---------|-----|
-| [Nombre ejercicio](https://www.youtube.com/results?search_query=Nombre+ejercicio+tutorial) | 2 × 10 reps | 4 |
+| [Nombre](https://www.youtube.com/results?search_query=Nombre+tutorial) | 2 × 10 reps | 4 |
 
 ### Bloque principal
 | Ejercicio | Trabajo | RPE |
 |-----------|---------|-----|
-| [Nombre ejercicio](https://www.youtube.com/results?search_query=Nombre+ejercicio+tutorial) | 4 × 8-10 | 8 |
+| [Nombre](https://www.youtube.com/results?search_query=Nombre+tutorial) | 4 × 8-10 | 8 |
 
 ### Vuelta a la calma
 | Ejercicio | Duración |
 |-----------|----------|
 | [Estiramiento](https://www.youtube.com/results?search_query=Estiramiento+tutorial) | 30 seg |
 
----
-
-# DÍA 2 — [FOCO]
-...
-
-## TIPS
-Consejos de nutrición peri-entreno, recuperación, progresión semanal y notas del coach.`;
-
-  const userPrompt = `Genera un plan de entrenamiento semanal completo con EXACTAMENTE ${trainingDays} días de entrenamiento activo, numerados DÍA 1 hasta DÍA ${trainingDays}. NO añadas días de descanso activo numerados — si quieres incluir consejos de descanso o movilidad, inclúyelos dentro de la sección ## TIPS, no como un DÍA extra.`;
+---`;
 
   try {
-    const completion = await withRateLimitRetry(() =>
+    const parts: string[] = [];
+    // Track what each day covered (focus + key muscles) to pass as context
+    const daySummaries: string[] = [];
+
+    // ── STEP 1: INFO block ──────────────────────────────────────────────────
+    onProgress?.('Analizando perfil...');
+    const infoCompletion = await withRateLimitRetry(() =>
       groq.chat.completions.create({
         model: FAST_MODEL,
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
+          { role: 'system', content: baseSystem },
+          {
+            role: 'user',
+            content: `Genera ÚNICAMENTE la sección ## INFO del plan de ${trainingDays} días. Una descripción breve: objetivo, duración estimada por sesión y equipamiento necesario. Máximo 4 líneas. Empieza exactamente con "## INFO".`,
+          },
         ],
-        temperature: 0.7,
-        max_tokens: 8192,
+        temperature: 0.5,
+        max_tokens: 300,
       })
     );
-    return completion.choices[0].message.content || 'No se pudo generar la rutina.';
+    parts.push(infoCompletion.choices[0].message.content?.trim() ?? '## INFO\nPlan de entrenamiento personalizado.');
+
+    parts.push('\n\n## EJERCICIOS\n');
+
+    // ── STEP 2: One call per day ────────────────────────────────────────────
+    for (let day = 1; day <= trainingDays; day++) {
+      onProgress?.(`Generando Día ${day} de ${trainingDays}...`);
+
+      const contextNote = daySummaries.length > 0
+        ? `Días ya generados (NO repetir los mismos grupos musculares principales):\n${daySummaries.join('\n')}\n\n`
+        : '';
+
+      const dayCompletion = await withRateLimitRetry(() =>
+        groq.chat.completions.create({
+          model: FAST_MODEL,
+          messages: [
+            { role: 'system', content: baseSystem },
+            {
+              role: 'user',
+              content: `${contextNote}Genera ÚNICAMENTE el DÍA ${day} del plan con este formato exacto:\n\n${dayFormat.replace('N', String(day))}\n\nIncluye calentamiento (3-4 ejercicios), bloque principal (5-7 ejercicios) y vuelta a la calma (3-4 estiramientos). Empieza directamente con "# DÍA ${day}".`,
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 1800,
+        })
+      );
+
+      const dayContent = dayCompletion.choices[0].message.content?.trim() ?? '';
+      parts.push(dayContent);
+
+      // Extract focus line for context to next days
+      const focusMatch = dayContent.match(/# DÍA \d+ — (.+)/);
+      if (focusMatch) daySummaries.push(`- DÍA ${day}: ${focusMatch[1]}`);
+    }
+
+    // ── STEP 3: TIPS block ──────────────────────────────────────────────────
+    onProgress?.('Añadiendo consejos del coach...');
+    const tipsCompletion = await withRateLimitRetry(() =>
+      groq.chat.completions.create({
+        model: FAST_MODEL,
+        messages: [
+          { role: 'system', content: baseSystem },
+          {
+            role: 'user',
+            content: `El plan tiene estos días: ${daySummaries.join(', ')}.\n\nGenera ÚNICAMENTE la sección ## TIPS: consejos de nutrición peri-entreno, recuperación, progresión semanal y notas del coach. Empieza exactamente con "## TIPS".`,
+          },
+        ],
+        temperature: 0.6,
+        max_tokens: 600,
+      })
+    );
+    parts.push('\n\n' + (tipsCompletion.choices[0].message.content?.trim() ?? '## TIPS\nRecupera bien entre sesiones.'));
+
+    return parts.join('\n\n');
   } catch (error: any) {
     console.error('Error generating workout:', error);
     throw friendlyGroqError(error, 'No se pudo generar la rutina. Inténtalo de nuevo.');
