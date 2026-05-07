@@ -423,6 +423,9 @@ export default function App() {
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [profileTab, setProfileTab] = useState<'user' | 'diet' | 'exercise'>('user');
   const [dismissedSuggestions, setDismissedSuggestions] = useState<string[]>([]);
+  const [dismissedPrompts, setDismissedPrompts] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('kilokalo_dismissed_prompts') ?? '[]'); } catch { return []; }
+  });
   const [appliedSuggestionKey, setAppliedSuggestionKey] = useState<string | null>(null);
   const [editProfile, setEditProfile] = useState<UserProfile>({
     name: '',
@@ -961,6 +964,25 @@ export default function App() {
       tabActiveShadow: '[box-shadow:var(--shadow-tab)]',
     };
   }, [profile.theme]);
+
+  // Profile completeness (0–100)
+  const profileCompleteness = useMemo(() => {
+    let pct = 0;
+    if (profile.name) pct += 20;
+    if (weights.length > 0) pct += 20;
+    if (profile.height > 0) pct += 15;
+    if (profile.gymEnabled && profile.trainingDaysPerWeek > 0) pct += 15;
+    if (profile.dietType && profile.dietType !== 'Normal' && profile.dietType !== '') pct += 10;
+    if (profile.allergies?.length > 0) pct += 10;
+    if (profile.macroDistribution && profile.macroDistribution !== 'balanced') pct += 10;
+    return pct;
+  }, [profile, weights.length]);
+
+  const dismissPrompt = (id: string) => {
+    const updated = [...dismissedPrompts, id];
+    setDismissedPrompts(updated);
+    localStorage.setItem('kilokalo_dismissed_prompts', JSON.stringify(updated));
+  };
 
   // Calculate weekly totals
   const weeklyStats = useMemo(() => {
@@ -2227,10 +2249,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               <span className={`text-xs font-bold uppercase tracking-wider hidden sm:block ${profile.age === 0 ? 'text-zinc-950' : themeStyles.accent}`}>
                 Perfil
               </span>
-              {profile.age === 0 && (
-                <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+              {profileCompleteness < 80 && (
+                <span className={`absolute -top-1.5 -right-1.5 text-[9px] font-black rounded-full px-1 py-0.5 leading-none ${profile.age === 0 ? 'bg-zinc-950/30 text-white' : (profile.theme === 'light' ? 'bg-emerald-500 text-white' : 'bg-lime-400 text-zinc-950')}`}>
+                  {profileCompleteness}%
                 </span>
               )}
             </motion.button>
@@ -2292,6 +2313,30 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Profile contextual prompts — show one at a time, each screen */}
+        {(() => {
+          const openProfile = () => {
+            setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' });
+            setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : '');
+            setDismissedSuggestions([]);
+            setIsGoalModalOpen(true);
+          };
+          const prompts = [
+            { id: 'add_height', screen: 'today', condition: profile.height === 0 && !!profile.name, message: 'Añade tu altura para calcular mejor tu gasto calórico', action: 'Añadir altura', tab: () => setProfileTab('user') },
+            { id: 'add_allergies', screen: 'today', condition: !(profile.allergies?.length > 0) && profile.height > 0, message: '¿Tienes alergias? El análisis de comidas será más preciso', action: 'Añadir alergias', tab: () => setProfileTab('diet') },
+          ].filter(p => p.condition && !dismissedPrompts.includes(p.id));
+          const prompt = activeTab === 'today' ? prompts[0] : null;
+          if (!prompt) return null;
+          return (
+            <motion.div key={prompt.id} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
+              <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
+              <p className={`text-xs ${themeStyles.textMuted} flex-1`}>{prompt.message}</p>
+              <button onClick={() => { prompt.tab(); openProfile(); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>{prompt.action}</button>
+              <button onClick={() => dismissPrompt(prompt.id)} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
+            </motion.div>
+          );
+        })()}
 
         {/* Tabs */}
         <div className={`flex flex-nowrap overflow-x-auto hide-scrollbar ${profile.theme === 'light' ? 'bg-slate-200/50' : 'bg-zinc-950/80'} backdrop-blur-md p-1.5 rounded-2xl border ${profile.theme === 'light' ? 'border-slate-300/50' : 'border-white/5'} mb-8 shadow-2xl gap-1`}>
@@ -2977,6 +3022,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 <p className={`${themeStyles.textMain} text-sm font-medium mb-4`}>
                     Esta es una propuesta de menú semanal para ayudarte a cumplir con tus objetivos de calorías y macronutrientes.
                 </p>
+                {(!profile.dietType || profile.dietType === 'Normal' || profile.dietType === '') && !dismissedPrompts.includes('add_diet_type') && (
+                  <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
+                    <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
+                    <p className={`text-xs ${themeStyles.textMuted} flex-1`}>¿Sigues algún tipo de dieta? El menú se adaptará a ti</p>
+                    <button onClick={() => { setProfileTab('diet'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Indicar dieta</button>
+                    <button onClick={() => dismissPrompt('add_diet_type')} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
+                  </motion.div>
+                )}
 
                 {/* Invalidation banner */}
                 {menuNeedsRegeneration && generatedMenu && profile.age !== 0 && (
@@ -3290,6 +3343,15 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                  </div>
                  </div>
               ) : null}
+            </motion.div>
+          )}
+
+          {activeTab === 'gym' && !profile.gymEnabled && !dismissedPrompts.includes('add_gym_goal') && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
+              <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
+              <p className={`text-xs ${themeStyles.textMuted} flex-1`}>Configura tu entrenamiento para un plan personalizado</p>
+              <button onClick={() => { setProfileTab('exercise'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Configurar rutina</button>
+              <button onClick={() => dismissPrompt('add_gym_goal')} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
             </motion.div>
           )}
 
@@ -3986,16 +4048,39 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             >
               <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-2xl pointer-events-none`}></div>
               
-              <div className="flex justify-between items-center mb-6 shrink-0 relative z-10">
+              <div className="flex justify-between items-center mb-4 shrink-0 relative z-10">
                 <div className="flex items-center gap-3">
                   <div className={`p-2 ${themeStyles.accentMuted} rounded-xl border ${themeStyles.accentBorder}`}>
                     <UserIcon className={`w-6 h-6 ${themeStyles.accent}`} />
                   </div>
                   <h3 className={`text-xl font-display font-bold ${themeStyles.textMain} uppercase tracking-tight`}>Configuración de Perfil</h3>
                 </div>
-                <button onClick={() => setIsGoalModalOpen(false)} className={`${themeStyles.textMuted} hover:text-rose-500 transition-colors`}>
+                <button onClick={() => setIsGoalModalOpen(false)} className={`${themeStyles.textMuted} hover:text-red-500 transition-colors`}>
                   <X className="w-5 h-5" />
                 </button>
+              </div>
+              {/* Profile completeness bar */}
+              <div className="mb-5 shrink-0 relative z-10">
+                <div className="flex justify-between items-center mb-1.5">
+                  <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>
+                    Perfil {profileCompleteness}% completo
+                  </span>
+                  {profileCompleteness < 100 && (
+                    <span className={`text-xs ${themeStyles.accent} font-medium`}>
+                      {profileCompleteness < 40 ? 'Añade tu altura y gym' :
+                       profileCompleteness < 70 ? 'Añade tipo de dieta' :
+                       profileCompleteness < 80 ? 'Indica tus alergias' : 'Ajusta la distribución de macros'}
+                    </span>
+                  )}
+                </div>
+                <div className={`h-1.5 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'} rounded-full overflow-hidden`}>
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${profileCompleteness}%` }}
+                    transition={{ duration: 0.6, ease: 'easeOut' }}
+                    className={`h-full rounded-full ${themeStyles.accentBg}`}
+                  />
+                </div>
               </div>
 
               <div className={`flex flex-nowrap overflow-x-auto hide-scrollbar sm:flex-wrap gap-1.5 mb-6 shrink-0 px-1 relative z-10 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-950'} p-1.5 rounded-xl`}>
