@@ -984,6 +984,24 @@ export default function App() {
     localStorage.setItem('kilokalo_dismissed_prompts', JSON.stringify(updated));
   };
 
+  const streak = useMemo(() => {
+    let count = 0;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 365; i++) {
+      const dateStr = getLocalDateStr(new Date(now.getTime() - i * 86400000));
+      const hasMeals = meals.some(m => getLocalDateStr(new Date(m.timestamp)) === dateStr);
+      const h = habits[dateStr];
+      const hasActivity = h?.workoutDone || !!h?.manualWorkout || (h?.workoutCalories ?? 0) > 0;
+      if (hasMeals || hasActivity) {
+        count++;
+      } else if (i > 0) {
+        break;
+      }
+    }
+    return count;
+  }, [meals, habits]);
+
   // Calculate weekly totals
   const weeklyStats = useMemo(() => {
     const d = new Date();
@@ -2414,6 +2432,15 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                     {Math.round(assistant.remainingCalories)}
                                   </span>
                                   <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>kcal restantes</span>
+                                  {streak > 0 && (
+                                    <span className={`text-xs font-bold ${profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400'} mt-1`}>
+                                      {streak >= 30
+                                        ? `🔥 ${streak} días — ¡Imparable!`
+                                        : streak >= 7
+                                        ? `🔥 ${streak} días — ¡Semana perfecta!`
+                                        : `🔥 ${streak} días seguidos`}
+                                    </span>
+                                  )}
                                </div>
                             </div>
 
