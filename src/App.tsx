@@ -2009,7 +2009,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           className="max-w-md w-full bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-3xl p-8 text-center"
         >
           <div className="flex items-center justify-center mx-auto mb-8">
-            <img src="/favicon.png" alt="KiloKalo" className="w-16 h-16 rounded-2xl shadow-lg" />
+            <img src="/favicon-dark.png" alt="KiloKalo" className="w-16 h-16 rounded-2xl shadow-lg" />
           </div>
           <h1 className="text-3xl font-display font-black tracking-tighter text-white mb-8 text-center">
             {isRegistering ? 'Regístrate para empezar' : 'Inicia sesión en KiloKalo'}
@@ -2134,7 +2134,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             className="flex flex-col"
           >
             <h1 className={`text-2xl font-display font-black tracking-tighter ${themeStyles.textMain} flex items-center gap-2`}>
-              <img src="/favicon.png" alt="KiloKalo" className="w-8 h-8 rounded-lg" />
+              <img src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'} alt="KiloKalo" className="w-8 h-8 rounded-lg" />
               KiloKalo
             </h1>
             <p className={`${themeStyles.textMuted} text-[10px] font-bold tracking-[0.2em] uppercase mt-0.5`}>Come. Entrena. Equilibra.</p>
