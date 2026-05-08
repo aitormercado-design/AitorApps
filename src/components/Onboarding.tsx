@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Minus, Plus, TrendingDown, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Minus, TrendingDown, TrendingUp } from 'lucide-react';
+import { RulerPicker } from './RulerPicker';
 
 interface OnboardingData {
   name: string;
@@ -22,62 +23,21 @@ const GOALS = [
   { id: 'gain' as const,     Icon: TrendingUp,    label: 'Ganar músculo',  desc: 'Superávit para crecer' },
 ];
 
-interface StepperProps {
-  label: string;
-  value: number;
-  unit: string;
-  min: number;
-  max: number;
-  step: number;
-  onDecrement: () => void;
-  onIncrement: () => void;
-  textMain: string;
-  textMuted: string;
-  border: string;
-  btnCls: string;
-}
-
-function Stepper({ label, value, unit, min, max, step: _step, onDecrement, onIncrement, textMain, textMuted, border, btnCls }: StepperProps) {
-  return (
-    <div className={`border ${border} rounded-2xl p-4 flex items-center justify-between gap-4`}>
-      <span className={`text-xs font-bold uppercase tracking-widest ${textMuted}`}>{label}</span>
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onDecrement}
-          className={`w-10 h-10 rounded-xl flex items-center justify-center ${btnCls} transition-colors active:scale-95`}
-        >
-          <Minus className={`w-4 h-4 ${textMuted}`} />
-        </button>
-        <span className={`text-2xl font-display font-black tracking-tighter ${textMain} min-w-[4rem] text-center`}>
-          {value}<span className={`text-sm font-bold ${textMuted} ml-1`}>{unit}</span>
-        </span>
-        <button
-          type="button"
-          onClick={onIncrement}
-          className={`w-10 h-10 rounded-xl flex items-center justify-center ${btnCls} transition-colors active:scale-95`}
-        >
-          <Plus className={`w-4 h-4 ${textMuted}`} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export function Onboarding({ theme, onComplete }: OnboardingProps) {
   const [step, setStep] = useState(1);
   const dirRef = useRef(1);
+
   const [name, setName] = useState('');
   const [goal, setGoal] = useState<'lose' | 'maintain' | 'gain'>('maintain');
-  const [weight, setWeight] = useState(75);
-  const [height, setHeight] = useState(170);
+  const [weight, setWeight] = useState('75');
+  const [height, setHeight] = useState('170');
   const [gender, setGender] = useState<'male' | 'female'>('male');
-  const [age, setAge] = useState(30);
+  const [age, setAge] = useState('30');
 
   const isLight = theme === 'light';
 
-  const bg         = isLight ? 'bg-slate-50'  : 'bg-[#09090b]';
-  const textMain   = isLight ? 'text-zinc-950' : 'text-white';
+  const bg         = isLight ? 'bg-slate-50'    : 'bg-[#09090b]';
+  const textMain   = isLight ? 'text-zinc-950'  : 'text-white';
   const textMuted  = isLight ? 'text-slate-500' : 'text-zinc-400';
   const accent     = isLight ? 'bg-emerald-500' : 'bg-lime-400';
   const accentTxt  = isLight ? 'text-white'     : 'text-zinc-950';
@@ -99,26 +59,31 @@ export function Onboarding({ theme, onComplete }: OnboardingProps) {
   };
 
   const variants = {
-    enter: (dir: number) => ({ opacity: 0, x: dir * 48 }),
+    enter:  (dir: number) => ({ opacity: 0, x: dir * 48 }),
     center: { opacity: 1, x: 0 },
-    exit:  (dir: number) => ({ opacity: 0, x: -dir * 48 }),
+    exit:   (dir: number) => ({ opacity: 0, x: -dir * 48 }),
   };
 
   const handleComplete = () => {
-    onComplete({ name: name.trim() || 'Usuario', goal, weight, height, gender, age });
+    onComplete({
+      name: name.trim() || 'Usuario',
+      goal,
+      weight: parseFloat(weight) || 75,
+      height: parseInt(height) || 170,
+      gender,
+      age: parseInt(age) || 30,
+    });
   };
 
   return (
     <div className={`min-h-screen ${bg} flex flex-col items-center justify-center p-6`}>
-      {/* Step indicator + back button row */}
+      {/* Step indicator + back button */}
       <div className="flex items-center gap-4 mb-10 w-full max-w-sm">
         <button
           type="button"
           onClick={() => goTo(step - 1)}
           className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
-            step > 1
-              ? `${btnCls} ${textMuted}`
-              : 'opacity-0 pointer-events-none'
+            step > 1 ? `${btnCls} ${textMuted}` : 'opacity-0 pointer-events-none'
           }`}
         >
           <ChevronLeft className="w-4 h-4" />
@@ -138,6 +103,7 @@ export function Onboarding({ theme, onComplete }: OnboardingProps) {
 
       <div className="w-full max-w-sm overflow-hidden">
         <AnimatePresence mode="wait" custom={dirRef.current}>
+
           {/* ── PASO 1: Nombre ── */}
           {step === 1 && (
             <motion.div
@@ -268,52 +234,37 @@ export function Onboarding({ theme, onComplete }: OnboardingProps) {
                 </div>
               </div>
 
-              {/* Altura */}
-              <Stepper
+              <RulerPicker
                 label="Altura"
+                theme={theme}
                 value={height}
-                unit="cm"
+                onChange={setHeight}
                 min={140}
                 max={220}
                 step={1}
-                onDecrement={() => setHeight(h => Math.max(140, h - 1))}
-                onIncrement={() => setHeight(h => Math.min(220, h + 1))}
-                textMain={textMain}
-                textMuted={textMuted}
-                border={border}
-                btnCls={btnCls}
+                unit="cm"
               />
 
-              {/* Peso */}
-              <Stepper
-                label="Peso actual"
+              <RulerPicker
+                label="Peso Actual"
+                theme={theme}
                 value={weight}
-                unit="kg"
+                onChange={setWeight}
                 min={40}
                 max={150}
-                step={0.5}
-                onDecrement={() => setWeight(w => Math.max(40, parseFloat((w - 0.5).toFixed(1))))}
-                onIncrement={() => setWeight(w => Math.min(150, parseFloat((w + 0.5).toFixed(1))))}
-                textMain={textMain}
-                textMuted={textMuted}
-                border={border}
-                btnCls={btnCls}
+                step={0.1}
+                unit="kg"
               />
 
-              {/* Edad */}
-              <Stepper
+              <RulerPicker
                 label="Edad"
+                theme={theme}
                 value={age}
-                unit="años"
-                min={10}
+                onChange={setAge}
+                min={15}
                 max={100}
                 step={1}
-                onDecrement={() => setAge(a => Math.max(10, a - 1))}
-                onIncrement={() => setAge(a => Math.min(100, a + 1))}
-                textMain={textMain}
-                textMuted={textMuted}
-                border={border}
-                btnCls={btnCls}
+                unit="Años"
               />
 
               <button
@@ -329,6 +280,7 @@ export function Onboarding({ theme, onComplete }: OnboardingProps) {
               </p>
             </motion.div>
           )}
+
         </AnimatePresence>
       </div>
     </div>
