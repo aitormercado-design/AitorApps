@@ -607,8 +607,8 @@ export default function App() {
               handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}/habits`);
             }
           }
-        // Show onboarding for new users (no Firestore doc) who haven't done it yet
-        if (!docSnap.exists() && !localStorage.getItem('kilokalo_onboarding_done')) {
+        // Show onboarding for new users (no Firestore doc yet)
+        if (!docSnap.exists()) {
           setShowOnboarding(true);
         }
         } catch (error) {
@@ -1528,7 +1528,6 @@ export default function App() {
       fat: Math.round((kcal * 0.30) / 9),
     };
     setGoals(newGoals);
-    localStorage.setItem('kilokalo_onboarding_done', '1');
     if (user) {
       try {
         await setDoc(doc(db, 'users', user.uid), { profile: newProfile, goals: newGoals }, { merge: true });
