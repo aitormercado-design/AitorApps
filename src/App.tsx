@@ -425,6 +425,10 @@ export default function App() {
   const [dismissedPrompts, setDismissedPrompts] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem('kilokalo_dismissed_prompts') ?? '[]'); } catch { return []; }
   });
+  const [optionalBannerRemindAfter, setOptionalBannerRemindAfter] = useState<number>(() => {
+    const s = localStorage.getItem('kilokalo_optional_banner_remind');
+    return s ? parseInt(s) : 0;
+  });
 
   const [appliedSuggestionKey, setAppliedSuggestionKey] = useState<string | null>(null);
   const [editProfile, setEditProfile] = useState<UserProfile>({
@@ -4109,7 +4113,49 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 </div>
               </div>
 
-<div className={`flex flex-nowrap overflow-x-auto hide-scrollbar sm:flex-wrap gap-1.5 mb-6 shrink-0 px-1 relative z-10 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-950'} p-1.5 rounded-xl`}>
+              {/* Optional fields awareness banner */}
+              {!!profile.name &&
+                !dismissedPrompts.includes('optional_fields') &&
+                Date.now() > optionalBannerRemindAfter && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`mb-4 shrink-0 rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3.5 space-y-2.5 relative z-10`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <Sparkles className={`w-4 h-4 ${themeStyles.accent} shrink-0 mt-0.5`} />
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-bold ${themeStyles.textMain} mb-0.5`}>Campos opcionales disponibles</p>
+                      <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>
+                        Puedes añadir tipo de dieta, alergias o preferencias y distribución de macros.
+                        No son obligatorios, pero mejoran la precisión del menú y las sugerencias.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pl-6">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const after = Date.now() + 7 * 24 * 60 * 60 * 1000;
+                        setOptionalBannerRemindAfter(after);
+                        localStorage.setItem('kilokalo_optional_banner_remind', String(after));
+                      }}
+                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold border ${themeStyles.border} ${themeStyles.textMuted} transition-colors`}
+                    >
+                      Recordar en 7 días
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => dismissPrompt('optional_fields')}
+                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`}
+                    >
+                      Ya lo sé, quitar
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              <div className={`flex flex-nowrap overflow-x-auto hide-scrollbar sm:flex-wrap gap-1.5 mb-6 shrink-0 px-1 relative z-10 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-950'} p-1.5 rounded-xl`}>
                 {[
                   { id: 'user', label: 'Personal', icon: UserIcon },
                   { id: 'diet', label: 'Dieta', icon: ChefHat },
