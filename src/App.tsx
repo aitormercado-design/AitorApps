@@ -4118,6 +4118,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
               {/* Optional fields banner */}
               {!!profile.name &&
+                editProfileCompleteness < 100 &&
                 !dismissedPrompts.includes('optional_fields') &&
                 Date.now() > optionalBannerRemindAfter &&
                 (!editProfile.allergies?.length || !editProfile.macroDistribution || editProfile.macroDistribution === 'balanced') && (
