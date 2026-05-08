@@ -356,7 +356,7 @@ export default function App() {
     age: 0,
     height: 0,
     gender: 'male',
-    dietType: '',
+    dietType: 'Normal',
     allergies: [],
     otherAllergies: '',
     diabetesType: 'none',
@@ -431,7 +431,7 @@ export default function App() {
     age: 0,
     height: 0,
     gender: 'male',
-    dietType: '',
+    dietType: 'Normal',
     allergies: [],
     otherAllergies: '',
     diabetesType: 'none',
@@ -1483,6 +1483,7 @@ export default function App() {
       gender: data.gender,
       age: data.age,
       height: estimatedHeight,
+      dietType: profile.dietType || 'Normal',
     };
     setProfile(newProfile);
     const ts = Date.now();
@@ -2307,8 +2308,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             setIsGoalModalOpen(true);
           };
           const prompts = [
-            { id: 'add_height', screen: 'today', condition: profile.height === 0 && !!profile.name, message: 'Añade tu altura para calcular mejor tu gasto calórico', action: 'Añadir altura', tab: () => setProfileTab('user') },
-            { id: 'add_allergies', screen: 'today', condition: !(profile.allergies?.length > 0) && profile.height > 0, message: '¿Tienes alergias? El análisis de comidas será más preciso', action: 'Añadir alergias', tab: () => setProfileTab('diet') },
+            { id: 'add_height', screen: 'today', condition: profile.height === 0 && !!profile.name, message: 'Añade tu altura para que tus objetivos de calorías sean precisos', action: 'Añadir altura', tab: () => setProfileTab('user') },
           ].filter(p => p.condition && !dismissedPrompts.includes(p.id));
           const prompt = activeTab === 'today' ? prompts[0] : null;
           if (!prompt) return null;
@@ -3225,10 +3225,27 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         )}
                       </div>
                     ) : (
-                      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`text-center py-20 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border} border-dashed space-y-3`}>
-                        <ChefHat className={`w-10 h-10 ${themeStyles.textMuted} mx-auto opacity-20`} />
-                        <p className={`${themeStyles.textMuted} font-bold uppercase tracking-widest text-xs`}>Sin menú esta semana</p>
-                        <p className={`${themeStyles.textMuted} text-xs opacity-60`}>Genera tu plan semanal personalizado</p>
+                      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`${themeStyles.iconBg} rounded-2xl border ${themeStyles.border} border-dashed p-8 space-y-5 text-center`}>
+                        <div className={`w-14 h-14 mx-auto rounded-2xl ${themeStyles.accentMuted} border ${themeStyles.accentBorder} flex items-center justify-center`}>
+                          <ChefHat className={`w-7 h-7 ${themeStyles.accent}`} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <p className={`${themeStyles.textMain} font-bold text-sm`}>Sin menú esta semana</p>
+                          <p className={`${themeStyles.textMuted} text-xs leading-relaxed max-w-xs mx-auto`}>
+                            Genera un plan adaptado a tus {Math.round(goals.calories)} kcal diarias.
+                            Cuanto más completo sea tu perfil, más preciso será el menú.
+                          </p>
+                        </div>
+                        <button
+                          disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
+                          onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
+                          className={`${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} font-bold uppercase tracking-widest px-8 py-3 rounded-xl transition-all shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100 text-sm`}
+                        >
+                          {menuCooldown.isActive ? `Espera ${menuCooldown.remaining}s` : 'Generar menú semanal'}
+                        </button>
+                        <p className={`text-xs ${themeStyles.textMuted} opacity-50`}>
+                          Completa altura, tipo de dieta o preferencias en tu perfil para mayor precisión
+                        </p>
                       </motion.div>
                     )}
                   </div>
