@@ -965,8 +965,7 @@ export default function App() {
     if (weights.length > 0) pct += 20;
     if (profile.height > 0) pct += 20;
     if (profile.gymEnabled && profile.trainingDaysPerWeek > 0) pct += 20;
-    if (profile.allergies?.length > 0) pct += 10;
-    if (profile.macroDistribution && profile.macroDistribution !== 'balanced') pct += 10;
+    if (profile.allergies?.length > 0) pct += 20;
     return pct;
   }, [profile, weights.length]);
 
@@ -978,8 +977,7 @@ export default function App() {
     if (editWeightNum > 0 || weights.length > 0) pct += 20;
     if (editProfile.height > 0) pct += 20;
     if (editProfile.gymEnabled && editProfile.trainingDaysPerWeek > 0) pct += 20;
-    if (editProfile.allergies?.length > 0) pct += 10;
-    if (editProfile.macroDistribution && editProfile.macroDistribution !== 'balanced') pct += 10;
+    if (editProfile.allergies?.length > 0) pct += 20;
     return pct;
   }, [editProfile, editWeight, weights.length]);
 
@@ -1499,6 +1497,7 @@ export default function App() {
       age: data.age,
       height: data.height,
       dietType: 'Normal',
+      macroDistribution: 'balanced',
     };
     setProfile(newProfile);
     const ts = Date.now();
@@ -4101,8 +4100,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   </span>
                   {editProfileCompleteness < 100 && (
                     <span className={`text-xs ${themeStyles.accent} font-medium`}>
-                      {editProfileCompleteness < 80 ? 'Configura tu entrenamiento' :
-                       editProfileCompleteness < 90 ? 'Añade alergias o preferencias' : 'Ajusta distribución de macros'}
+                      {editProfileCompleteness < 80 ? 'Configura tu entrenamiento' : 'Añade alergias o preferencias'}
                     </span>
                   )}
                 </div>
@@ -4121,7 +4119,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 editProfileCompleteness < 100 &&
                 !dismissedPrompts.includes('optional_fields') &&
                 Date.now() > optionalBannerRemindAfter &&
-                (!editProfile.allergies?.length || !editProfile.macroDistribution || editProfile.macroDistribution === 'balanced') && (
+                !editProfile.allergies?.length && (
                 <motion.div
                   initial={{ opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -4132,7 +4130,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <div className="flex-1 min-w-0">
                       <p className={`text-xs font-bold ${themeStyles.textMain} mb-0.5`}>¿Quieres afinar tu plan?</p>
                       <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>
-                        Puedes añadir alergias, preferencias alimenticias o ajustar la distribución de macros.
+                        Puedes añadir alergias o preferencias alimenticias.
                         Son opcionales, pero hacen el menú y las sugerencias más precisos.
                       </p>
                     </div>
