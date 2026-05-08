@@ -1554,8 +1554,8 @@ export default function App() {
       setNewWeight('');
       
       if (profile.age > 0 && profile.height > 0) {
-        const newGoals = updateGoalsForProfile(profile, weightVal);
-        handleGenerateMenu(profile, newGoals, weightVal);
+        updateGoalsForProfile(profile, weightVal);
+        if (generatedMenu) setMenuNeedsRegeneration(true);
       }
     }
   };
@@ -1691,7 +1691,7 @@ export default function App() {
 
     // Flag content that needs regeneration — do NOT auto-call Groq
     if (dietChanged && generatedMenu) setMenuNeedsRegeneration(true);
-    if (editProfile.gymEnabled && gymChanged && workoutPlan) setWorkoutNeedsRegeneration(true);
+    if (editProfile.gymEnabled && gymChanged) setWorkoutNeedsRegeneration(true);
 
     setIsGoalModalOpen(false);
   };
@@ -3430,22 +3430,26 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     {gymSubTab === 'plan' ? (
                       <div className="space-y-6">
                         {/* Invalidation banner */}
-                        {workoutNeedsRegeneration && workoutPlan && (
+                        {workoutNeedsRegeneration && (
                           <div className={`rounded-2xl border border-red-500/40 ${profile.theme === 'light' ? 'bg-red-50' : 'bg-red-500/5'} p-4 flex items-center gap-3`}>
                             <span className="relative flex h-3 w-3 shrink-0">
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                               <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                             </span>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-bold text-red-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
-                              <p className={`text-xs mt-0.5 ${profile.theme === 'light' ? 'text-red-700' : 'text-red-400/80'}`}>La rutina puede no reflejar tus nuevos datos.</p>
+                              <p className="text-xs font-bold text-red-500 uppercase tracking-widest">
+                                {workoutPlan ? 'Tu perfil ha cambiado' : 'Rutina pendiente de generar'}
+                              </p>
+                              <p className={`text-xs mt-0.5 ${profile.theme === 'light' ? 'text-red-700' : 'text-red-400/80'}`}>
+                                {workoutPlan ? 'La rutina puede no reflejar tus nuevos datos.' : 'Genera tu rutina personalizada con el perfil actual.'}
+                              </p>
                             </div>
                             <button
                               disabled={isAIGenerating || isGeneratingWorkout || workoutCooldown.isActive}
                               onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
                               className="shrink-0 px-3 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              {isGeneratingWorkout ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Regenerar ahora'}
+                              {isGeneratingWorkout ? <Loader2 className="w-3 h-3 animate-spin" /> : workoutPlan ? 'Regenerar ahora' : 'Generar ahora'}
                             </button>
                           </div>
                         )}
