@@ -5,7 +5,6 @@ import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, 
 import Markdown from 'react-markdown';
 import { useCooldown } from './hooks/useCooldown';
 import remarkGfm from 'remark-gfm';
-import { ExerciseDelta } from './components/ExerciseDelta';
 import { Onboarding } from './components/Onboarding';
 import { analyzeFoodText, streamCompletion, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateWeeklyAnalysis } from './lib/groq';
 import type { WeekDaySummary } from './lib/groq';
@@ -888,29 +887,16 @@ export default function App() {
       burnedCalories += (todayHabits.manualWorkout.caloriesBurned ?? (todayHabits.manualWorkout as any).calories ?? 0);
     }
 
-    const gymDays = Math.min(7, Math.max(0, profile.trainingDaysPerWeek));
-    const bmrValue = calcularBMR(profile, latestWeight);
-    const sedentaryTDEE = bmrValue * 1.2;
-    const activeTDEE = bmrValue * getActivityFactor(gymDays);
-    const impliedCalories = Math.round((activeTDEE - sedentaryTDEE) / 7);
-
-    // Calculate delta based on real vs implied activity
-    const delta = (profile.gymEnabled && profile.trainingDaysPerWeek > 0) ? (burnedCalories - impliedCalories) : 0;
-    const adjustedGoal = goals.calories + delta;
-
-    const totalTarget = adjustedGoal;
     const consumedCalories = totals.calories;
+    const totalTarget = goals.calories + burnedCalories;
     const remainingCalories = totalTarget - consumedCalories;
-
     const stateType: 'over' | 'good' = remainingCalories < -100 ? 'over' : 'good';
 
     return {
       stateType,
       remainingCalories,
-      burnedCalories: profile.gymEnabled ? burnedCalories : 0,
-      impliedCalories: profile.gymEnabled ? impliedCalories : 0,
+      burnedCalories,
       totalTarget,
-      baseTarget: goals.calories,
       consumedCalories,
     };
   };
@@ -2398,95 +2384,89 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <div className="space-y-6">
                       {/* 1. Calories Summary Card */}
                         <div className={`${themeStyles.bento} p-5 relative overflow-hidden group border-b-4 ${assistant.stateType === 'over' ? 'border-amber-500' : (profile.theme === 'light' ? 'border-emerald-500' : themeStyles.accentBorder)} shadow-2xl`}>
-                          <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-3xl`} />
+                          <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : 'bg-lime-400/5'} rounded-full blur-3xl`} />
                           <div className="relative z-10">
-                            <div className="flex flex-col md:flex-row gap-8 items-start md:items-center justify-between">
-                               <div className="space-y-2 max-w-xl text-center md:text-left">
-                                  <span className={`text-xs font-bold ${themeStyles.accent} uppercase tracking-[0.25em]`}>Resumen del día</span>
-                                  <p className={`text-sm ${themeStyles.textMuted} font-medium`}>{profile.name ? `Hola, ${profile.name}` : 'Resumen calórico de hoy'}</p>
-                               </div>
-                               <div className="flex flex-col items-center md:items-end gap-2 group-hover:scale-105 transition-transform">
-                                  <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Margen de hoy</span>
-                                  <span className={`text-6xl font-display font-black tracking-tighter ${
-                                    assistant.remainingCalories < 0 ? 'text-amber-500' :
-                                    (assistant.burnedCalories > assistant.impliedCalories)
-                                      ? (profile.theme === 'light' ? 'text-emerald-500' : 'text-lime-400')
-                                      : (profile.theme === 'light' ? 'text-emerald-600' : themeStyles.accent)
-                                  }`}>
-                                    {Math.round(assistant.remainingCalories)}
-                                  </span>
-                                  <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>kcal restantes</span>
-                               </div>
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-6">
+                              <div>
+                                <span className={`text-xs font-bold ${themeStyles.accent} uppercase tracking-[0.25em]`}>Balance del día</span>
+                                <p className={`text-sm ${themeStyles.textMuted} font-medium mt-0.5`}>{profile.name ? `Hola, ${profile.name}` : 'Resumen calórico de hoy'}</p>
+                              </div>
+                              {streak > 1 && (
+                                <span className={`text-xs font-bold ${profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400'}`}>
+                                  🔥 {streak >= 30 ? `${streak} días — ¡Imparable!` : streak >= 7 ? `${streak} días — ¡Semana perfecta!` : `${streak} días seguidos`}
+                                </span>
+                              )}
                             </div>
 
-                            {/* Streak */}
-                            {streak > 1 && (
-                              <div className="flex items-center gap-2 justify-center mt-4">
-                                <span className="text-xl">🔥</span>
-                                {streak >= 30 || streak >= 7 ? (
-                                  <span className={`font-bold text-sm ${profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400'}`}>
-                                    {streak >= 30
-                                      ? `${streak} días — ¡Imparable!`
-                                      : `${streak} días — ¡Semana perfecta!`}
-                                  </span>
-                                ) : (
-                                  <>
-                                    <span className={`font-bold text-lg ${themeStyles.textMain}`}>{streak}</span>
-                                    <span className={`text-sm ${themeStyles.textMuted}`}>días seguidos</span>
-                                  </>
-                                )}
-                              </div>
-                            )}
+                            {/* Big number */}
+                            <div className="flex flex-col items-center gap-1 mb-8 group-hover:scale-105 transition-transform">
+                              <span className={`text-6xl font-display font-black tracking-tighter ${assistant.remainingCalories < 0 ? 'text-amber-500' : (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400')}`}>
+                                {Math.abs(Math.round(assistant.remainingCalories))}
+                              </span>
+                              <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>
+                                {assistant.remainingCalories < 0 ? 'kcal superadas' : 'kcal restantes'}
+                              </span>
+                            </div>
 
-                            {/* Visual Progress Bar */}
-                            <div className="mt-10 space-y-3">
-                               <div className="flex justify-between items-end">
-                                  <div className="flex items-center gap-3">
-                                    <div className="flex flex-col">
-                                      <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Consumido</span>
-                                      <span className={`text-xl font-black ${themeStyles.textMain}`}>{Math.round(assistant.consumedCalories)} <span className="text-xs opacity-40">kcal</span></span>
-                                    </div>
-                                  </div>
-                                  <div className="text-right">
-                                    <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Puedes llegar a</span>
-                                    <span className={`text-xl font-black ${
-                                      (assistant.burnedCalories > assistant.impliedCalories)
-                                        ? (profile.theme === 'light' ? 'text-emerald-500' : 'text-lime-400')
-                                        : themeStyles.textMain
-                                    }`}>
-                                      {Math.round(assistant.totalTarget)} 
-                                      <span className="text-xs ml-1 opacity-40">kcal</span>
-                                    </span>
-                                  </div>
-                               </div>
-                               <div className={`h-4 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'} rounded-full overflow-hidden border ${themeStyles.border} shadow-inner p-1 relative`}>
+                            {/* Balance rows */}
+                            <div className="space-y-3">
+                              {/* Objetivo */}
+                              <div className="flex items-center justify-between">
+                                <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest w-24`}>Objetivo</span>
+                                <span className={`text-sm font-black ${themeStyles.textMain} w-24 text-right`}>{Math.round(goals.calories)} <span className="text-xs opacity-40 font-normal">kcal</span></span>
+                                <div className={`flex-1 mx-3 h-2 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'} rounded-full`}>
+                                  <div className="h-full w-full rounded-full opacity-20 bg-current" />
+                                </div>
+                              </div>
+                              {/* Consumidas */}
+                              <div className="flex items-center justify-between">
+                                <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest w-24`}>Consumidas</span>
+                                <span className={`text-sm font-black ${themeStyles.textMain} w-24 text-right`}>{Math.round(assistant.consumedCalories)} <span className="text-xs opacity-40 font-normal">kcal</span></span>
+                                <div className={`flex-1 mx-3 h-2 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'} rounded-full overflow-hidden`}>
                                   <motion.div
                                     initial={{ width: 0 }}
-                                    animate={{ width: `${Math.min(100, (assistant.consumedCalories / assistant.totalTarget) * 100)}%` }}
-                                    className={`h-full rounded-full relative z-10 ${
-                                       assistant.remainingCalories < 0 ? 'bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]' :
-                                       assistant.consumedCalories > 0 ? (profile.theme === 'light' ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-lime-400 shadow-[0_0_20px_rgba(163,230,53,0.6)]') :
-                                       ''
-                                    }`}
+                                    animate={{ width: `${Math.min(100, (assistant.consumedCalories / goals.calories) * 100)}%` }}
+                                    className={`h-full rounded-full ${assistant.remainingCalories < 0 ? 'bg-amber-500' : (profile.theme === 'light' ? 'bg-emerald-500' : 'bg-lime-400')}`}
                                   />
-                               </div>
+                                </div>
+                              </div>
+                              {/* Quemadas — solo si > 0 */}
+                              {assistant.burnedCalories > 0 && (
+                                <div className="flex items-center justify-between">
+                                  <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest w-24`}>Quemadas</span>
+                                  <span className={`text-sm font-black ${profile.theme === 'light' ? 'text-emerald-500' : 'text-lime-400'} w-24 text-right`}>+{Math.round(assistant.burnedCalories)} <span className="text-xs opacity-40 font-normal">kcal</span></span>
+                                  <div className={`flex-1 mx-3 h-2 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'} rounded-full overflow-hidden`}>
+                                    <motion.div
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${Math.min(100, (assistant.burnedCalories / goals.calories) * 100)}%` }}
+                                      className={`h-full rounded-full ${profile.theme === 'light' ? 'bg-emerald-400' : 'bg-lime-500'}`}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                              {/* Divider */}
+                              <div className={`border-t ${themeStyles.border} border-dashed pt-3`}>
+                                <div className="flex items-center justify-between">
+                                  <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest w-24`}>Restantes</span>
+                                  <span className={`text-sm font-black w-24 text-right ${assistant.remainingCalories < 0 ? 'text-amber-500' : (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400')}`}>
+                                    {assistant.remainingCalories < 0
+                                      ? `−${Math.abs(Math.round(assistant.remainingCalories))}`
+                                      : Math.round(assistant.remainingCalories)
+                                    } <span className="text-xs opacity-40 font-normal">kcal</span>
+                                  </span>
+                                  <div className="flex-1 mx-3 flex justify-end">
+                                    <span className={`text-xs font-bold ${assistant.remainingCalories < 0 ? 'text-amber-500' : (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400')}`}>
+                                      {assistant.remainingCalories < 0 ? `Objetivo superado en ${Math.abs(Math.round(assistant.remainingCalories))} kcal` : '✓'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
 
-                        {/* 2. Exercise Delta - Moved here */}
-                        {user && (
-                          <ExerciseDelta 
-                            profile={profile} 
-                            goals={goals} 
-                            userId={user.uid} 
-                            realCalories={assistant.burnedCalories}
-                            impliedCalories={assistant.impliedCalories}
-                            themeStyles={themeStyles} 
-                          />
-                        )}
-
-                        {/* 3. Distribution (Macros) */}
+                        {/* 2. Distribution (Macros) */}
                         <div className={`${themeStyles.bento} p-4 space-y-6 relative overflow-hidden`}>
                            <div className="flex items-center justify-between">
                              <h4 className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-widest`}>Distribución de Macros</h4>
