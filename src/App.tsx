@@ -1679,15 +1679,11 @@ export default function App() {
       JSON.stringify(editProfile.allergies) !== JSON.stringify(profile.allergies) ||
       editProfile.macroDistribution !== profile.macroDistribution;
 
-    const gymChanged = 
-      editProfile.gymGoal !== profile.gymGoal || 
+    const gymChanged =
+      editProfile.gymGoal !== profile.gymGoal ||
       editProfile.workoutType !== profile.workoutType ||
       editProfile.gymEnabled !== profile.gymEnabled ||
-      editProfile.diabetesType !== profile.diabetesType ||
-      editProfile.trainingDaysPerWeek !== profile.trainingDaysPerWeek ||
-      editProfile.age !== profile.age ||
-      editProfile.height !== profile.height ||
-      weightVal !== latestWeight;
+      editProfile.trainingDaysPerWeek !== profile.trainingDaysPerWeek;
 
     setProfile(editProfile);
 
@@ -3023,10 +3019,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 <p className={`${themeStyles.textMain} text-sm font-medium mb-4`}>
                     Esta es una propuesta de menú semanal para ayudarte a cumplir con tus objetivos de calorías y macronutrientes.
                 </p>
-                {(!profile.dietType || profile.dietType === 'Normal' || profile.dietType === '') && !dismissedPrompts.includes('add_diet_type') && (
+                {(!profile.dietType || profile.dietType === '') && !dismissedPrompts.includes('add_diet_type') && (
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
                     <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
-                    <p className={`text-xs ${themeStyles.textMuted} flex-1`}>¿Sigues algún tipo de dieta? El menú se adaptará a ti</p>
+                    <p className={`text-xs ${themeStyles.textMuted} flex-1`}>Dieta configurada como Normal. ¿Sigues algún régimen especial? El menú se adaptará</p>
                     <button onClick={() => { setProfileTab('diet'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Indicar dieta</button>
                     <button onClick={() => dismissPrompt('add_diet_type')} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
                   </motion.div>
