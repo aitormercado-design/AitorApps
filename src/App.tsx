@@ -954,7 +954,7 @@ export default function App() {
     };
   }, [profile.theme]);
 
-  // Profile completeness (0–100)
+  // Profile completeness (0–100) — based on saved profile
   const profileCompleteness = useMemo(() => {
     let pct = 0;
     if (profile.name) pct += 20;
@@ -966,6 +966,20 @@ export default function App() {
     if (profile.macroDistribution && profile.macroDistribution !== 'balanced') pct += 10;
     return pct;
   }, [profile, weights.length]);
+
+  // Live completeness based on editProfile — shown inside the modal
+  const editProfileCompleteness = useMemo(() => {
+    let pct = 0;
+    if (editProfile.name) pct += 20;
+    const editWeightNum = parseFloat(editWeight);
+    if (editWeightNum > 0 || weights.length > 0) pct += 20;
+    if (editProfile.height > 0) pct += 15;
+    if (editProfile.gymEnabled && editProfile.trainingDaysPerWeek > 0) pct += 15;
+    if (editProfile.dietType && editProfile.dietType !== 'Normal' && editProfile.dietType !== '') pct += 10;
+    if (editProfile.allergies?.length > 0) pct += 10;
+    if (editProfile.macroDistribution && editProfile.macroDistribution !== 'balanced') pct += 10;
+    return pct;
+  }, [editProfile, editWeight, weights.length]);
 
   const dismissPrompt = (id: string) => {
     const updated = [...dismissedPrompts, id];
@@ -2307,7 +2321,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             setIsGoalModalOpen(true);
           };
           const prompts = [
-            { id: 'add_height', screen: 'today', condition: profile.height === 0 && !!profile.name, message: 'Añade tu altura para que tus objetivos de calorías sean precisos', action: 'Añadir altura', tab: () => setProfileTab('user') },
+            { id: 'add_height',  screen: 'today', condition: profile.height === 0 && !!profile.name, message: 'Añade tu altura para que tus objetivos de calorías sean precisos', action: 'Añadir altura', tab: () => setProfileTab('user') },
+            { id: 'setup_gym',   screen: 'today', condition: !profile.gymEnabled && !!profile.name && profile.height > 0, message: '¿Entrenas? Activa el módulo gym para registrar workouts y ajustar tus calorías', action: 'Configurar gym', tab: () => setProfileTab('exercise') },
+            { id: 'set_diet',    screen: 'today', condition: (!profile.dietType || profile.dietType === 'Normal') && !!profile.name && profile.height > 0, message: '¿Sigues algún régimen especial? Configura tu tipo de dieta para un menú más preciso', action: 'Indicar dieta', tab: () => setProfileTab('diet') },
           ].filter(p => p.condition && !dismissedPrompts.includes(p.id));
           const prompt = activeTab === 'today' ? prompts[0] : null;
           if (!prompt) return null;
@@ -3018,7 +3034,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 <p className={`${themeStyles.textMain} text-sm font-medium mb-4`}>
                     Esta es una propuesta de menú semanal para ayudarte a cumplir con tus objetivos de calorías y macronutrientes.
                 </p>
-                {(!profile.dietType || profile.dietType === '') && !dismissedPrompts.includes('add_diet_type') && (
+                {(!profile.dietType || profile.dietType === '' || profile.dietType === 'Normal') && !dismissedPrompts.includes('add_diet_type') && (
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
                     <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
                     <p className={`text-xs ${themeStyles.textMuted} flex-1`}>Dieta configurada como Normal. ¿Sigues algún régimen especial? El menú se adaptará</p>
@@ -4080,21 +4096,21 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               <div className="mb-5 shrink-0 relative z-10">
                 <div className="flex justify-between items-center mb-1.5">
                   <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>
-                    Perfil {profileCompleteness}% completo
+                    Perfil {editProfileCompleteness}% completo
                   </span>
-                  {profileCompleteness < 100 && (
+                  {editProfileCompleteness < 100 && (
                     <span className={`text-xs ${themeStyles.accent} font-medium`}>
-                      {profileCompleteness < 40 ? 'Añade tu altura y gym' :
-                       profileCompleteness < 70 ? 'Añade tipo de dieta' :
-                       profileCompleteness < 80 ? 'Indica tus alergias' : 'Ajusta la distribución de macros'}
+                      {editProfileCompleteness < 70 ? 'Configura tu entrenamiento' :
+                       editProfileCompleteness < 80 ? 'Ajusta tu tipo de dieta' :
+                       editProfileCompleteness < 90 ? 'Añade alergias o preferencias' : 'Ajusta distribución de macros'}
                     </span>
                   )}
                 </div>
                 <div className={`h-1.5 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'} rounded-full overflow-hidden`}>
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${profileCompleteness}%` }}
-                    transition={{ duration: 0.6, ease: 'easeOut' }}
+                    animate={{ width: `${editProfileCompleteness}%` }}
+                    transition={{ duration: 0.4, ease: 'easeOut' }}
                     className={`h-full rounded-full ${themeStyles.accentBg}`}
                   />
                 </div>
