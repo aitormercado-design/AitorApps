@@ -77,11 +77,13 @@ export function Onboarding({ theme, onComplete }: OnboardingProps) {
             transition={{ duration: 0.25 }}
             className="w-full max-w-sm flex flex-col items-center text-center gap-8"
           >
-            <img
-              src={isLight ? '/favicon-light.png' : '/favicon-dark.png'}
-              alt="KiloKalo"
-              className="w-20 h-20 rounded-2xl shadow-xl"
-            />
+            <div className={`w-20 h-20 rounded-2xl shadow-xl overflow-hidden ${isLight ? 'bg-emerald-500' : 'bg-zinc-900'}`}>
+              <img
+                src={isLight ? '/favicon-light.png' : '/favicon-dark.png'}
+                alt="KiloKalo"
+                className="w-full h-full object-cover"
+              />
+            </div>
             <div>
               <h1 className={`text-3xl font-display font-black tracking-tighter ${textMain} mb-2`}>
                 Bienvenido a KiloKalo
