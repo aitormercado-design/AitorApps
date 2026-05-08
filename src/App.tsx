@@ -2321,9 +2321,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             setIsGoalModalOpen(true);
           };
           const prompts = [
-            { id: 'add_height',  screen: 'today', condition: profile.height === 0 && !!profile.name, message: 'Añade tu altura para que tus objetivos de calorías sean precisos', action: 'Añadir altura', tab: () => setProfileTab('user') },
-            { id: 'setup_gym',   screen: 'today', condition: !profile.gymEnabled && !!profile.name && profile.height > 0, message: '¿Entrenas? Activa el módulo gym para registrar workouts y ajustar tus calorías', action: 'Configurar gym', tab: () => setProfileTab('exercise') },
-            { id: 'set_diet',    screen: 'today', condition: (!profile.dietType || profile.dietType === 'Normal') && !!profile.name && profile.height > 0, message: '¿Sigues algún régimen especial? Configura tu tipo de dieta para un menú más preciso', action: 'Indicar dieta', tab: () => setProfileTab('diet') },
+            { id: 'add_height', screen: 'today', condition: profile.height === 0 && !!profile.name, message: 'Añade tu altura para que tus objetivos de calorías sean precisos', action: 'Añadir altura', tab: () => setProfileTab('user') },
+            { id: 'setup_gym',  screen: 'today', condition: !profile.gymEnabled && !!profile.name && profile.height > 0, message: '¿Entrenas? Activa el módulo gym para registrar workouts y ajustar tus calorías', action: 'Configurar gym', tab: () => setProfileTab('exercise') },
           ].filter(p => p.condition && !dismissedPrompts.includes(p.id));
           const prompt = activeTab === 'today' ? prompts[0] : null;
           if (!prompt) return null;
@@ -3034,7 +3033,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 <p className={`${themeStyles.textMain} text-sm font-medium mb-4`}>
                     Esta es una propuesta de menú semanal para ayudarte a cumplir con tus objetivos de calorías y macronutrientes.
                 </p>
-                {(!profile.dietType || profile.dietType === '' || profile.dietType === 'Normal') && !dismissedPrompts.includes('add_diet_type') && (
+                {(!profile.dietType || profile.dietType === '') && !dismissedPrompts.includes('add_diet_type') && (
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
                     <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
                     <p className={`text-xs ${themeStyles.textMuted} flex-1`}>Dieta configurada como Normal. ¿Sigues algún régimen especial? El menú se adaptará</p>
