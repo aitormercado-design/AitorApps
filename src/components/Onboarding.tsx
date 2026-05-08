@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronRight, Minus, Plus } from 'lucide-react';
+import { ChevronRight, Minus, Plus, TrendingDown, TrendingUp } from 'lucide-react';
 
 interface OnboardingData {
   name: string;
@@ -16,9 +16,9 @@ interface OnboardingProps {
 }
 
 const GOALS = [
-  { id: 'lose' as const,     emoji: '📉', label: 'Perder grasa',   desc: 'Déficit calórico controlado' },
-  { id: 'maintain' as const, emoji: '⚖️', label: 'Mantener peso',  desc: 'Calorías de mantenimiento' },
-  { id: 'gain' as const,     emoji: '📈', label: 'Ganar músculo',  desc: 'Superávit para crecer' },
+  { id: 'lose' as const,     Icon: TrendingDown, label: 'Perder grasa',   desc: 'Déficit calórico controlado' },
+  { id: 'maintain' as const, Icon: Minus,         label: 'Mantener peso',  desc: 'Calorías de mantenimiento' },
+  { id: 'gain' as const,     Icon: TrendingUp,    label: 'Ganar músculo',  desc: 'Superávit para crecer' },
 ];
 
 export function Onboarding({ theme, onComplete }: OnboardingProps) {
@@ -140,7 +140,7 @@ export function Onboarding({ theme, onComplete }: OnboardingProps) {
                     goal === g.id ? selectedCard : unselCard
                   }`}
                 >
-                  <span className="text-3xl shrink-0">{g.emoji}</span>
+                  <g.Icon className={`w-6 h-6 shrink-0 ${isLight ? 'text-emerald-500' : 'text-lime-400'}`} />
                   <div>
                     <p className={`font-bold ${textMain}`}>{g.label}</p>
                     <p className={`text-xs ${textMuted} mt-0.5`}>{g.desc}</p>

@@ -99,7 +99,7 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
   const dayName = new Date().toLocaleDateString('es-ES', { weekday: 'long' });
 
   const eventPrompts: Record<ProactiveEvent['type'], string> = {
-    day_start: `El usuario acaba de abrir la app. Es ${dayName}. Salúdale con su nombre (${profile.name || 'usuario'}), dile qué tiene hoy (objetivo: ${goals.calories}kcal) y una motivación breve.`,
+    day_start: `Es ${dayName}. Di a ${profile.name || 'usuario'} su objetivo de hoy en una sola frase: ${goals.calories}kcal.`,
     meal_added: `El usuario acaba de registrar: ${event.data.meal?.foodName} (${Math.round(event.data.meal?.calories ?? 0)}kcal). Lleva ${Math.round(event.data.totalCalories)}kcal de ${goals.calories}kcal objetivo. Comenta brevemente y dile qué le queda.`,
     workout_done: `El usuario acaba de completar su rutina de ${event.data.focus ?? 'entrenamiento'} quemando ${event.data.calories ?? 0}kcal. Felicítale y dale un consejo de recuperación.`,
     workout_exercise: `El usuario ha completado un ejercicio de su rutina. Anímale brevemente.`,
@@ -118,7 +118,11 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
 
   const conditionsNote = activeConditions ? `\n- Condiciones médicas del usuario: ${activeConditions}. Adáptate a ellas en tus consejos.` : '';
 
-  const systemPrompt = `Eres el coach personal de ${profile.name || 'usuario'}. Conoces su perfil y su plan de la semana. Responde en máximo 2 frases. Tono directo y motivador. NUNCA uses saludos largos ni despedidas. Solo el mensaje esencial.${conditionsNote}
+  const isDayStart = event.type === 'day_start';
+
+  const systemPrompt = isDayStart
+    ? `Eres el coach de ${profile.name || 'usuario'}. Una sola frase. En español. Sin anglicismos. Directo al objetivo.${conditionsNote}`
+    : `Eres el coach personal de ${profile.name || 'usuario'}. Conoces su perfil y su plan de la semana. Responde en máximo 2 frases. Tono directo y motivador. NUNCA uses saludos largos ni despedidas. Solo el mensaje esencial.${conditionsNote}
 CRÍTICO: Máximo 2 frases cortas. Sin saludos como "Excelente trabajo" o "Enhorabuena". Empieza directamente con el dato o la acción. Ejemplo correcto: "533kcal quemadas — gran sesión. Toma proteína en la próxima hora para recuperar." Ejemplo incorrecto: "Excelente trabajo Aitor, has quemado 533kcal..."`;
 
   try {
@@ -129,7 +133,7 @@ CRÍTICO: Máximo 2 frases cortas. Sin saludos como "Excelente trabajo" o "Enhor
         { role: 'user', content: eventPrompts[event.type] },
       ],
       temperature: 0.8,
-      max_tokens: 60,
+      max_tokens: isDayStart ? 50 : 60,
     });
     return completion.choices[0].message.content ?? '';
   } catch {
