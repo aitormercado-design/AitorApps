@@ -11,6 +11,7 @@ interface UseProactiveCoachProps {
   generatedMenu?: any;
   workoutPlan?: string | null;
   isDataLoaded: boolean;
+  streak?: number;
 }
 
 const COOLDOWN_MS = 30_000;
@@ -25,14 +26,15 @@ export function useProactiveCoach({
   generatedMenu,
   workoutPlan,
   isDataLoaded,
+  streak = 0,
 }: UseProactiveCoachProps) {
   const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
   const lastEventRef = useRef<number>(0);
 
   // Keep a stable ref to always-current context so triggerMessage has no deps
-  const contextRef = useRef<CoachContext>({ meals, habits, weights, goals, profile, generatedMenu, workoutPlan });
+  const contextRef = useRef<CoachContext>({ meals, habits, weights, goals, profile, generatedMenu, workoutPlan, streak });
   useEffect(() => {
-    contextRef.current = { meals, habits, weights, goals, profile, generatedMenu, workoutPlan };
+    contextRef.current = { meals, habits, weights, goals, profile, generatedMenu, workoutPlan, streak };
   });
 
   const triggerMessage = useCallback(async (event: ProactiveEvent) => {
@@ -167,6 +169,16 @@ export function useProactiveCoach({
     }, 2500);
     return () => clearTimeout(timer);
   }, [isDataLoaded, todayStr]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Event: streak milestone — fires when streak reaches a multiple of 7
+  const prevStreakRef = useRef(streak);
+  useEffect(() => {
+    if (!isDataLoaded) { prevStreakRef.current = streak; return; }
+    if (streak >= 7 && streak % 7 === 0 && streak !== prevStreakRef.current) {
+      triggerMessage({ type: 'streak_milestone', data: { streak } });
+    }
+    prevStreakRef.current = streak;
+  }, [streak, isDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
     proactiveMessage,

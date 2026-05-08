@@ -80,7 +80,7 @@ const goalLabels: Record<string, string> = {
 
 
 export interface ProactiveEvent {
-  type: 'meal_added' | 'workout_done' | 'workout_exercise' | 'free_workout' | 'weight_updated' | 'day_start' | 'goal_90pct' | 'goal_exceeded';
+  type: 'meal_added' | 'workout_done' | 'workout_exercise' | 'free_workout' | 'weight_updated' | 'day_start' | 'goal_90pct' | 'goal_exceeded' | 'streak_milestone';
   data: Record<string, any>;
 }
 
@@ -92,6 +92,7 @@ export interface CoachContext {
   weights: any[];
   generatedMenu?: any;
   workoutPlan?: string | null;
+  streak?: number;
 }
 
 export async function generateProactiveMessage(event: ProactiveEvent, context: CoachContext): Promise<string> {
@@ -107,6 +108,7 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
     weight_updated: `El usuario ha registrado su peso. Peso actual: ${event.data.current}kg. ${event.data.previous ? `Cambio: ${event.data.diff > 0 ? '+' : ''}${Number(event.data.diff).toFixed(1)}kg` : 'Es su primer registro de peso.'}. Comenta la tendencia de forma motivadora.`,
     goal_90pct: `El usuario está al 90% de su objetivo calórico. Le quedan ${Math.round(event.data.remaining ?? 0)}kcal. Avísale y sugiere qué puede comer con lo que le queda.`,
     goal_exceeded: `El usuario ha superado su objetivo calórico en ${Math.round(event.data.excess ?? 0)}kcal. Mensaje tranquilizador, sin dramatizar, con consejo práctico para el resto del día.`,
+    streak_milestone: `El usuario lleva ${event.data.streak} días consecutivos registrando. Felicítale en una frase corta.`,
   };
 
   const activeConditions = profile.medicalConditions
@@ -118,11 +120,12 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
 
   const conditionsNote = activeConditions ? `\n- Condiciones médicas del usuario: ${activeConditions}. Adáptate a ellas en tus consejos.` : '';
 
-  const isDayStart = event.type === 'day_start';
+  const isShortEvent = event.type === 'day_start' || event.type === 'streak_milestone';
+  const streakNote = context.streak && context.streak > 1 ? `\n- Racha actual: ${context.streak} días consecutivos` : '';
 
-  const systemPrompt = isDayStart
-    ? `Eres el coach de ${profile.name || 'usuario'}. Una sola frase. En español. Sin anglicismos. Directo al objetivo.${conditionsNote}`
-    : `Eres el coach personal de ${profile.name || 'usuario'}. Conoces su perfil y su plan de la semana. Responde en máximo 2 frases. Tono directo y motivador. NUNCA uses saludos largos ni despedidas. Solo el mensaje esencial.${conditionsNote}
+  const systemPrompt = isShortEvent
+    ? `Eres el coach de ${profile.name || 'usuario'}. Una sola frase. En español. Sin anglicismos. Directo al objetivo.${conditionsNote}${streakNote}`
+    : `Eres el coach personal de ${profile.name || 'usuario'}. Conoces su perfil y su plan de la semana. Responde en máximo 2 frases. Tono directo y motivador. NUNCA uses saludos largos ni despedidas. Solo el mensaje esencial.${conditionsNote}${streakNote}
 CRÍTICO: Máximo 2 frases cortas. Sin saludos como "Excelente trabajo" o "Enhorabuena". Empieza directamente con el dato o la acción. Ejemplo correcto: "533kcal quemadas — gran sesión. Toma proteína en la próxima hora para recuperar." Ejemplo incorrecto: "Excelente trabajo Aitor, has quemado 533kcal..."`;
 
   try {
@@ -133,7 +136,7 @@ CRÍTICO: Máximo 2 frases cortas. Sin saludos como "Excelente trabajo" o "Enhor
         { role: 'user', content: eventPrompts[event.type] },
       ],
       temperature: 0.8,
-      max_tokens: isDayStart ? 50 : 60,
+      max_tokens: isShortEvent ? 50 : 60,
     });
     return completion.choices[0].message.content ?? '';
   } catch {

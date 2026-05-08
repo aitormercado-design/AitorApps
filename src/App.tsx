@@ -12,7 +12,7 @@ import type { WeekDaySummary } from './lib/groq';
 import { useProactiveCoach } from './hooks/useProactiveCoach';
 import { analyzeFoodImage } from './lib/openrouter';
 import type { NutritionalInfo, WeeklyMenu, ShoppingList } from './types/nutrition';
-import { extractIngredients, calcularBMR } from './utils/nutrition';
+import { extractIngredients, calcularBMR, calculateStreak } from './utils/nutrition';
 import { calculateMETCalories, ACTIVITY_OPTIONS } from './utils/metCalculator';
 import { getSuggestions, type ProfileSuggestion } from './utils/profileSuggestions';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
@@ -917,6 +917,8 @@ export default function App() {
 
   const assistant = getAssistantState();
 
+  const streak = useMemo(() => calculateStreak(meals, habits), [meals, habits]);
+
   const { proactiveMessage, clearMessage } = useProactiveCoach({
     meals: todaysMeals,
     habits,
@@ -927,6 +929,7 @@ export default function App() {
     generatedMenu: generatedMenu ?? undefined,
     workoutPlan,
     isDataLoaded,
+    streak,
   });
 
   useEffect(() => {
@@ -983,24 +986,6 @@ export default function App() {
     setDismissedPrompts(updated);
     localStorage.setItem('kilokalo_dismissed_prompts', JSON.stringify(updated));
   };
-
-  const streak = useMemo(() => {
-    let count = 0;
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    for (let i = 0; i < 365; i++) {
-      const dateStr = getLocalDateStr(new Date(now.getTime() - i * 86400000));
-      const hasMeals = meals.some(m => getLocalDateStr(new Date(m.timestamp)) === dateStr);
-      const h = habits[dateStr];
-      const hasActivity = h?.workoutDone || !!h?.manualWorkout || (h?.workoutCalories ?? 0) > 0;
-      if (hasMeals || hasActivity) {
-        count++;
-      } else if (i > 0) {
-        break;
-      }
-    }
-    return count;
-  }, [meals, habits]);
 
   // Calculate weekly totals
   const weeklyStats = useMemo(() => {
@@ -2431,17 +2416,27 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                     {Math.round(assistant.remainingCalories)}
                                   </span>
                                   <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>kcal restantes</span>
-                                  {streak > 0 && (
-                                    <span className={`text-xs font-bold ${profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400'} mt-1`}>
-                                      {streak >= 30
-                                        ? `🔥 ${streak} días — ¡Imparable!`
-                                        : streak >= 7
-                                        ? `🔥 ${streak} días — ¡Semana perfecta!`
-                                        : `🔥 ${streak} días seguidos`}
-                                    </span>
-                                  )}
                                </div>
                             </div>
+
+                            {/* Streak */}
+                            {streak > 1 && (
+                              <div className="flex items-center gap-2 justify-center mt-4">
+                                <span className="text-xl">🔥</span>
+                                {streak >= 30 || streak >= 7 ? (
+                                  <span className={`font-bold text-sm ${profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400'}`}>
+                                    {streak >= 30
+                                      ? `${streak} días — ¡Imparable!`
+                                      : `${streak} días — ¡Semana perfecta!`}
+                                  </span>
+                                ) : (
+                                  <>
+                                    <span className={`font-bold text-lg ${themeStyles.textMain}`}>{streak}</span>
+                                    <span className={`text-sm ${themeStyles.textMuted}`}>días seguidos</span>
+                                  </>
+                                )}
+                              </div>
+                            )}
 
                             {/* Visual Progress Bar */}
                             <div className="mt-10 space-y-3">

@@ -1,5 +1,28 @@
 import type { NutritionTargets } from '../types/nutrition';
 
+function toDateStr(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+export function calculateStreak(
+  meals: Array<{ timestamp: number }>,
+  habits: Record<string, { workoutDone?: boolean; manualWorkout?: unknown; workoutCalories?: number }>
+): number {
+  let streak = 0;
+  for (let i = 0; i < 365; i++) {
+    const date = toDateStr(new Date(Date.now() - i * 86400000));
+    const hasMeals = meals.some(m => toDateStr(new Date(m.timestamp)) === date);
+    const h = habits[date];
+    const hasWorkout = h?.workoutDone || !!h?.manualWorkout || (h?.workoutCalories ?? 0) > 0;
+    if (hasMeals || hasWorkout) {
+      streak++;
+    } else if (i > 0) {
+      break;
+    }
+  }
+  return streak;
+}
+
 export function calcularBMR(profile: any, currentWeight?: number): number {
   const weight = currentWeight || 70;
   let bmr = 10 * weight + 6.25 * profile.height - 5 * profile.age;
