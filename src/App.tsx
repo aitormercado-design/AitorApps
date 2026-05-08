@@ -425,10 +425,7 @@ export default function App() {
   const [dismissedPrompts, setDismissedPrompts] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem('kilokalo_dismissed_prompts') ?? '[]'); } catch { return []; }
   });
-  const [optionalBannerRemindAfter, setOptionalBannerRemindAfter] = useState<number>(() => {
-    const s = localStorage.getItem('kilokalo_optional_banner_remind');
-    return s ? parseInt(s) : 0;
-  });
+
   const [appliedSuggestionKey, setAppliedSuggestionKey] = useState<string | null>(null);
   const [editProfile, setEditProfile] = useState<UserProfile>({
     name: '',
@@ -961,23 +958,21 @@ export default function App() {
   // Profile completeness (0–100) — based on saved profile
   const profileCompleteness = useMemo(() => {
     let pct = 0;
-    if (profile.name) pct += 20;
-    if (weights.length > 0) pct += 20;
-    if (profile.height > 0) pct += 20;
-    if (profile.gymEnabled && profile.trainingDaysPerWeek > 0) pct += 20;
-    if (profile.allergies?.length > 0) pct += 20;
+    if (profile.name) pct += 25;
+    if (weights.length > 0) pct += 25;
+    if (profile.height > 0) pct += 25;
+    if (profile.gymEnabled && profile.trainingDaysPerWeek > 0) pct += 25;
     return pct;
   }, [profile, weights.length]);
 
   // Live completeness based on editProfile — shown inside the modal
   const editProfileCompleteness = useMemo(() => {
     let pct = 0;
-    if (editProfile.name) pct += 20;
+    if (editProfile.name) pct += 25;
     const editWeightNum = parseFloat(editWeight);
-    if (editWeightNum > 0 || weights.length > 0) pct += 20;
-    if (editProfile.height > 0) pct += 20;
-    if (editProfile.gymEnabled && editProfile.trainingDaysPerWeek > 0) pct += 20;
-    if (editProfile.allergies?.length > 0) pct += 20;
+    if (editWeightNum > 0 || weights.length > 0) pct += 25;
+    if (editProfile.height > 0) pct += 25;
+    if (editProfile.gymEnabled && editProfile.trainingDaysPerWeek > 0) pct += 25;
     return pct;
   }, [editProfile, editWeight, weights.length]);
 
@@ -4100,7 +4095,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   </span>
                   {editProfileCompleteness < 100 && (
                     <span className={`text-xs ${themeStyles.accent} font-medium`}>
-                      {editProfileCompleteness < 80 ? 'Configura tu entrenamiento' : 'Añade alergias o preferencias'}
+                      {'Configura tu entrenamiento'}
                     </span>
                   )}
                 </div>
@@ -4114,51 +4109,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 </div>
               </div>
 
-              {/* Optional fields banner */}
-              {!!profile.name &&
-                editProfileCompleteness < 100 &&
-                !dismissedPrompts.includes('optional_fields') &&
-                Date.now() > optionalBannerRemindAfter &&
-                !editProfile.allergies?.length && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`mb-4 shrink-0 rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3.5 space-y-2.5 relative z-10`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <Sparkles className={`w-4 h-4 ${themeStyles.accent} shrink-0 mt-0.5`} />
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-bold ${themeStyles.textMain} mb-0.5`}>¿Quieres afinar tu plan?</p>
-                      <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>
-                        Puedes añadir alergias o preferencias alimenticias.
-                        Son opcionales, pero hacen el menú y las sugerencias más precisos.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 pl-6">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const after = Date.now() + 7 * 24 * 60 * 60 * 1000;
-                        setOptionalBannerRemindAfter(after);
-                        localStorage.setItem('kilokalo_optional_banner_remind', String(after));
-                      }}
-                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold border ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.textMain} transition-colors`}
-                    >
-                      Recordar en 7 días
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => dismissPrompt('optional_fields')}
-                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`}
-                    >
-                      No mostrar más
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-
-              <div className={`flex flex-nowrap overflow-x-auto hide-scrollbar sm:flex-wrap gap-1.5 mb-6 shrink-0 px-1 relative z-10 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-950'} p-1.5 rounded-xl`}>
+<div className={`flex flex-nowrap overflow-x-auto hide-scrollbar sm:flex-wrap gap-1.5 mb-6 shrink-0 px-1 relative z-10 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-950'} p-1.5 rounded-xl`}>
                 {[
                   { id: 'user', label: 'Personal', icon: UserIcon },
                   { id: 'diet', label: 'Dieta', icon: ChefHat },
