@@ -6,6 +6,7 @@ interface OnboardingData {
   name: string;
   goal: 'lose' | 'maintain' | 'gain';
   weight: number;
+  height: number;
   gender: 'male' | 'female';
   age: number;
 }
@@ -26,6 +27,7 @@ export function Onboarding({ theme, onComplete }: OnboardingProps) {
   const [name, setName] = useState('');
   const [goal, setGoal] = useState<'lose' | 'maintain' | 'gain'>('maintain');
   const [weight, setWeight] = useState(75);
+  const [height, setHeight] = useState(170);
   const [gender, setGender] = useState<'male' | 'female'>('male');
   const [age, setAge] = useState(30);
 
@@ -49,7 +51,7 @@ export function Onboarding({ theme, onComplete }: OnboardingProps) {
     : 'border-white/10 bg-zinc-900 hover:border-white/20';
 
   const handleComplete = () => {
-    onComplete({ name: name.trim() || 'Usuario', goal, weight, gender, age });
+    onComplete({ name: name.trim() || 'Usuario', goal, weight, height, gender, age });
   };
 
   return (
@@ -185,6 +187,28 @@ export function Onboarding({ theme, onComplete }: OnboardingProps) {
                     {g === 'male' ? '♂ Hombre' : '♀ Mujer'}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Altura */}
+            <div className={`border ${border} rounded-2xl p-4 flex flex-col gap-3`}>
+              <div className="flex justify-between items-center">
+                <span className={`text-xs font-bold uppercase tracking-widest ${textMuted}`}>Altura</span>
+                <span className={`text-2xl font-display font-black tracking-tighter ${textMain}`}>
+                  {height} <span className={`text-sm font-bold ${textMuted}`}>cm</span>
+                </span>
+              </div>
+              <input
+                type="range"
+                min={140}
+                max={220}
+                step={1}
+                value={height}
+                onChange={e => setHeight(parseInt(e.target.value))}
+                className="w-full accent-lime-400"
+              />
+              <div className={`flex justify-between text-xs ${textMuted} font-medium`}>
+                <span>140 cm</span><span>220 cm</span>
               </div>
             </div>
 

@@ -1474,15 +1474,14 @@ export default function App() {
     setEditingMeal(meal);
   };
 
-  const handleOnboardingComplete = async (data: { name: string; goal: 'lose' | 'maintain' | 'gain'; weight: number; gender: 'male' | 'female'; age: number }) => {
-    const estimatedHeight = data.gender === 'male' ? 175 : 163;
+  const handleOnboardingComplete = async (data: { name: string; goal: 'lose' | 'maintain' | 'gain'; weight: number; height: number; gender: 'male' | 'female'; age: number }) => {
     const newProfile: UserProfile = {
       ...profile,
       name: data.name,
       goal: data.goal,
       gender: data.gender,
       age: data.age,
-      height: estimatedHeight,
+      height: data.height,
       dietType: profile.dietType || 'Normal',
     };
     setProfile(newProfile);
