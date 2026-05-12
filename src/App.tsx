@@ -385,6 +385,8 @@ export default function App() {
   const [macrosManuallyEdited, setMacrosManuallyEdited] = useState(false);
   const recalcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+
   // Auto-open profile modal the first time a user logs in (no name saved yet)
   const hasAutoOpenedProfileRef = useRef(false);
   useEffect(() => {
@@ -443,7 +445,6 @@ export default function App() {
     setDismissedSuggestions(prev => [...prev, `${s.field}:${s.suggestedValue}`]);
   };
 
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
 
