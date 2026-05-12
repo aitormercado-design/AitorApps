@@ -883,25 +883,6 @@ export default function App() {
   }, [profile.theme]);
 
   // Profile completeness (0–100) — based on saved profile
-  const profileCompleteness = useMemo(() => {
-    let pct = 0;
-    if (profile.name) pct += 25;
-    if (weights.length > 0) pct += 25;
-    if (profile.height > 0) pct += 25;
-    if (profile.gymEnabled && profile.trainingDaysPerWeek > 0) pct += 25;
-    return pct;
-  }, [profile, weights.length]);
-
-  // Live completeness based on editProfile — shown inside the modal
-  const editProfileCompleteness = useMemo(() => {
-    let pct = 0;
-    if (editProfile.name) pct += 25;
-    const editWeightNum = parseFloat(editWeight);
-    if (editWeightNum > 0 || weights.length > 0) pct += 25;
-    if (editProfile.height > 0) pct += 25;
-    if (editProfile.gymEnabled && editProfile.trainingDaysPerWeek > 0) pct += 25;
-    return pct;
-  }, [editProfile, editWeight, weights.length]);
 
   const dismissPrompt = (id: string) => {
     const updated = [...dismissedPrompts, id];
@@ -2139,14 +2120,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               <span className={`text-xs font-bold uppercase tracking-wider hidden sm:block ${profile.age === 0 ? 'text-zinc-950' : themeStyles.accent}`}>
                 Perfil
               </span>
-              {!profile.name ? (
+              {!profile.name && (
                 <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
-                </span>
-              ) : profileCompleteness < 80 && (
-                <span className={`absolute -top-1.5 -right-1.5 text-[9px] font-black rounded-full px-1 py-0.5 leading-none ${profile.age === 0 ? 'bg-zinc-950/30 text-white' : (profile.theme === 'light' ? 'bg-emerald-500 text-white' : 'bg-lime-400 text-zinc-950')}`}>
-                  {profileCompleteness}%
                 </span>
               )}
             </motion.button>
@@ -4072,25 +4049,28 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <span className={`text-xs font-bold ${themeStyles.textMuted} opacity-60`}>Obligatorio</span>
                 )}
               </div>
-              {/* Profile completeness bar */}
-              <div className="mb-5 shrink-0 relative z-10">
-                <div className="flex justify-between items-center mb-1.5">
-                  <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>
-                    Perfil {editProfileCompleteness}% completo
-                  </span>
-                  {editProfileCompleteness < 100 && (
-                    <span className={`text-xs ${themeStyles.accent} font-medium`}>
-                      {'Configura tu entrenamiento'}
-                    </span>
-                  )}
-                </div>
-                <div className={`h-1.5 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'} rounded-full overflow-hidden`}>
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${editProfileCompleteness}%` }}
-                    transition={{ duration: 0.4, ease: 'easeOut' }}
-                    className={`h-full rounded-full ${themeStyles.accentBg}`}
-                  />
+              {/* Plan setup guide */}
+              <div className={`mb-4 shrink-0 p-3.5 rounded-2xl border ${themeStyles.border} ${themeStyles.iconBg} relative z-10`}>
+                <p className={`text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted} mb-2.5`}>Para tu plan semanal</p>
+                <div className="space-y-1.5">
+                  {[
+                    { done: !!editProfile.name && parseFloat(editWeight) > 0 && editProfile.age > 0 && editProfile.height > 0, label: 'Datos personales', tab: 'user' as const },
+                    { done: editProfile.dietType !== 'Normal' || editProfile.macroDistribution !== 'balanced', label: 'Tipo de dieta', tab: 'diet' as const },
+                    { done: editProfile.gymEnabled, label: 'Plan de entrenamiento', tab: 'exercise' as const },
+                  ].map(({ done, label, tab }) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setProfileTab(tab)}
+                      className={`w-full flex items-center gap-2.5 text-left transition-opacity ${done ? 'opacity-50' : ''}`}
+                    >
+                      <span className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${done ? (profile.theme === 'light' ? 'bg-emerald-500 border-emerald-500' : 'bg-lime-400 border-lime-400') : (profile.theme === 'light' ? 'border-slate-300' : 'border-zinc-600')}`}>
+                        {done && <span className="text-[8px] font-black text-white">✓</span>}
+                      </span>
+                      <span className={`text-xs font-medium ${done ? themeStyles.textMuted : themeStyles.textMain}`}>{label}</span>
+                      {!done && <span className={`ml-auto text-[10px] font-bold ${themeStyles.accent}`}>→</span>}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -4161,59 +4141,76 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               <form onSubmit={handleSaveGoal} className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar pb-10 text-left relative z-10">
                 {profileTab === 'user' && (
                   <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
-                    <div className={`${themeStyles.iconBg} p-5 rounded-2xl border ${themeStyles.border} space-y-4 shadow-sm`}>
-                      <div className="flex flex-col md:flex-row gap-4">
-                        <div className="flex-1 space-y-2">
-                          <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Nombre completo</label>
-                          <input 
-                            type="text" 
-                            value={editProfile.name}
-                            onChange={(e) => setEditProfile({...editProfile, name: e.target.value})}
-                            className={`w-full ${themeStyles.input} rounded-xl px-4 py-4 text-sm font-bold focus:outline-none transition-all shadow-inner`}
-                            placeholder="Tu nombre..."
-                          />
-                        </div>
-                      </div>
-
-                      {/* Tema configurado en cabecera */}
+                    <div className={`${themeStyles.iconBg} p-4 rounded-2xl border ${themeStyles.border} space-y-2 shadow-sm`}>
+                      <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Nombre</label>
+                      <input
+                        type="text"
+                        value={editProfile.name}
+                        onChange={(e) => setEditProfile({...editProfile, name: e.target.value})}
+                        className={`w-full ${themeStyles.input} rounded-xl px-4 py-3 text-base font-bold focus:outline-none transition-all`}
+                        placeholder="Tu nombre..."
+                        autoComplete="given-name"
+                      />
                     </div>
-                      <div className="space-y-4">
-                        <RulerPicker
-                          label="Edad"
-                          theme={profile.theme}
-                          value={editProfile.age}
-                          onChange={(val: string) => setEditProfile({...editProfile, age: parseInt(val) || 0})}
-                          min={15}
-                          max={100}
-                          step={1}
-                          unit="Años"
-                        />
-                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        {/* Edad */}
+                        {([
+                          { label: 'Edad', unit: 'años', value: editProfile.age, min: 15, max: 100, step: 1,
+                            set: (v: number) => setEditProfile({...editProfile, age: v}) },
+                          { label: 'Altura', unit: 'cm', value: editProfile.height, min: 120, max: 230, step: 1,
+                            set: (v: number) => setEditProfile({...editProfile, height: v}) },
+                        ] as const).map(({ label, unit, value, min, max, step, set }) => (
+                          <div key={label} className={`${themeStyles.iconBg} border ${themeStyles.border} rounded-2xl p-3 flex flex-col items-center gap-2`}>
+                            <p className={`text-[10px] font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>{label}</p>
+                            <input
+                              type="number"
+                              value={value || ''}
+                              onChange={e => set(Math.max(min, Math.min(max, parseInt(e.target.value) || 0)))}
+                              placeholder="—"
+                              min={min} max={max}
+                              className={`w-full text-center text-2xl font-black bg-transparent border-none focus:outline-none ${themeStyles.accent} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                            />
+                            <div className="flex items-center gap-2 w-full justify-center">
+                              <button type="button" onClick={() => set(Math.max(min, value - step))}
+                                className={`w-8 h-8 rounded-xl border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted} hover:${themeStyles.textMain} transition-colors`}>
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+                              <span className={`text-[10px] font-medium ${themeStyles.textMuted}`}>{unit}</span>
+                              <button type="button" onClick={() => set(Math.min(max, value + step))}
+                                className={`w-8 h-8 rounded-xl border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted} hover:${themeStyles.textMain} transition-colors`}>
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
 
-                      <div className="space-y-4">
-                        <RulerPicker
-                          label="Altura"
-                          theme={profile.theme}
-                          value={editProfile.height}
-                          onChange={(val: string) => setEditProfile({...editProfile, height: parseInt(val) || 0})}
-                          min={120}
-                          max={230}
-                          step={1}
-                          unit="cm"
-                        />
-                      </div>
-
-                      <div className="space-y-4">
-                        <RulerPicker
-                          label="Peso Actual"
-                          theme={profile.theme}
-                          value={editWeight}
-                          onChange={setEditWeight}
-                          min={40}
-                          max={200}
-                          step={0.1}
-                          unit="kg"
-                        />
+                        {/* Peso */}
+                        <div className={`${themeStyles.iconBg} border ${themeStyles.border} rounded-2xl p-3 flex flex-col items-center gap-2`}>
+                          <p className={`text-[10px] font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>Peso</p>
+                          <input
+                            type="number"
+                            value={editWeight}
+                            onChange={e => setEditWeight(e.target.value)}
+                            onBlur={() => {
+                              const v = parseFloat(editWeight);
+                              if (!isNaN(v)) setEditWeight(Math.max(40, Math.min(200, v)).toFixed(1));
+                            }}
+                            placeholder="—"
+                            min={40} max={200} step={0.1}
+                            className={`w-full text-center text-2xl font-black bg-transparent border-none focus:outline-none ${themeStyles.accent} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                          />
+                          <div className="flex items-center gap-2 w-full justify-center">
+                            <button type="button" onClick={() => setEditWeight(v => String(Math.max(40, parseFloat(v || '70') - 0.5).toFixed(1)))}
+                              className={`w-8 h-8 rounded-xl border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted} hover:${themeStyles.textMain} transition-colors`}>
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <span className={`text-[10px] font-medium ${themeStyles.textMuted}`}>kg</span>
+                            <button type="button" onClick={() => setEditWeight(v => String(Math.min(200, parseFloat(v || '70') + 0.5).toFixed(1)))}
+                              className={`w-8 h-8 rounded-xl border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted} hover:${themeStyles.textMain} transition-colors`}>
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
                       <div className="space-y-1.5 px-2">
                         <label className={`block text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>Género</label>
