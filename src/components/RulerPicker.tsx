@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 interface RulerPickerProps {
   value: string | number;
@@ -13,39 +13,67 @@ interface RulerPickerProps {
 
 export const RulerPicker = ({ value, onChange, min, max, step, unit, label, theme }: RulerPickerProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const isInternalUpdate = useRef(false);
+  const isScrollingRef = useRef(false); // ruler is driving value
+  const isTypingRef = useRef(false);    // user is typing in the input
 
   const range = max - min;
-  const steps = range / step;
+  const steps = Math.round(range / step);
 
+  // Sync scroll position from value — but only when the ruler isn't already driving
+  // and the user isn't mid-type (to avoid fighting with keyboard input)
   useEffect(() => {
-    if (scrollRef.current && !isInternalUpdate.current) {
-      const percentage = (Number(value) - min) / range;
-      const targetScroll = percentage * (scrollRef.current.scrollWidth - scrollRef.current.clientWidth);
-      scrollRef.current.scrollLeft = targetScroll;
-    }
-    isInternalUpdate.current = false;
+    if (isScrollingRef.current || isTypingRef.current) return;
+    if (!scrollRef.current) return;
+    const numVal = Number(value);
+    if (isNaN(numVal)) return;
+    const clamped = Math.max(min, Math.min(max, numVal));
+    const percentage = (clamped - min) / range;
+    const maxScroll = scrollRef.current.scrollWidth - scrollRef.current.clientWidth;
+    scrollRef.current.scrollLeft = percentage * maxScroll;
   }, [value, min, max, range]);
 
   const handleScroll = () => {
-    if (scrollRef.current) {
-      const scrollPos = scrollRef.current.scrollLeft;
-      const maxScroll = scrollRef.current.scrollWidth - scrollRef.current.clientWidth;
-      if (maxScroll <= 0) return;
-      const percentage = Math.max(0, Math.min(1, scrollPos / maxScroll));
-      const newValue = min + percentage * range;
-      const steppedValue = Math.round(newValue / step) * step;
-      const formattedValue = steppedValue.toFixed(step < 1 ? 1 : 0);
-      if (formattedValue !== String(value)) {
-        isInternalUpdate.current = true;
-        onChange(formattedValue);
-      }
+    if (isTypingRef.current || !scrollRef.current) return;
+    const maxScroll = scrollRef.current.scrollWidth - scrollRef.current.clientWidth;
+    if (maxScroll <= 0) return;
+    const percentage = Math.max(0, Math.min(1, scrollRef.current.scrollLeft / maxScroll));
+    const newValue = min + percentage * range;
+    const steppedValue = Math.round(newValue / step) * step;
+    const formatted = steppedValue.toFixed(step < 1 ? 1 : 0);
+    if (formatted !== String(value)) {
+      isScrollingRef.current = true;
+      onChange(formatted);
+      // Let the next frame clear the flag so the useEffect doesn't re-scroll
+      requestAnimationFrame(() => { isScrollingRef.current = false; });
     }
   };
 
-  const onMouseDown = () => setIsDragging(true);
-  const stopDragging = () => setIsDragging(false);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    isTypingRef.current = true;
+    const raw = e.target.value;
+    if (raw === '' || raw === '-') {
+      onChange(String(min)); // propagate min while clearing
+      return;
+    }
+    const numVal = parseFloat(raw);
+    if (!isNaN(numVal)) onChange(raw);
+  };
+
+  const handleInputBlur = () => {
+    isTypingRef.current = false;
+    // Clamp and step the committed value
+    const numVal = parseFloat(String(value));
+    const clamped = isNaN(numVal) ? min : Math.max(min, Math.min(max, numVal));
+    const stepped = Math.round(clamped / step) * step;
+    const formatted = stepped.toFixed(step < 1 ? 1 : 0);
+    if (formatted !== String(value)) onChange(formatted);
+    // Now sync the ruler
+    if (scrollRef.current) {
+      const pct = (stepped - min) / range;
+      const maxScroll = scrollRef.current.scrollWidth - scrollRef.current.clientWidth;
+      scrollRef.current.scrollLeft = pct * maxScroll;
+    }
+  };
 
   return (
     <div className={`space-y-2 p-4 rounded-2xl border shadow-inner ${theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-zinc-950/50 border-white/5'}`}>
@@ -58,12 +86,8 @@ export const RulerPicker = ({ value, onChange, min, max, step, unit, label, them
             step={step}
             min={min}
             max={max}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === '') { onChange('0'); return; }
-              const numVal = parseFloat(val);
-              if (!isNaN(numVal)) onChange(val);
-            }}
+            onChange={handleInputChange}
+            onBlur={handleInputBlur}
             className={`text-2xl font-display font-black bg-transparent border-none focus:outline-none w-20 text-right appearance-none ${theme === 'light' ? 'text-emerald-500' : 'text-lime-400'}`}
             style={{ MozAppearance: 'textfield' } as React.CSSProperties}
           />
@@ -76,9 +100,6 @@ export const RulerPicker = ({ value, onChange, min, max, step, unit, label, them
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          onMouseDown={onMouseDown}
-          onMouseUp={stopDragging}
-          onMouseLeave={stopDragging}
           className="w-full h-full overflow-x-auto no-scrollbar cursor-grab active:cursor-grabbing flex items-end pb-2 px-[50%]"
           style={{ scrollSnapType: 'x proximity' }}
         >
@@ -89,7 +110,7 @@ export const RulerPicker = ({ value, onChange, min, max, step, unit, label, them
               const isMid = i % 5 === 0;
               return (
                 <div key={i} className="flex flex-col items-center gap-1">
-                  <div className={`rounded-full transition-colors ${
+                  <div className={`rounded-full ${
                     isMajor ? `h-6 w-0.5 ${theme === 'light' ? 'bg-slate-400' : 'bg-zinc-500'}` :
                     isMid   ? `h-4 w-0.5 ${theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700'}` :
                                `h-2 w-0.5 ${theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'}`
