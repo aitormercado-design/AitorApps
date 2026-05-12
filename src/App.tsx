@@ -1557,10 +1557,10 @@ export default function App() {
 
   const handleSaveGoal = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editProfile.name.trim()) return; // name is the only hard requirement
-
     const weightVal = parseFloat(editWeight);
-    const hasFullData = !isNaN(weightVal) && weightVal > 0 && editProfile.age > 0 && editProfile.height > 0;
+    if (!editProfile.name.trim() || isNaN(weightVal) || weightVal <= 0 || editProfile.age <= 0 || editProfile.height <= 0) return;
+
+    const hasFullData = true; // all required fields validated above
 
     // Always ensure defaults so the AI never gets undefined fields
     const profileToSave: UserProfile = {
@@ -1570,19 +1570,17 @@ export default function App() {
       macroDistribution: editProfile.macroDistribution || 'balanced',
     };
 
-    // Save weight only when it's a valid new value
-    if (hasFullData) {
-      const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : null;
-      if (weightVal !== latestWeight) {
-        const newEntry: WeightEntry = {
-          id: Date.now().toString(),
-          weight: weightVal,
-          timestamp: Date.now(),
-        };
-        setWeights(prev => [...prev, newEntry].sort((a, b) => a.timestamp - b.timestamp));
-        if (user) {
-          setDoc(doc(db, 'users', user.uid, 'weights', newEntry.id), newEntry).catch(console.error);
-        }
+    // Save weight if it's a new value
+    const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : null;
+    if (weightVal !== latestWeight) {
+      const newEntry: WeightEntry = {
+        id: Date.now().toString(),
+        weight: weightVal,
+        timestamp: Date.now(),
+      };
+      setWeights(prev => [...prev, newEntry].sort((a, b) => a.timestamp - b.timestamp));
+      if (user) {
+        setDoc(doc(db, 'users', user.uid, 'weights', newEntry.id), newEntry).catch(console.error);
       }
     }
 
@@ -1603,12 +1601,9 @@ export default function App() {
       editProfile.trainingDaysPerWeek !== profile.trainingDaysPerWeek;
 
     setProfile(profileToSave);
-
-    if (hasFullData) {
-      updateGoalsForProfile(profileToSave, weightVal);
-      if (dietChanged && generatedMenu) setMenuNeedsRegeneration(true);
-      if (editProfile.gymEnabled && gymChanged) setWorkoutNeedsRegeneration(true);
-    }
+    updateGoalsForProfile(profileToSave, weightVal);
+    if (dietChanged && generatedMenu) setMenuNeedsRegeneration(true);
+    if (editProfile.gymEnabled && gymChanged) setWorkoutNeedsRegeneration(true);
 
     setIsGoalModalOpen(false);
   };
@@ -4049,12 +4044,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            onClick={profile.name ? () => setIsGoalModalOpen(false) : undefined}
             className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center p-4"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
               className={`${themeStyles.card} border ${themeStyles.border} rounded-2xl p-5 w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden`}
             >
               <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-2xl pointer-events-none`}></div>
@@ -4064,11 +4061,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <div className={`p-2 ${themeStyles.accentMuted} rounded-xl border ${themeStyles.accentBorder}`}>
                     <UserIcon className={`w-6 h-6 ${themeStyles.accent}`} />
                   </div>
-                  <h3 className={`text-xl font-display font-bold ${themeStyles.textMain} uppercase tracking-tight`}>Configuración de Perfil</h3>
+                  <h3 className={`text-xl font-display font-bold ${themeStyles.textMain} uppercase tracking-tight`}>
+                    {profile.name ? 'Configuración de Perfil' : '¡Bienvenido! Configura tu perfil'}
+                  </h3>
                 </div>
-                <button onClick={() => setIsGoalModalOpen(false)} className={`${themeStyles.textMuted} hover:text-red-500 transition-colors`}>
-                  <X className="w-5 h-5" />
-                </button>
+                {profile.name ? (
+                  <button onClick={() => setIsGoalModalOpen(false)} className={`${themeStyles.textMuted} hover:text-red-500 transition-colors`}>
+                    <X className="w-5 h-5" />
+                  </button>
+                ) : (
+                  <span className={`text-xs font-bold ${themeStyles.textMuted} opacity-60`}>Obligatorio</span>
+                )}
               </div>
               {/* Profile completeness bar */}
               <div className="mb-5 shrink-0 relative z-10">
