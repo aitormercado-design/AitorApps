@@ -15,7 +15,7 @@ import { extractIngredients, calcularBMR, calculateStreak } from './utils/nutrit
 import { calculateMETCalories, ACTIVITY_OPTIONS } from './utils/metCalculator';
 import { getSuggestions, type ProfileSuggestion } from './utils/profileSuggestions';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, getDocFromServer, onSnapshot, deleteField, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, updateDoc, getDocFromServer, onSnapshot, deleteField, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 enum OperationType {
@@ -495,9 +495,7 @@ export default function App() {
               setProfile(loadedProfile);
               // One-time migration: delete legacy favoriteSupermarket field
               if (data.profile.favoriteSupermarket !== undefined) {
-                import('firebase/firestore').then(({ updateDoc }) => {
-                  updateDoc(doc(db, 'users', currentUser.uid), { 'profile.favoriteSupermarket': deleteField() }).catch(console.error);
-                });
+                updateDoc(doc(db, 'users', currentUser.uid), { 'profile.favoriteSupermarket': deleteField() }).catch(console.error);
               }
             }
             if (data.goals) setGoals(data.goals);
