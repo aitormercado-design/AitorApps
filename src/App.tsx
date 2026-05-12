@@ -342,6 +342,10 @@ export default function App() {
     const s = localStorage.getItem('kilokalo_optional_banner_remind');
     return s ? parseInt(s) : 0;
   });
+  const [dietGymBannerRemindAfter, setDietGymBannerRemindAfter] = useState<number>(() => {
+    const s = localStorage.getItem('kilokalo_diet_gym_banner_remind');
+    return s ? parseInt(s) : 0;
+  });
 
   const [appliedSuggestionKey, setAppliedSuggestionKey] = useState<string | null>(null);
   const [editProfile, setEditProfile] = useState<UserProfile>({
@@ -380,6 +384,17 @@ export default function App() {
   const [macrosJustUpdated, setMacrosJustUpdated] = useState(false);
   const [macrosManuallyEdited, setMacrosManuallyEdited] = useState(false);
   const recalcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-open profile modal the first time a user logs in (no name saved yet)
+  const hasAutoOpenedProfileRef = useRef(false);
+  useEffect(() => {
+    if (!isDataLoaded || !user || profile.name || hasAutoOpenedProfileRef.current) return;
+    hasAutoOpenedProfileRef.current = true;
+    setEditProfile({ ...profile, allergies: [], dislikedFoods: '' });
+    setEditWeight('');
+    setProfileTab('user');
+    setIsGoalModalOpen(true);
+  }, [isDataLoaded, user, profile.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const menuCooldown          = useCooldown(60);
   const workoutCooldown       = useCooldown(60);
@@ -1445,8 +1460,17 @@ export default function App() {
   };
 
   const handleGenerateMenu = async (customProfile?: UserProfile, customGoals?: typeof goals, customWeight?: number) => {
-    const activeProfile = customProfile || profile;
-    if (activeProfile.age === 0) return;
+    const raw = customProfile || profile;
+    // Fill in defaults so the AI prompt always has valid values
+    const activeProfile: UserProfile = {
+      ...raw,
+      age: raw.age || 30,
+      height: raw.height || 170,
+      gender: raw.gender || 'male',
+      dietType: raw.dietType || 'Normal',
+      macroDistribution: raw.macroDistribution || 'balanced',
+    };
+    if (!activeProfile.name) { showError('Añade tu nombre en el perfil antes de generar el menú.'); return; }
     if (isAIGenerating) { showError('Ya hay una generación en curso. Espera a que termine.'); return; }
     setIsAIGenerating(true);
     setIsGeneratingMenu(true);
@@ -1533,23 +1557,32 @@ export default function App() {
 
   const handleSaveGoal = (e: React.FormEvent) => {
     e.preventDefault();
-    const weightVal = parseFloat(editWeight);
-    
-    if (isNaN(weightVal) || weightVal <= 0 || editProfile.age <= 0 || editProfile.height <= 0) {
-      return;
-    }
+    if (!editProfile.name.trim()) return; // name is the only hard requirement
 
-    // Save weight if it's new
-    const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : null;
-    if (weightVal !== latestWeight) {
-      const newEntry: WeightEntry = {
-        id: Date.now().toString(),
-        weight: weightVal,
-        timestamp: Date.now(),
-      };
-      setWeights(prev => [...prev, newEntry].sort((a, b) => a.timestamp - b.timestamp));
-      if (user) {
-        setDoc(doc(db, 'users', user.uid, 'weights', newEntry.id), newEntry).catch(console.error);
+    const weightVal = parseFloat(editWeight);
+    const hasFullData = !isNaN(weightVal) && weightVal > 0 && editProfile.age > 0 && editProfile.height > 0;
+
+    // Always ensure defaults so the AI never gets undefined fields
+    const profileToSave: UserProfile = {
+      ...editProfile,
+      name: editProfile.name.trim(),
+      dietType: editProfile.dietType || 'Normal',
+      macroDistribution: editProfile.macroDistribution || 'balanced',
+    };
+
+    // Save weight only when it's a valid new value
+    if (hasFullData) {
+      const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : null;
+      if (weightVal !== latestWeight) {
+        const newEntry: WeightEntry = {
+          id: Date.now().toString(),
+          weight: weightVal,
+          timestamp: Date.now(),
+        };
+        setWeights(prev => [...prev, newEntry].sort((a, b) => a.timestamp - b.timestamp));
+        if (user) {
+          setDoc(doc(db, 'users', user.uid, 'weights', newEntry.id), newEntry).catch(console.error);
+        }
       }
     }
 
@@ -1569,13 +1602,13 @@ export default function App() {
       editProfile.gymEnabled !== profile.gymEnabled ||
       editProfile.trainingDaysPerWeek !== profile.trainingDaysPerWeek;
 
-    setProfile(editProfile);
+    setProfile(profileToSave);
 
-    const newGoals = updateGoalsForProfile(editProfile, weightVal);
-
-    // Flag content that needs regeneration — do NOT auto-call Groq
-    if (dietChanged && generatedMenu) setMenuNeedsRegeneration(true);
-    if (editProfile.gymEnabled && gymChanged) setWorkoutNeedsRegeneration(true);
+    if (hasFullData) {
+      updateGoalsForProfile(profileToSave, weightVal);
+      if (dietChanged && generatedMenu) setMenuNeedsRegeneration(true);
+      if (editProfile.gymEnabled && gymChanged) setWorkoutNeedsRegeneration(true);
+    }
 
     setIsGoalModalOpen(false);
   };
@@ -2182,29 +2215,42 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           )}
         </AnimatePresence>
 
-        {/* First-launch welcome banner */}
-        {!profile.name && activeTab === 'today' && (
+        {/* Diet/gym nudge banner — shown after basic data is filled but diet or gym not yet configured */}
+        {activeTab === 'today' &&
+          !!profile.name && profile.height > 0 && profile.age > 0 && weights.length > 0 &&
+          (!profile.gymEnabled || profile.dietType === 'Normal') &&
+          !dismissedPrompts.includes('setup_diet_gym') &&
+          Date.now() > dietGymBannerRemindAfter && (
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`rounded-2xl border-l-4 border-red-500 ${profile.theme === 'light' ? 'bg-red-50' : 'bg-red-950/30'} p-4 flex items-start gap-3`}
+            className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-4 flex items-start gap-3`}
           >
-            <span className="text-xl shrink-0">👋</span>
+            <Sparkles className={`w-4 h-4 ${themeStyles.accent} shrink-0 mt-0.5`} />
             <div className="flex-1 min-w-0">
-              <p className={`text-sm font-bold ${themeStyles.textMain} mb-0.5`}>¡Bienvenido a KiloKalo!</p>
-              <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>Configura tu perfil para calcular tus calorías y macros personalizados.</p>
+              <p className={`text-xs font-bold ${themeStyles.textMain} mb-0.5`}>Para mejores resultados</p>
+              <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>
+                Configura tu tipo de dieta y plan de entrenamiento para un menú y rutina más precisos.
+              </p>
+              <div className="flex gap-2 mt-2.5">
+                <button
+                  onClick={() => {
+                    const after = Date.now() + 24 * 60 * 60 * 1000;
+                    setDietGymBannerRemindAfter(after);
+                    localStorage.setItem('kilokalo_diet_gym_banner_remind', String(after));
+                  }}
+                  className={`flex-1 py-1.5 rounded-xl text-xs font-bold border ${themeStyles.border} ${themeStyles.textMuted}`}
+                >
+                  Recordar mañana
+                </button>
+                <button
+                  onClick={() => dismissPrompt('setup_diet_gym')}
+                  className={`flex-1 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`}
+                >
+                  Quitar
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => {
-                setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' });
-                setEditWeight('');
-                setDismissedSuggestions([]);
-                setIsGoalModalOpen(true);
-              }}
-              className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} whitespace-nowrap`}
-            >
-              Configurar
-            </button>
           </motion.div>
         )}
 
