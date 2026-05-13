@@ -1411,11 +1411,11 @@ export default function App() {
       fat = Math.round((calories * fatRatio) / 9);
     }
 
-    // Apply same diabetes carb cap as groq.ts (max 240g/day = 60g × 4 meals)
+    // Apply same diabetes carb cap as groq.ts (~50g × 3 meals = 150g/day)
     const hasDiabetes = prof.medicalConditions?.diabetes || (prof.diabetesType && prof.diabetesType !== 'none');
-    if (hasDiabetes && carbs > 240) {
-      const excessKcal = (carbs - 240) * 4;
-      carbs = 240;
+    if (hasDiabetes && carbs > 150) {
+      const excessKcal = (carbs - 150) * 4;
+      carbs = 150;
       fat = Math.round(fat + excessKcal / 9);
     }
 
@@ -2196,70 +2196,82 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           )}
         </AnimatePresence>
 
-        {/* Diet/gym nudge banner — shown after basic data is filled but diet or gym not yet configured */}
-        {activeTab === 'today' &&
-          !!profile.name && profile.height > 0 && profile.age > 0 && weights.length > 0 &&
-          (!profile.gymEnabled || profile.dietType === 'Normal') &&
+        {/* Menu + gym setup banner — one single banner for both features */}
+        {activeTab === 'today' && !!profile.name && profile.height > 0 &&
+          (!profile.menuEnabled || !profile.gymEnabled) &&
           !dismissedPrompts.includes('setup_diet_gym') &&
-          Date.now() > dietGymBannerRemindAfter && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-4 flex items-start gap-3`}
-          >
-            <Sparkles className={`w-4 h-4 ${themeStyles.accent} shrink-0 mt-0.5`} />
-            <div className="flex-1 min-w-0">
-              <p className={`text-xs font-bold ${themeStyles.textMain} mb-0.5`}>Para mejores resultados</p>
-              <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>
-                Configura tu tipo de dieta y plan de entrenamiento para un menú y rutina más precisos.
-              </p>
-              <div className="flex gap-2 mt-2.5">
-                <button
-                  onClick={() => {
-                    const after = Date.now() + 24 * 60 * 60 * 1000;
-                    setDietGymBannerRemindAfter(after);
-                    localStorage.setItem('kilokalo_diet_gym_banner_remind', String(after));
-                  }}
-                  className={`flex-1 py-1.5 rounded-xl text-xs font-bold border ${themeStyles.border} ${themeStyles.textMuted}`}
-                >
-                  Recordar mañana
-                </button>
-                <button
-                  onClick={() => dismissPrompt('setup_diet_gym')}
-                  className={`flex-1 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`}
-                >
-                  Quitar
-                </button>
-              </div>
-            </div>
+          Date.now() > dietGymBannerRemindAfter && (() => {
+            const openProfile = (step: 1 | 2 | 3 = 1) => {
+              setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' });
+              setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : '');
+              setDismissedSuggestions([]);
+              setProfileWizardStep(step);
+              setIsGoalModalOpen(true);
+            };
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-4`}
+              >
+                <div className="flex items-start gap-3 mb-3">
+                  <Sparkles className={`w-4 h-4 ${themeStyles.accent} shrink-0 mt-0.5`} />
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-bold ${themeStyles.textMain} mb-0.5`}>Configura tu experiencia</p>
+                    <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>
+                      Activa los módulos que quieras: planes de comidas y/o seguimiento de entrenamiento.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-2.5">
+                  {!profile.menuEnabled && (
+                    <button
+                      onClick={() => openProfile(2)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} transition-all`}
+                    >
+                      Menú semanal
+                    </button>
+                  )}
+                  {!profile.gymEnabled && (
+                    <button
+                      onClick={() => openProfile(3)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} transition-all`}
+                    >
+                      Entrenamiento
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const after = Date.now() + 24 * 60 * 60 * 1000;
+                      setDietGymBannerRemindAfter(after);
+                      localStorage.setItem('kilokalo_diet_gym_banner_remind', String(after));
+                    }}
+                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold border ${themeStyles.border} ${themeStyles.textMuted}`}
+                  >
+                    Recordar mañana
+                  </button>
+                  <button
+                    onClick={() => dismissPrompt('setup_diet_gym')}
+                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`}
+                  >
+                    Quitar
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })()}
+
+        {/* Height missing prompt */}
+        {activeTab === 'today' && profile.height === 0 && !!profile.name && !dismissedPrompts.includes('add_height') && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
+            <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
+            <p className={`text-xs ${themeStyles.textMuted} flex-1`}>Añade tu altura para que tus objetivos de calorías sean precisos</p>
+            <button onClick={() => { setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setProfileWizardStep(1); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Añadir datos</button>
+            <button onClick={() => dismissPrompt('add_height')} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
           </motion.div>
         )}
-
-        {/* Profile contextual prompts — show one at a time, each screen */}
-        {(() => {
-          const openProfile = (step: 1 | 2 | 3 = 1) => {
-            setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' });
-            setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : '');
-            setDismissedSuggestions([]);
-            setProfileWizardStep(step);
-            setIsGoalModalOpen(true);
-          };
-          const prompts = [
-            { id: 'add_height',  screen: 'today', condition: profile.height === 0 && !!profile.name, message: 'Añade tu altura para que tus objetivos de calorías sean precisos', action: 'Añadir datos', step: 1 as const },
-            { id: 'setup_menu',  screen: 'today', condition: !profile.menuEnabled && !!profile.name && profile.height > 0, message: '¿Quieres un menú semanal? Actívalo en tu perfil para obtener un plan de comidas personalizado', action: 'Configurar menú', step: 2 as const },
-            { id: 'setup_gym',   screen: 'today', condition: !profile.gymEnabled && !!profile.name && profile.height > 0, message: '¿Entrenas? Activa el módulo gym para registrar workouts y ajustar tus calorías', action: 'Configurar gym', step: 3 as const },
-          ].filter(p => p.condition && !dismissedPrompts.includes(p.id));
-          const prompt = activeTab === 'today' ? prompts[0] : null;
-          if (!prompt) return null;
-          return (
-            <motion.div key={prompt.id} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
-              <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
-              <p className={`text-xs ${themeStyles.textMuted} flex-1`}>{prompt.message}</p>
-              <button onClick={() => openProfile(prompt.step)} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>{prompt.action}</button>
-              <button onClick={() => dismissPrompt(prompt.id)} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
-            </motion.div>
-          );
-        })()}
 
         {/* Tabs */}
         <div className={`flex flex-nowrap overflow-x-auto hide-scrollbar ${profile.theme === 'light' ? 'bg-slate-200/50' : 'bg-zinc-950/80'} backdrop-blur-md p-1.5 rounded-2xl border ${profile.theme === 'light' ? 'border-slate-300/50' : 'border-white/5'} mb-8 shadow-2xl gap-1`}>
@@ -4189,7 +4201,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           <span className={`text-xs font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-rose-700' : 'text-rose-300/70'}`}>Condiciones Médicas</span>
                         </div>
                         {([
-                          { key: 'diabetes' as const, label: 'Diabetes', note: 'Limitamos carbos a 60g/ingesta' },
+                          { key: 'diabetes' as const, label: 'Diabetes', note: 'Máx. 150g carbos/día (~50g por ingesta)' },
                           { key: 'highCholesterol' as const, label: 'Colesterol alto', note: 'Reducimos grasas saturadas' },
                           { key: 'hypertension' as const, label: 'Hipertensión', note: 'Limitamos sodio y procesados' },
                           { key: 'hypothyroidism' as const, label: 'Hipotiroidismo', note: 'Moderamos soja y crucíferas' },
