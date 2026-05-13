@@ -245,9 +245,9 @@ export async function generateWeeklyMenu(profile: any, currentWeight: number): P
   const hasDiabetes = conditions.diabetes || (profile.diabetesType && profile.diabetesType !== 'none');
 
   const adjustedTargets = { ...targets };
-  if (hasDiabetes && adjustedTargets.carbs > 240) {
-    const excessKcal = (adjustedTargets.carbs - 240) * 4;
-    adjustedTargets.carbs = 240;
+  if (hasDiabetes && adjustedTargets.carbs > 150) {
+    const excessKcal = (adjustedTargets.carbs - 150) * 4;
+    adjustedTargets.carbs = 150;
     adjustedTargets.fat = Math.round(adjustedTargets.fat + excessKcal / 9);
   }
 
@@ -255,7 +255,7 @@ export async function generateWeeklyMenu(profile: any, currentWeight: number): P
   const medicalRules: string[] = [];
   if (hasDiabetes) {
     medicalRules.push(
-      `DIABETES${profile.diabetesType && profile.diabetesType !== 'none' ? ` tipo ${profile.diabetesType}` : ''}: Máximo 60g carbohidratos por ingesta. ` +
+      `DIABETES${profile.diabetesType && profile.diabetesType !== 'none' ? ` tipo ${profile.diabetesType}` : ''}: Total diario ${adjustedTargets.carbs}g carbohidratos. Máximo 50g por ingesta. ` +
       'Prohibido: azúcar, arroz blanco, pan blanco, patata, zumos. Priorizar bajo índice glucémico.'
     );
   }
@@ -321,7 +321,7 @@ COMIDA LIBRE:
 - Tipo: ${profile.freeMealType || ''}`;
 
   const diabetesRule = hasDiabetes
-    ? `- RESTRICCIÓN ABSOLUTA DIABETES: NINGUNA comida individual puede superar 60g de carbohidratos. Este límite es INVIOLABLE. El total diario de ${adjustedTargets.carbs}g repartido en máximo 60g por ingesta. Alimentos de índice glucémico bajo.`
+    ? `- RESTRICCIÓN ABSOLUTA DIABETES: Total diario ${adjustedTargets.carbs}g carbohidratos. NINGUNA comida individual puede superar 50g. Este límite es INVIOLABLE. Alimentos de índice glucémico bajo.`
     : '';
 
   const freeMealRule = profile.freeMealEnabled
