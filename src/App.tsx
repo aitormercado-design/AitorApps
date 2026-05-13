@@ -393,11 +393,16 @@ export default function App() {
 
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  // Reset wizard picks every time the modal opens
+  // Pre-populate wizard picks when modal opens: null for new users, from profile for returning users
   useEffect(() => {
     if (isGoalModalOpen) {
-      setWizardMenuPicked(null);
-      setWizardGymPicked(null);
+      if (profile.name) {
+        setWizardMenuPicked(profile.menuEnabled ? true : false);
+        setWizardGymPicked(profile.gymEnabled ? true : false);
+      } else {
+        setWizardMenuPicked(null);
+        setWizardGymPicked(null);
+      }
     }
   }, [isGoalModalOpen]);
 
@@ -1604,7 +1609,7 @@ export default function App() {
     setProfile(profileToSave);
     updateGoalsForProfile(profileToSave, weightVal);
     if (dietChanged && generatedMenu) setMenuNeedsRegeneration(true);
-    if (editProfile.gymEnabled && gymChanged) setWorkoutNeedsRegeneration(true);
+    if (editProfile.gymEnabled && gymChanged && workoutPlan) setWorkoutNeedsRegeneration(true);
 
     if (closeAfter) setIsGoalModalOpen(false);
   };
