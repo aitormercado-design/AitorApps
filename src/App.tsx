@@ -11,7 +11,7 @@ import type { WeekDaySummary } from './lib/groq';
 import { useProactiveCoach } from './hooks/useProactiveCoach';
 import { analyzeFoodImage } from './lib/openrouter';
 import type { NutritionalInfo, WeeklyMenu, ShoppingList } from './types/nutrition';
-import { extractIngredients, calcularBMR, calculateStreak } from './utils/nutrition';
+import { extractIngredients, calcularBMR, calculateStreak, calculateDailyCalories } from './utils/nutrition';
 import { calculateMETCalories, ACTIVITY_OPTIONS } from './utils/metCalculator';
 import { getSuggestions, type ProfileSuggestion } from './utils/profileSuggestions';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
@@ -1394,30 +1394,32 @@ export default function App() {
   };
 
   const updateGoalsForProfile = (prof: UserProfile, currentWeight: number) => {
-    let bmr = calcularBMR(prof, currentWeight);
+    // Use same base formula as groq.ts so summary and menu targets agree
+    const base = calculateDailyCalories(prof, currentWeight);
+    let { calories, protein, carbs, fat } = base;
 
-    const derivedActivityLevel = getActivityFactor(prof.trainingDaysPerWeek);
-
-    const tdee = bmr * derivedActivityLevel;
-
-    let targetCalories = Math.round(tdee);
-    if (prof.goal === 'lose') targetCalories -= 400;
-    else if (prof.goal === 'gain') targetCalories += 300;
-
-    let proteinRatio = 0.3, carbsRatio = 0.4, fatRatio = 0.3;
-    switch (prof.macroDistribution) {
-      case 'low_carb': proteinRatio = 0.4; carbsRatio = 0.2; fatRatio = 0.4; break;
-      case 'high_protein': proteinRatio = 0.4; carbsRatio = 0.3; fatRatio = 0.3; break;
-      case 'keto': proteinRatio = 0.25; carbsRatio = 0.05; fatRatio = 0.7; break;
+    // Apply macroDistribution overrides when not using default split
+    if (prof.macroDistribution && prof.macroDistribution !== 'balanced') {
+      let proteinRatio = 0.3, carbsRatio = 0.4, fatRatio = 0.3;
+      switch (prof.macroDistribution) {
+        case 'low_carb': proteinRatio = 0.4; carbsRatio = 0.2; fatRatio = 0.4; break;
+        case 'high_protein': proteinRatio = 0.4; carbsRatio = 0.3; fatRatio = 0.3; break;
+        case 'keto': proteinRatio = 0.25; carbsRatio = 0.05; fatRatio = 0.7; break;
+      }
+      protein = Math.round((calories * proteinRatio) / 4);
+      carbs = Math.round((calories * carbsRatio) / 4);
+      fat = Math.round((calories * fatRatio) / 9);
     }
 
-    const newGoals = {
-      calories: targetCalories,
-      protein: Math.round((targetCalories * proteinRatio) / 4),
-      carbs: Math.round((targetCalories * carbsRatio) / 4),
-      fat: Math.round((targetCalories * fatRatio) / 9),
-    };
-    
+    // Apply same diabetes carb cap as groq.ts (max 240g/day = 60g × 4 meals)
+    const hasDiabetes = prof.medicalConditions?.diabetes || (prof.diabetesType && prof.diabetesType !== 'none');
+    if (hasDiabetes && carbs > 240) {
+      const excessKcal = (carbs - 240) * 4;
+      carbs = 240;
+      fat = Math.round(fat + excessKcal / 9);
+    }
+
+    const newGoals = { calories, protein, carbs, fat };
     setGoals(newGoals);
     return newGoals;
   };
@@ -4245,17 +4247,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         <button
                           type="button"
                           onClick={() => setEditProfile(p => ({...p, menuEnabled: true}))}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${editProfile.menuEnabled ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted}`}`}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${editProfile.menuEnabled ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className="text-xl">✓</span>
+                          <span className={`text-2xl ${editProfile.menuEnabled ? '' : 'opacity-30'}`}>✓</span>
                           <span className="text-xs font-bold uppercase tracking-widest">Sí, quiero mi menú</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setEditProfile(p => ({...p, menuEnabled: false}))}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${!editProfile.menuEnabled ? `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMain} font-bold ring-2 ${profile.theme === 'light' ? 'ring-slate-400' : 'ring-zinc-500'}` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted}`}`}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${!editProfile.menuEnabled ? `${profile.theme === 'light' ? 'bg-slate-100 border-slate-400 text-slate-700' : 'bg-zinc-700/60 border-zinc-500 text-zinc-100'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className="text-xl opacity-50">✕</span>
+                          <span className={`text-2xl ${!editProfile.menuEnabled ? '' : 'opacity-30'}`}>✕</span>
                           <span className="text-xs font-bold uppercase tracking-widest">No por ahora</span>
                         </button>
                       </div>
@@ -4393,17 +4395,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         <button
                           type="button"
                           onClick={() => setEditProfile(p => ({...p, gymEnabled: true}))}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${editProfile.gymEnabled ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted}`}`}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${editProfile.gymEnabled ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className="text-xl">✓</span>
+                          <span className={`text-2xl ${editProfile.gymEnabled ? '' : 'opacity-30'}`}>✓</span>
                           <span className="text-xs font-bold uppercase tracking-widest">Sí, quiero entrenar</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setEditProfile(p => ({...p, gymEnabled: false}))}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${!editProfile.gymEnabled ? `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMain} font-bold ring-2 ${profile.theme === 'light' ? 'ring-slate-400' : 'ring-zinc-500'}` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted}`}`}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${!editProfile.gymEnabled ? `${profile.theme === 'light' ? 'bg-slate-100 border-slate-400 text-slate-700' : 'bg-zinc-700/60 border-zinc-500 text-zinc-100'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className="text-xl opacity-50">✕</span>
+<span className={`text-2xl ${!editProfile.gymEnabled ? '' : 'opacity-30'}`}>✕</span>
                           <span className="text-xs font-bold uppercase tracking-widest">No por ahora</span>
                         </button>
                       </div>
