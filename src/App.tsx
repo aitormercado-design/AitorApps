@@ -105,6 +105,7 @@ type UserProfile = {
   freeMealEnabled: boolean;
   freeMealDay: string;
   freeMealType: 'comida' | 'cena';
+  menuEnabled: boolean;
   gymEnabled: boolean;
   workoutType: 'gym' | 'home';
   gymGoal: 'muscle' | 'strength' | 'cardio' | 'fat_loss' | 'flexibility' | 'maintenance';
@@ -279,6 +280,7 @@ export default function App() {
     freeMealEnabled: false,
     freeMealDay: 'Sábado',
     freeMealType: 'cena',
+    menuEnabled: false,
     gymEnabled: false,
     workoutType: 'gym',
     gymGoal: 'muscle',
@@ -333,6 +335,7 @@ export default function App() {
   const [newWeight, setNewWeight] = useState('');
   
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const [profileWizardStep, setProfileWizardStep] = useState<1 | 2 | 3>(1);
   const [profileTab, setProfileTab] = useState<'user' | 'diet' | 'exercise'>('user');
   const [dismissedSuggestions, setDismissedSuggestions] = useState<string[]>([]);
   const [dismissedPrompts, setDismissedPrompts] = useState<string[]>(() => {
@@ -365,6 +368,7 @@ export default function App() {
     freeMealEnabled: false,
     freeMealDay: 'Sábado',
     freeMealType: 'cena',
+    menuEnabled: false,
     gymEnabled: false,
     workoutType: 'gym',
     gymGoal: 'muscle',
@@ -395,6 +399,7 @@ export default function App() {
     setEditProfile({ ...profile, allergies: [], dislikedFoods: '' });
     setEditWeight('');
     setProfileTab('user');
+    setProfileWizardStep(1);
     setIsGoalModalOpen(true);
   }, [isDataLoaded, user, profile.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -489,6 +494,7 @@ export default function App() {
                 freeMealEnabled: data.profile.freeMealEnabled || false,
                 freeMealDay: data.profile.freeMealDay || 'Sábado',
                 freeMealType: data.profile.freeMealType || 'cena',
+                menuEnabled: data.profile.menuEnabled ?? false,
                 gymEnabled: data.profile.gymEnabled || false,
                 gymGoal: data.profile.gymGoal || 'muscle',
                 trainingDaysPerWeek: data.profile.trainingDaysPerWeek || 3
@@ -1535,8 +1541,8 @@ export default function App() {
   };
 
 
-  const handleSaveGoal = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveGoal = (e: React.FormEvent | null, closeAfter = true) => {
+    e?.preventDefault();
     const weightVal = parseFloat(editWeight);
     if (!editProfile.name.trim() || isNaN(weightVal) || weightVal <= 0 || editProfile.age <= 0 || editProfile.height <= 0) return;
 
@@ -1585,7 +1591,7 @@ export default function App() {
     if (dietChanged && generatedMenu) setMenuNeedsRegeneration(true);
     if (editProfile.gymEnabled && gymChanged) setWorkoutNeedsRegeneration(true);
 
-    setIsGoalModalOpen(false);
+    if (closeAfter) setIsGoalModalOpen(false);
   };
 
   const getSessionCalories = () => {
@@ -1922,7 +1928,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         freeMealEnabled: false,
         freeMealDay: 'Sábado',
         freeMealType: 'cena',
-        gymEnabled: false,
+        menuEnabled: false,
+    gymEnabled: false,
         workoutType: 'gym',
         gymGoal: 'maintenance',
         trainingDaysPerWeek: 3,
@@ -2227,15 +2234,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
         {/* Profile contextual prompts — show one at a time, each screen */}
         {(() => {
-          const openProfile = () => {
+          const openProfile = (step: 1 | 2 | 3 = 1) => {
             setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' });
             setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : '');
             setDismissedSuggestions([]);
+            setProfileWizardStep(step);
             setIsGoalModalOpen(true);
           };
           const prompts = [
-            { id: 'add_height', screen: 'today', condition: profile.height === 0 && !!profile.name, message: 'Añade tu altura para que tus objetivos de calorías sean precisos', action: 'Añadir altura', tab: () => setProfileTab('user') },
-            { id: 'setup_gym',  screen: 'today', condition: !profile.gymEnabled && !!profile.name && profile.height > 0, message: '¿Entrenas? Activa el módulo gym para registrar workouts y ajustar tus calorías', action: 'Configurar gym', tab: () => setProfileTab('exercise') },
+            { id: 'add_height',  screen: 'today', condition: profile.height === 0 && !!profile.name, message: 'Añade tu altura para que tus objetivos de calorías sean precisos', action: 'Añadir datos', step: 1 as const },
+            { id: 'setup_menu',  screen: 'today', condition: !profile.menuEnabled && !!profile.name && profile.height > 0, message: '¿Quieres un menú semanal? Actívalo en tu perfil para obtener un plan de comidas personalizado', action: 'Configurar menú', step: 2 as const },
+            { id: 'setup_gym',   screen: 'today', condition: !profile.gymEnabled && !!profile.name && profile.height > 0, message: '¿Entrenas? Activa el módulo gym para registrar workouts y ajustar tus calorías', action: 'Configurar gym', step: 3 as const },
           ].filter(p => p.condition && !dismissedPrompts.includes(p.id));
           const prompt = activeTab === 'today' ? prompts[0] : null;
           if (!prompt) return null;
@@ -2243,7 +2252,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             <motion.div key={prompt.id} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
               <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
               <p className={`text-xs ${themeStyles.textMuted} flex-1`}>{prompt.message}</p>
-              <button onClick={() => { prompt.tab(); openProfile(); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>{prompt.action}</button>
+              <button onClick={() => openProfile(prompt.step)} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>{prompt.action}</button>
               <button onClick={() => dismissPrompt(prompt.id)} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
             </motion.div>
           );
@@ -2794,40 +2803,44 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               className="space-y-6 pb-32"
             >
               {/* Meals Sub Tabs */}
-              <div className={`grid ${generatedMenu ? 'grid-cols-3' : 'grid-cols-2'} ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border} shadow-lg mb-6`}>
-                <button
-                  onClick={() => setMealsSubTab('daily')}
-                  className={`py-3 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'daily' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
-                >
-                  <Utensils className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Comidas del día</span>
-                  <span className="sm:hidden">Hoy</span>
-                </button>
-                <button
-                  onClick={() => setMealsSubTab('plan')}
-                  className={`py-3 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'plan' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
-                >
-                  <ClipboardList className="w-3.5 h-3.5" />
-                  Plan
-                  {menuNeedsRegeneration && profile.age !== 0 && (
-                    <span className="relative flex h-2.5 w-2.5 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                    </span>
-                  )}
-                </button>
-                {generatedMenu && (
+              {(profile.menuEnabled || generatedMenu) && (
+                <div className={`grid ${profile.menuEnabled && generatedMenu ? 'grid-cols-3' : profile.menuEnabled ? 'grid-cols-2' : 'grid-cols-1'} ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border} shadow-lg mb-6`}>
                   <button
-                    onClick={() => setMealsSubTab('shopping')}
-                    className={`py-3 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'shopping' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                    onClick={() => setMealsSubTab('daily')}
+                    className={`py-3 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'daily' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
                   >
-                    <ShoppingCart className="w-3.5 h-3.5" />
-                    Compra
+                    <Utensils className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Comidas del día</span>
+                    <span className="sm:hidden">Hoy</span>
                   </button>
-                )}
-              </div>
+                  {profile.menuEnabled && (
+                    <button
+                      onClick={() => setMealsSubTab('plan')}
+                      className={`py-3 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'plan' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                    >
+                      <ClipboardList className="w-3.5 h-3.5" />
+                      Plan
+                      {menuNeedsRegeneration && profile.age !== 0 && (
+                        <span className="relative flex h-2.5 w-2.5 shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                        </span>
+                      )}
+                    </button>
+                  )}
+                  {generatedMenu && (
+                    <button
+                      onClick={() => setMealsSubTab('shopping')}
+                      className={`py-3 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'shopping' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
+                    >
+                      <ShoppingCart className="w-3.5 h-3.5" />
+                      Compra
+                    </button>
+                  )}
+                </div>
+              )}
 
-              {mealsSubTab === 'daily' ? (
+              {(mealsSubTab === 'daily' || (!profile.menuEnabled && mealsSubTab === 'plan')) ? (
                 <div className="space-y-8">
                 {/* Primary Food Entry */}
                 <div className={`${themeStyles.bento} p-4 relative overflow-hidden`}>
@@ -2961,7 +2974,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
                     <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
                     <p className={`text-xs ${themeStyles.textMuted} flex-1`}>Dieta configurada como Normal. ¿Sigues algún régimen especial? El menú se adaptará</p>
-                    <button onClick={() => { setProfileTab('diet'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Indicar dieta</button>
+                    <button onClick={() => { setProfileWizardStep(2); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Indicar dieta</button>
                     <button onClick={() => dismissPrompt('add_diet_type')} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
                   </motion.div>
                 )}
@@ -3314,7 +3327,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
               <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
               <p className={`text-xs ${themeStyles.textMuted} flex-1`}>Configura tu entrenamiento para un plan personalizado</p>
-              <button onClick={() => { setProfileTab('exercise'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Configurar rutina</button>
+              <button onClick={() => { setProfileWizardStep(3); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Configurar rutina</button>
               <button onClick={() => dismissPrompt('add_gym_goal')} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
             </motion.div>
           )}
@@ -4013,7 +4026,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         )}
       </AnimatePresence>
 
-      {/* Goal Modal */}
+      {/* Goal Modal — 3-step wizard */}
       <AnimatePresence>
         {isGoalModalOpen && (
           <motion.div
@@ -4028,161 +4041,105 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={e => e.stopPropagation()}
-              className={`${themeStyles.card} border ${themeStyles.border} rounded-2xl p-5 w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden`}
+              className={`${themeStyles.card} border ${themeStyles.border} rounded-2xl p-5 w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl`}
             >
-              <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-2xl pointer-events-none`}></div>
-              
-              <div className="flex justify-between items-center mb-4 shrink-0 relative z-10">
+              {/* Header */}
+              <div className="flex justify-between items-center mb-4 shrink-0">
                 <div className="flex items-center gap-3">
                   <div className={`p-2 ${themeStyles.accentMuted} rounded-xl border ${themeStyles.accentBorder}`}>
-                    <UserIcon className={`w-6 h-6 ${themeStyles.accent}`} />
+                    <UserIcon className={`w-5 h-5 ${themeStyles.accent}`} />
                   </div>
-                  <h3 className={`text-xl font-display font-bold ${themeStyles.textMain} uppercase tracking-tight`}>
-                    {profile.name ? 'Configuración de Perfil' : '¡Bienvenido! Configura tu perfil'}
-                  </h3>
+                  <div>
+                    <h3 className={`text-lg font-display font-bold ${themeStyles.textMain} uppercase tracking-tight leading-none`}>
+                      {profile.name ? 'Editar Perfil' : '¡Bienvenido!'}
+                    </h3>
+                    <p className={`text-xs ${themeStyles.textMuted} mt-0.5`}>
+                      {profileWizardStep === 1 ? 'Paso 1 — Datos personales' : profileWizardStep === 2 ? 'Paso 2 — Menú semanal' : 'Paso 3 — Entrenamiento'}
+                    </p>
+                  </div>
                 </div>
-                {profile.name ? (
-                  <button onClick={() => setIsGoalModalOpen(false)} className={`${themeStyles.textMuted} hover:text-red-500 transition-colors`}>
+                {profile.name && (
+                  <button onClick={() => setIsGoalModalOpen(false)} className={`${themeStyles.textMuted} hover:text-red-500 transition-colors p-1`}>
                     <X className="w-5 h-5" />
                   </button>
-                ) : (
-                  <span className={`text-xs font-bold ${themeStyles.textMuted} opacity-60`}>Obligatorio</span>
                 )}
               </div>
-              {/* Plan setup guide */}
-              <div className={`mb-4 shrink-0 p-3.5 rounded-2xl border ${themeStyles.border} ${themeStyles.iconBg} relative z-10`}>
-                <p className={`text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted} mb-2.5`}>Para tu plan semanal</p>
-                <div className="space-y-1.5">
-                  {[
-                    { done: !!editProfile.name && parseFloat(editWeight) > 0 && editProfile.age > 0 && editProfile.height > 0, label: 'Datos personales', tab: 'user' as const },
-                    { done: editProfile.dietType !== 'Normal' || editProfile.macroDistribution !== 'balanced', label: 'Tipo de dieta', tab: 'diet' as const },
-                    { done: editProfile.gymEnabled, label: 'Plan de entrenamiento', tab: 'exercise' as const },
-                  ].map(({ done, label, tab }) => (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => setProfileTab(tab)}
-                      className={`w-full flex items-center gap-2.5 text-left transition-opacity ${done ? 'opacity-50' : ''}`}
-                    >
-                      <span className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${done ? (profile.theme === 'light' ? 'bg-emerald-500 border-emerald-500' : 'bg-lime-400 border-lime-400') : (profile.theme === 'light' ? 'border-slate-300' : 'border-zinc-600')}`}>
-                        {done && <span className="text-[8px] font-black text-white">✓</span>}
-                      </span>
-                      <span className={`text-xs font-medium ${done ? themeStyles.textMuted : themeStyles.textMain}`}>{label}</span>
-                      {!done && <span className={`ml-auto text-[10px] font-bold ${themeStyles.accent}`}>→</span>}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
-              {/* Optional fields awareness banner */}
-              {!!profile.name &&
-                !dismissedPrompts.includes('optional_fields') &&
-                Date.now() > optionalBannerRemindAfter && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`mb-4 shrink-0 rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3.5 space-y-2.5 relative z-10`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <Sparkles className={`w-4 h-4 ${themeStyles.accent} shrink-0 mt-0.5`} />
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-bold ${themeStyles.textMain} mb-0.5`}>Campos opcionales disponibles</p>
-                      <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>
-                        Puedes añadir tipo de dieta, alergias o preferencias y distribución de macros.
-                        No son obligatorios, pero mejoran la precisión del menú y las sugerencias.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 pl-6">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const after = Date.now() + 7 * 24 * 60 * 60 * 1000;
-                        setOptionalBannerRemindAfter(after);
-                        localStorage.setItem('kilokalo_optional_banner_remind', String(after));
-                      }}
-                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold border ${themeStyles.border} ${themeStyles.textMuted} transition-colors`}
-                    >
-                      Recordar en 7 días
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => dismissPrompt('optional_fields')}
-                      className={`flex-1 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`}
-                    >
-                      Ya lo sé, quitar
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-
-              <div className={`flex flex-nowrap overflow-x-auto hide-scrollbar sm:flex-wrap gap-1.5 mb-6 shrink-0 px-1 relative z-10 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-950'} p-1.5 rounded-xl`}>
-                {[
-                  { id: 'user', label: 'Personal', icon: UserIcon },
-                  { id: 'diet', label: 'Dieta', icon: ChefHat },
-                  { id: 'exercise', label: 'Entrenamiento', icon: Dumbbell }
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setProfileTab(tab.id as any)}
-                    className={`flex-1 shrink-0 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg text-xs whitespace-nowrap font-bold uppercase tracking-wider transition-all ${
-                      profileTab === tab.id 
-                        ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` 
-                        : `${themeStyles.textMuted} hover:text-current`
-                    }`}
-                  >
-                    <tab.icon className="w-3.5 h-3.5 shrink-0" />
-                    {tab.label}
-                  </button>
+              {/* Step dots */}
+              <div className="flex justify-center items-center gap-2 mb-5 shrink-0">
+                {([1, 2, 3] as const).map(s => (
+                  <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${s === profileWizardStep ? `w-8 ${themeStyles.accentBg}` : s < profileWizardStep ? `w-2 ${themeStyles.accentBg} opacity-40` : `w-2 ${profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700'}`}`} />
                 ))}
               </div>
-              
-              <form onSubmit={handleSaveGoal} className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar pb-10 text-left relative z-10">
-                {profileTab === 'user' && (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
-                    <div className={`${themeStyles.iconBg} p-4 rounded-2xl border ${themeStyles.border} space-y-2 shadow-sm`}>
-                      <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Nombre</label>
-                      <input
-                        type="text"
-                        value={editProfile.name}
-                        onChange={(e) => setEditProfile({...editProfile, name: e.target.value})}
-                        className={`w-full ${themeStyles.input} rounded-xl px-4 py-3 text-base font-bold focus:outline-none transition-all`}
-                        placeholder="Tu nombre..."
-                        autoComplete="given-name"
-                      />
-                    </div>
+
+              <form onSubmit={handleSaveGoal} className="flex-1 min-h-0 flex flex-col">
+                <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4 text-left">
+
+                  {/* ── STEP 1: Personal data ── */}
+                  {profileWizardStep === 1 && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
+                      <div className={`${themeStyles.iconBg} p-4 rounded-2xl border ${themeStyles.border} space-y-2`}>
+                        <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Nombre</label>
+                        <input
+                          type="text"
+                          value={editProfile.name}
+                          onChange={(e) => setEditProfile({...editProfile, name: e.target.value})}
+                          className={`w-full ${themeStyles.input} rounded-xl px-4 py-3 text-base font-bold focus:outline-none transition-all`}
+                          placeholder="Tu nombre..."
+                          autoComplete="given-name"
+                        />
+                      </div>
+
                       <div className="grid grid-cols-3 gap-3">
                         {/* Edad */}
-                        {([
-                          { label: 'Edad', unit: 'años', value: editProfile.age, min: 15, max: 100, step: 1,
-                            set: (v: number) => setEditProfile({...editProfile, age: v}) },
-                          { label: 'Altura', unit: 'cm', value: editProfile.height, min: 120, max: 230, step: 1,
-                            set: (v: number) => setEditProfile({...editProfile, height: v}) },
-                        ] as const).map(({ label, unit, value, min, max, step, set }) => (
-                          <div key={label} className={`${themeStyles.iconBg} border ${themeStyles.border} rounded-2xl p-3 flex flex-col items-center gap-2`}>
-                            <p className={`text-[10px] font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>{label}</p>
-                            <input
-                              type="number"
-                              value={value || ''}
-                              onChange={e => set(Math.max(min, Math.min(max, parseInt(e.target.value) || 0)))}
-                              placeholder="—"
-                              min={min} max={max}
-                              className={`w-full text-center text-2xl font-black bg-transparent border-none focus:outline-none ${themeStyles.accent} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
-                            />
-                            <div className="flex items-center gap-2 w-full justify-center">
-                              <button type="button" onClick={() => set(Math.max(min, value - step))}
-                                className={`w-8 h-8 rounded-xl border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted} hover:${themeStyles.textMain} transition-colors`}>
-                                <Minus className="w-3.5 h-3.5" />
-                              </button>
-                              <span className={`text-[10px] font-medium ${themeStyles.textMuted}`}>{unit}</span>
-                              <button type="button" onClick={() => set(Math.min(max, value + step))}
-                                className={`w-8 h-8 rounded-xl border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted} hover:${themeStyles.textMain} transition-colors`}>
-                                <Plus className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                        <div className={`${themeStyles.iconBg} border ${themeStyles.border} rounded-2xl p-3 flex flex-col items-center gap-2`}>
+                          <p className={`text-[10px] font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>Edad</p>
+                          <input
+                            type="number"
+                            value={editProfile.age || ''}
+                            onChange={e => setEditProfile({...editProfile, age: parseInt(e.target.value) || 0})}
+                            onBlur={() => { if (editProfile.age > 0) setEditProfile(p => ({...p, age: Math.max(15, Math.min(100, p.age))})); }}
+                            placeholder="—"
+                            min={15} max={100}
+                            className={`w-full text-center text-2xl font-black bg-transparent border-none focus:outline-none ${themeStyles.accent} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                          />
+                          <div className="flex items-center gap-2 w-full justify-center">
+                            <button type="button" onClick={() => setEditProfile(p => ({...p, age: Math.max(15, p.age - 1)}))}
+                              className={`w-8 h-8 rounded-xl border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted} transition-colors`}>
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <span className={`text-[10px] font-medium ${themeStyles.textMuted}`}>años</span>
+                            <button type="button" onClick={() => setEditProfile(p => ({...p, age: Math.min(100, p.age + 1)}))}
+                              className={`w-8 h-8 rounded-xl border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted} transition-colors`}>
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                        ))}
+                        </div>
+
+                        {/* Altura */}
+                        <div className={`${themeStyles.iconBg} border ${themeStyles.border} rounded-2xl p-3 flex flex-col items-center gap-2`}>
+                          <p className={`text-[10px] font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>Altura</p>
+                          <input
+                            type="number"
+                            value={editProfile.height || ''}
+                            onChange={e => setEditProfile({...editProfile, height: parseInt(e.target.value) || 0})}
+                            onBlur={() => { if (editProfile.height > 0) setEditProfile(p => ({...p, height: Math.max(120, Math.min(230, p.height))})); }}
+                            placeholder="—"
+                            min={120} max={230}
+                            className={`w-full text-center text-2xl font-black bg-transparent border-none focus:outline-none ${themeStyles.accent} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                          />
+                          <div className="flex items-center gap-2 w-full justify-center">
+                            <button type="button" onClick={() => setEditProfile(p => ({...p, height: Math.max(120, p.height - 1)}))}
+                              className={`w-8 h-8 rounded-xl border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted} transition-colors`}>
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <span className={`text-[10px] font-medium ${themeStyles.textMuted}`}>cm</span>
+                            <button type="button" onClick={() => setEditProfile(p => ({...p, height: Math.min(230, p.height + 1)}))}
+                              className={`w-8 h-8 rounded-xl border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted} transition-colors`}>
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
 
                         {/* Peso */}
                         <div className={`${themeStyles.iconBg} border ${themeStyles.border} rounded-2xl p-3 flex flex-col items-center gap-2`}>
@@ -4201,355 +4158,268 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           />
                           <div className="flex items-center gap-2 w-full justify-center">
                             <button type="button" onClick={() => setEditWeight(v => String(Math.max(40, parseFloat(v || '70') - 0.5).toFixed(1)))}
-                              className={`w-8 h-8 rounded-xl border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted} hover:${themeStyles.textMain} transition-colors`}>
+                              className={`w-8 h-8 rounded-xl border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted} transition-colors`}>
                               <Minus className="w-3.5 h-3.5" />
                             </button>
                             <span className={`text-[10px] font-medium ${themeStyles.textMuted}`}>kg</span>
                             <button type="button" onClick={() => setEditWeight(v => String(Math.min(200, parseFloat(v || '70') + 0.5).toFixed(1)))}
-                              className={`w-8 h-8 rounded-xl border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted} hover:${themeStyles.textMain} transition-colors`}>
+                              className={`w-8 h-8 rounded-xl border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted} transition-colors`}>
                               <Plus className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
                       </div>
-                      <div className="space-y-1.5 px-2">
+
+                      <div className="space-y-1.5">
                         <label className={`block text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>Género</label>
-                        <select 
+                        <select
                           value={editProfile.gender}
                           onChange={(e) => setEditProfile({...editProfile, gender: e.target.value as 'male' | 'female'})}
-                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-colors appearance-none shadow-sm`}
+                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-colors appearance-none`}
                         >
                           <option value="male">Hombre</option>
                           <option value="female">Mujer</option>
                         </select>
                       </div>
 
-                    <div className={`${profile.theme === 'light' ? 'bg-rose-50/80 border-rose-200' : 'bg-rose-500/5 border-rose-500/10'} p-4 rounded-2xl border space-y-3`}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <Activity className={`w-3.5 h-3.5 ${profile.theme === 'light' ? 'text-rose-500' : 'text-rose-400'}`} />
-                        <span className={`text-xs font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-rose-700' : 'text-rose-300/70'}`}>🩺 Condiciones Médicas</span>
+                      <div className={`${profile.theme === 'light' ? 'bg-rose-50/80 border-rose-200' : 'bg-rose-500/5 border-rose-500/10'} p-4 rounded-2xl border space-y-3`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Activity className={`w-3.5 h-3.5 ${profile.theme === 'light' ? 'text-rose-500' : 'text-rose-400'}`} />
+                          <span className={`text-xs font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-rose-700' : 'text-rose-300/70'}`}>Condiciones Médicas</span>
+                        </div>
+                        {([
+                          { key: 'diabetes' as const, label: 'Diabetes', note: 'Limitamos carbos a 60g/ingesta' },
+                          { key: 'highCholesterol' as const, label: 'Colesterol alto', note: 'Reducimos grasas saturadas' },
+                          { key: 'hypertension' as const, label: 'Hipertensión', note: 'Limitamos sodio y procesados' },
+                          { key: 'hypothyroidism' as const, label: 'Hipotiroidismo', note: 'Moderamos soja y crucíferas' },
+                          { key: 'insulinResistance' as const, label: 'Resistencia a la insulina', note: 'Priorizamos bajo IG' },
+                        ]).map(({ key, label, note }) => (
+                          <div key={key} className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xs font-medium ${themeStyles.textMain}`}>{label}</span>
+                              <button type="button"
+                                onClick={() => setEditProfile(p => ({
+                                  ...p,
+                                  medicalConditions: { ...p.medicalConditions, [key]: !p.medicalConditions[key] },
+                                  ...(key === 'diabetes' ? { diabetesType: !p.medicalConditions.diabetes ? 'type2' : 'none' } : {})
+                                }))}
+                                className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.medicalConditions[key] ? 'bg-rose-500' : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
+                              >
+                                <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.medicalConditions[key] ? 'left-6' : 'left-0'}`} />
+                              </button>
+                            </div>
+                            {editProfile.medicalConditions[key] && (
+                              <div className="animate-in fade-in slide-in-from-top-1 space-y-1.5">
+                                <p className={`text-xs ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>{note}</p>
+                                {key === 'diabetes' && (
+                                  <select
+                                    value={editProfile.diabetesType}
+                                    onChange={(e) => setEditProfile({ ...editProfile, diabetesType: e.target.value as any })}
+                                    className={`w-full ${profile.theme === 'light' ? 'bg-white border-rose-200 text-rose-900 focus:border-rose-400' : 'bg-zinc-900 border-zinc-800 text-white focus:border-rose-500/50'} border rounded-xl px-3 py-2 text-xs focus:outline-none transition-colors appearance-none`}
+                                  >
+                                    <option value="type1">Diabetes Tipo 1</option>
+                                    <option value="type2">Diabetes Tipo 2</option>
+                                    <option value="prediabetes">Pre-diabetes</option>
+                                  </select>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        <div className="flex gap-2 pt-1 border-t border-dashed border-rose-200/50">
+                          <Info className="w-3 h-3 text-rose-400 shrink-0 mt-0.5" />
+                          <p className="text-xs text-zinc-500 leading-tight">No sustituye el consejo médico profesional.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── STEP 2: Weekly menu ── */}
+                  {profileWizardStep === 2 && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                      <div className="text-center pt-2 pb-1">
+                        <ChefHat className={`w-10 h-10 ${themeStyles.accent} mx-auto mb-3`} />
+                        <h4 className={`text-base font-bold ${themeStyles.textMain} mb-1`}>¿Quieres un menú semanal?</h4>
+                        <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>Generaremos un plan de comidas personalizado según tu perfil.</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setEditProfile(p => ({...p, menuEnabled: true}))}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${editProfile.menuEnabled ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted}`}`}
+                        >
+                          <span className="text-xl">✓</span>
+                          <span className="text-xs font-bold uppercase tracking-widest">Sí, quiero mi menú</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditProfile(p => ({...p, menuEnabled: false}))}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${!editProfile.menuEnabled ? `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMain} font-bold ring-2 ${profile.theme === 'light' ? 'ring-slate-400' : 'ring-zinc-500'}` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted}`}`}
+                        >
+                          <span className="text-xl opacity-50">✕</span>
+                          <span className="text-xs font-bold uppercase tracking-widest">No por ahora</span>
+                        </button>
                       </div>
 
-                      {/* Diabetes */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className={`text-xs font-medium ${themeStyles.textMain}`}>Diabetes</span>
-                          <button type="button"
-                            onClick={() => setEditProfile({ ...editProfile,
-                              medicalConditions: { ...editProfile.medicalConditions, diabetes: !editProfile.medicalConditions.diabetes },
-                              diabetesType: !editProfile.medicalConditions.diabetes ? 'type2' : 'none'
-                            })}
-                            className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.medicalConditions.diabetes ? 'bg-rose-500' : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
-                          >
-                            <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.medicalConditions.diabetes ? 'left-6' : 'left-0'}`} />
-                          </button>
-                        </div>
-                        {editProfile.medicalConditions.diabetes && (
-                          <div className="animate-in fade-in slide-in-from-top-1 space-y-1.5">
-                            <p className={`text-xs ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Limitamos carbos a 60g/ingesta</p>
+                      {editProfile.menuEnabled && (
+                        <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-4 duration-300">
+                          <div className={`w-full h-px ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'}`} />
+
+                          <div className="space-y-1.5">
+                            <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Objetivo nutricional</label>
                             <select
-                              value={editProfile.diabetesType}
-                              onChange={(e) => setEditProfile({ ...editProfile, diabetesType: e.target.value as any })}
-                              className={`w-full ${profile.theme === 'light' ? 'bg-white border-rose-200 text-rose-900 focus:border-rose-400' : 'bg-zinc-900 border-zinc-800 text-white focus:border-rose-500/50'} border rounded-xl px-3 py-2 text-xs focus:outline-none transition-colors appearance-none shadow-sm`}
+                              value={editProfile.goal}
+                              onChange={(e) => setEditProfile({...editProfile, goal: e.target.value as any})}
+                              className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-all appearance-none`}
                             >
-                              <option value="type1">Diabetes Tipo 1</option>
-                              <option value="type2">Diabetes Tipo 2</option>
-                              <option value="prediabetes">Pre-diabetes</option>
+                              <option value="lose">Perder grasa (−400 kcal/día)</option>
+                              <option value="maintain">Mantener peso (TDEE exacto)</option>
+                              <option value="gain">Ganar músculo (+300 kcal/día)</option>
                             </select>
                           </div>
-                        )}
-                      </div>
 
-                      {/* Colesterol alto */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className={`text-xs font-medium ${themeStyles.textMain}`}>Colesterol alto</span>
-                          <button type="button"
-                            onClick={() => setEditProfile({ ...editProfile, medicalConditions: { ...editProfile.medicalConditions, highCholesterol: !editProfile.medicalConditions.highCholesterol } })}
-                            className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.medicalConditions.highCholesterol ? 'bg-rose-500' : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
-                          >
-                            <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.medicalConditions.highCholesterol ? 'left-6' : 'left-0'}`} />
-                          </button>
+                          <div className="space-y-1.5">
+                            <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Tipo de Dieta</label>
+                            <select
+                              value={editProfile.dietType}
+                              onChange={(e) => setEditProfile({...editProfile, dietType: e.target.value})}
+                              className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-all appearance-none`}
+                            >
+                              <option value="Normal">Normal</option>
+                              <option value="Vegetariana">Vegetariana</option>
+                              <option value="Vegana">Vegana</option>
+                              <option value="Pescetariana">Pescetariana</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Distribución Macros</label>
+                            <select
+                              value={editProfile.macroDistribution}
+                              onChange={(e) => setEditProfile({...editProfile, macroDistribution: e.target.value as any})}
+                              className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-xs focus:outline-none transition-colors appearance-none`}
+                            >
+                              <option value="balanced">Equilibrada</option>
+                              <option value="low_carb">Baja en Carbohidratos</option>
+                              <option value="high_protein">Alta en Proteína</option>
+                              <option value="keto">Keto</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-3">
+                            <label className={`block text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>Alergias e Intolerancias</label>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                              {['Gluten', 'Lactosa', 'Frutos Secos', 'Marisco', 'Huevo', 'Otros'].map(id => (
+                                <button
+                                  key={id}
+                                  type="button"
+                                  onClick={() => {
+                                    const lid = id.toLowerCase().replace(' ', '_');
+                                    const exists = editProfile.allergies.includes(lid);
+                                    setEditProfile({
+                                      ...editProfile,
+                                      allergies: exists ? editProfile.allergies.filter(a => a !== lid) : [...editProfile.allergies, lid]
+                                    });
+                                  }}
+                                  className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                                    editProfile.allergies.includes(id.toLowerCase().replace(' ', '_'))
+                                      ? `${themeStyles.accentMuted} ${themeStyles.accentBorder} ${themeStyles.accent}`
+                                      : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted}`
+                                  }`}
+                                >
+                                  <div className={`w-3 h-3 rounded-sm border ${editProfile.allergies.includes(id.toLowerCase().replace(' ', '_')) ? `${themeStyles.accentBg} ${themeStyles.accentBorder}` : (profile.theme === 'light' ? 'border-slate-300' : 'border-zinc-700')}`} />
+                                  {id}
+                                </button>
+                              ))}
+                            </div>
+                            {editProfile.allergies.includes('otros') && (
+                              <input
+                                type="text"
+                                value={editProfile.otherAllergies}
+                                onChange={(e) => setEditProfile({...editProfile, otherAllergies: e.target.value})}
+                                className={`w-full ${themeStyles.input} rounded-xl px-3 py-2 text-xs focus:outline-none transition-colors animate-in fade-in`}
+                                placeholder="Especifica (ej. Melocotón, Fresas...)"
+                              />
+                            )}
+                          </div>
+
+                          <div className={`p-4 rounded-2xl border space-y-3 ${profile.theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-zinc-950 border-white/5'}`}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Pizza className="w-3.5 h-3.5 text-amber-400" />
+                                <label className={`text-xs font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-slate-700' : 'text-zinc-200'}`}>Momento Libre Semanal</label>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setEditProfile({...editProfile, freeMealEnabled: !editProfile.freeMealEnabled})}
+                                className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.freeMealEnabled ? themeStyles.accentBg : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
+                              >
+                                <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.freeMealEnabled ? 'left-6' : 'left-0'}`} />
+                              </button>
+                            </div>
+                            {editProfile.freeMealEnabled && (
+                              <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2">
+                                <select
+                                  value={editProfile.freeMealDay}
+                                  onChange={(e) => setEditProfile({...editProfile, freeMealDay: e.target.value})}
+                                  className={`${themeStyles.input} rounded-xl px-3 py-2 text-xs focus:outline-none appearance-none`}
+                                >
+                                  {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(d => <option key={d}>{d}</option>)}
+                                </select>
+                                <select
+                                  value={editProfile.freeMealType}
+                                  onChange={(e) => setEditProfile({...editProfile, freeMealType: e.target.value as any})}
+                                  className={`${themeStyles.input} rounded-xl px-3 py-2 text-xs focus:outline-none appearance-none`}
+                                >
+                                  <option value="comida">Comida</option>
+                                  <option value="cena">Cena</option>
+                                </select>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        {editProfile.medicalConditions.highCholesterol && (
-                          <p className={`text-xs animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Reducimos grasas saturadas</p>
-                        )}
-                      </div>
-
-                      {/* Hipertensión */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className={`text-xs font-medium ${themeStyles.textMain}`}>Hipertensión</span>
-                          <button type="button"
-                            onClick={() => setEditProfile({ ...editProfile, medicalConditions: { ...editProfile.medicalConditions, hypertension: !editProfile.medicalConditions.hypertension } })}
-                            className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.medicalConditions.hypertension ? 'bg-rose-500' : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
-                          >
-                            <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.medicalConditions.hypertension ? 'left-6' : 'left-0'}`} />
-                          </button>
-                        </div>
-                        {editProfile.medicalConditions.hypertension && (
-                          <p className={`text-xs animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Limitamos sodio y procesados</p>
-                        )}
-                      </div>
-
-                      {/* Hipotiroidismo */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className={`text-xs font-medium ${themeStyles.textMain}`}>Hipotiroidismo</span>
-                          <button type="button"
-                            onClick={() => setEditProfile({ ...editProfile, medicalConditions: { ...editProfile.medicalConditions, hypothyroidism: !editProfile.medicalConditions.hypothyroidism } })}
-                            className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.medicalConditions.hypothyroidism ? 'bg-rose-500' : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
-                          >
-                            <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.medicalConditions.hypothyroidism ? 'left-6' : 'left-0'}`} />
-                          </button>
-                        </div>
-                        {editProfile.medicalConditions.hypothyroidism && (
-                          <p className={`text-xs animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Moderamos soja y crucíferas</p>
-                        )}
-                      </div>
-
-                      {/* Resistencia a la insulina */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className={`text-xs font-medium ${themeStyles.textMain}`}>Resistencia a la insulina</span>
-                          <button type="button"
-                            onClick={() => setEditProfile({ ...editProfile, medicalConditions: { ...editProfile.medicalConditions, insulinResistance: !editProfile.medicalConditions.insulinResistance } })}
-                            className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.medicalConditions.insulinResistance ? 'bg-rose-500' : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
-                          >
-                            <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.medicalConditions.insulinResistance ? 'left-6' : 'left-0'}`} />
-                          </button>
-                        </div>
-                        {editProfile.medicalConditions.insulinResistance && (
-                          <p className={`text-xs animate-in fade-in slide-in-from-top-1 ${profile.theme === 'light' ? 'text-rose-600' : 'text-rose-400'}`}>Priorizamos bajo IG</p>
-                        )}
-                      </div>
-
-                      <div className="flex gap-2 pt-1 border-t border-dashed border-rose-200/50">
-                        <Info className="w-3 h-3 text-rose-400 shrink-0 mt-0.5" />
-                        <p className="text-xs text-zinc-500 leading-tight">Esta información ayuda a personalizar tu plan nutricional. No sustituye el consejo médico profesional.</p>
-                      </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {profileTab === 'diet' && (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                    <div className="space-y-1.5">
-                      <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Objetivo nutricional</label>
-                      <select
-                        value={editProfile.goal}
-                        onChange={(e) => setEditProfile({...editProfile, goal: e.target.value as any})}
-                        className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all appearance-none`}
-                      >
-                        <option value="lose">Perder grasa (−400 kcal/día)</option>
-                        <option value="maintain">Mantener peso (TDEE exacto)</option>
-                        <option value="gain">Ganar músculo (+300 kcal/día)</option>
-                      </select>
+                  {/* ── STEP 3: Training ── */}
+                  {profileWizardStep === 3 && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                      <div className="text-center pt-2 pb-1">
+                        <Dumbbell className={`w-10 h-10 ${themeStyles.accent} mx-auto mb-3`} />
+                        <h4 className={`text-base font-bold ${themeStyles.textMain} mb-1`}>¿Quieres registrar tu entrenamiento?</h4>
+                        <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>Ajustaremos tus calorías y generaremos rutinas adaptadas a ti.</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setEditProfile(p => ({...p, gymEnabled: true}))}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${editProfile.gymEnabled ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted}`}`}
+                        >
+                          <span className="text-xl">✓</span>
+                          <span className="text-xs font-bold uppercase tracking-widest">Sí, quiero entrenar</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditProfile(p => ({...p, gymEnabled: false}))}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${!editProfile.gymEnabled ? `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMain} font-bold ring-2 ${profile.theme === 'light' ? 'ring-slate-400' : 'ring-zinc-500'}` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted}`}`}
+                        >
+                          <span className="text-xl opacity-50">✕</span>
+                          <span className="text-xs font-bold uppercase tracking-widest">No por ahora</span>
+                        </button>
+                      </div>
+
                       {editProfile.gymEnabled && (
-                        (editProfile.gymGoal === 'fat_loss' && editProfile.goal === 'gain') ||
-                        (editProfile.gymGoal === 'muscle' && editProfile.goal === 'lose')
-                      ) && (
-                        <p className={`text-xs font-medium ${profile.theme === 'light' ? 'text-amber-600' : 'text-amber-400'} leading-snug pt-1`}>
-                          ⚠️ Tu objetivo de entrenamiento ({translateGymGoal(editProfile.gymGoal)}) no coincide con tu objetivo nutricional ({editProfile.goal === 'lose' ? 'Perder grasa' : 'Ganar músculo'}). ¿Es correcto?
-                        </p>
-                      )}
-                      {activeSuggestionsForField('goal').map(s => {
-                        const key = `${s.field}:${s.suggestedValue}`;
-                        return (
-                          <div key={key} className={`mt-2 p-2.5 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${profile.theme === 'light' ? 'bg-indigo-50 border-indigo-200' : 'bg-indigo-950/30 border-indigo-800/40'}`}>
-                            <div className="flex items-start gap-2 mb-2">
-                              <span className="text-xs shrink-0">💡</span>
-                              <p className={`text-xs leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>{s.reason}</p>
-                            </div>
-                            <div className="flex gap-2 justify-end">
-                              <button type="button" onClick={() => dismissSuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
-                              <button type="button" onClick={() => applySuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {appliedSuggestionKey?.startsWith('goal:') && (
-                        <p className={`text-xs font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
-                      )}
-                    </div>
+                        <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-4 duration-300">
+                          <div className={`w-full h-px ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'}`} />
 
-                    <div className="space-y-1.5">
-                      <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest text-left`}>Tipo de Dieta</label>
-                      <select
-                        value={editProfile.dietType}
-                        onChange={(e) => setEditProfile({...editProfile, dietType: e.target.value})}
-                        className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all appearance-none`}
-                      >
-                        <option value="Normal">Normal</option>
-                        <option value="Vegetariana">Vegetariana</option>
-                        <option value="Vegana">Vegana</option>
-                        <option value="Pescetariana">Pescetariana</option>
-                      </select>
-                      {activeSuggestionsForField('dietType').map(s => {
-                        const key = `${s.field}:${s.suggestedValue}`;
-                        return (
-                          <div key={key} className={`mt-2 p-2.5 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${profile.theme === 'light' ? 'bg-indigo-50 border-indigo-200' : 'bg-indigo-950/30 border-indigo-800/40'}`}>
-                            <div className="flex items-start gap-2 mb-2">
-                              <span className="text-xs shrink-0">💡</span>
-                              <p className={`text-xs leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>{s.reason}</p>
-                            </div>
-                            <div className="flex gap-2 justify-end">
-                              <button type="button" onClick={() => dismissSuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
-                              <button type="button" onClick={() => applySuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {appliedSuggestionKey?.startsWith('dietType:') && (
-                        <p className={`text-xs font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className={`block text-xs font-bold uppercase tracking-widest text-left ${themeStyles.textMuted}`}>Distribución Macros</label>
-                      <select
-                        value={editProfile.macroDistribution}
-                        onChange={(e) => setEditProfile({...editProfile, macroDistribution: e.target.value as any})}
-                        className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-xs focus:outline-none transition-colors appearance-none`}
-                      >
-                        <option value="balanced">Equilibrada</option>
-                        <option value="low_carb">Baja en Carbohidratos</option>
-                        <option value="high_protein">Alta en Proteína</option>
-                        <option value="keto">Keto</option>
-                      </select>
-                      {(['keto', 'low_carb'] as const).includes(editProfile.macroDistribution) && editProfile.goal === 'gain' && (
-                        <p className={`text-xs font-medium ${profile.theme === 'light' ? 'text-amber-600' : 'text-amber-400'} leading-snug pt-1`}>
-                          ⚠️ Una distribución {editProfile.macroDistribution === 'keto' ? 'keto' : 'baja en carbos'} con objetivo de ganar músculo puede dificultar el rendimiento. Considera &quot;Alta en proteína&quot; para este objetivo.
-                        </p>
-                      )}
-                      {activeSuggestionsForField('macroDistribution').map(s => {
-                        const key = `${s.field}:${s.suggestedValue}`;
-                        return (
-                          <div key={key} className={`mt-2 p-2.5 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${profile.theme === 'light' ? 'bg-indigo-50 border-indigo-200' : 'bg-indigo-950/30 border-indigo-800/40'}`}>
-                            <div className="flex items-start gap-2 mb-2">
-                              <span className="text-xs shrink-0">💡</span>
-                              <p className={`text-xs leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>{s.reason}</p>
-                            </div>
-                            <div className="flex gap-2 justify-end">
-                              <button type="button" onClick={() => dismissSuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
-                              <button type="button" onClick={() => applySuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {appliedSuggestionKey?.startsWith('macroDistribution:') && (
-                        <p className={`text-xs font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-3">
-                      <label className={`block text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted}`}>Alergias e Intolerancias</label>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {['Gluten', 'Lactosa', 'Frutos Secos', 'Marisco', 'Huevo', 'Otros'].map(id => (
-                          <button
-                            key={id}
-                            type="button"
-                            onClick={() => {
-                              const lid = id.toLowerCase().replace(' ', '_');
-                              const exists = editProfile.allergies.includes(lid);
-                              setEditProfile({
-                                ...editProfile,
-                                allergies: exists
-                                  ? editProfile.allergies.filter(a => a !== lid)
-                                  : [...editProfile.allergies, lid]
-                              });
-                            }}
-                            className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                              editProfile.allergies.includes(id.toLowerCase().replace(' ', '_'))
-                                ? `${themeStyles.accentMuted} ${themeStyles.accentBorder} ${themeStyles.accent}`
-                                : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accentBorder}`
-                            }`}
-                          >
-                            <div className={`w-3 h-3 rounded-sm border ${editProfile.allergies.includes(id.toLowerCase().replace(' ', '_')) ? `${themeStyles.accentBg} ${themeStyles.accentBorder}` : (profile.theme === 'light' ? 'border-slate-300' : 'border-zinc-700')}`} />
-                            {id}
-                          </button>
-                        ))}
-                      </div>
-
-                      {editProfile.allergies.includes('otros') && (
-                        <input
-                          type="text"
-                          value={editProfile.otherAllergies}
-                          onChange={(e) => setEditProfile({...editProfile, otherAllergies: e.target.value})}
-                          className={`w-full ${themeStyles.input} rounded-xl px-3 py-2 text-xs focus:outline-none transition-colors animate-in fade-in`}
-                          placeholder="Especifica (ej. Melocotón, Fresas...)"
-                        />
-                      )}
-                    </div>
-
-                    <div className={`p-4 rounded-2xl border space-y-4 shadow-inner ${profile.theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-zinc-950 border-white/5'}`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Pizza className="w-3.5 h-3.5 text-amber-400" />
-                          <label className={`text-xs font-bold uppercase tracking-widest ${profile.theme === 'light' ? 'text-slate-700' : 'text-zinc-200'}`}>Momento Libre Semanal</label>
-                        </div>
-                        <button 
-                          type="button"
-                          onClick={() => setEditProfile({...editProfile, freeMealEnabled: !editProfile.freeMealEnabled})}
-                          className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.freeMealEnabled ? themeStyles.accentBg : (profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700')}`}
-                        >
-                          <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.freeMealEnabled ? 'left-6' : 'left-0'}`} />
-                        </button>
-                      </div>
-                      
-                      {editProfile.freeMealEnabled && (
-                        <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2">
-                          <select 
-                            value={editProfile.freeMealDay}
-                            onChange={(e) => setEditProfile({...editProfile, freeMealDay: e.target.value})}
-                            className={`bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:${themeStyles.accentBorder}/50`}
-                          >
-                            {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map(d => <option key={d}>{d}</option>)}
-                          </select>
-                          <select 
-                            value={editProfile.freeMealType}
-                            onChange={(e) => setEditProfile({...editProfile, freeMealType: e.target.value as any})}
-                            className={`bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:${themeStyles.accentBorder}/50`}
-                          >
-                            <option value="comida">Comida</option>
-                            <option value="cena">Cena</option>
-                          </select>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {profileTab === 'exercise' && (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                    <div className={`${themeStyles.iconBg} rounded-2xl border ${themeStyles.border} p-5 space-y-4 shadow-sm`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Dumbbell className={`w-4 h-4 ${themeStyles.accent}`} />
-                          <label className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-widest`}>Plan de Entrenamiento (Act. Física)</label>
-                        </div>
-                        <button 
-                          type="button"
-                          onClick={() => setEditProfile({...editProfile, gymEnabled: !editProfile.gymEnabled})}
-                          className={`w-10 h-3 rounded-full transition-colors relative ${editProfile.gymEnabled ? themeStyles.accentBg : (profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800')}`}
-                        >
-                          <div className={`absolute -top-0.5 w-4 h-4 rounded-full bg-white shadow-md transition-all ${editProfile.gymEnabled ? 'left-6' : 'left-0'}`} />
-                        </button>
-                      </div>
-
-                      {editProfile.gymEnabled ? (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                          <div className="space-y-1.5 text-left">
+                          <div className="space-y-1.5">
                             <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Ubicación</label>
                             <div className="grid grid-cols-2 gap-2">
                               <button
                                 type="button"
                                 onClick={() => setEditProfile({...editProfile, workoutType: 'gym'})}
-                                className={`py-4 rounded-xl text-center border transition-all ${
-                                  editProfile.workoutType === 'gym' 
-                                    ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` 
-                                    : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.textMain}`
-                                }`}
+                                className={`py-4 rounded-xl text-center border transition-all ${editProfile.workoutType === 'gym' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted}`}`}
                               >
                                 <div className="flex flex-col items-center gap-1">
                                   <Dumbbell className="w-5 h-5" />
@@ -4559,11 +4429,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               <button
                                 type="button"
                                 onClick={() => setEditProfile({...editProfile, workoutType: 'home'})}
-                                className={`py-4 rounded-xl text-center border transition-all ${
-                                  editProfile.workoutType === 'home' 
-                                    ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` 
-                                    : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.textMain}`
-                                }`}
+                                className={`py-4 rounded-xl text-center border transition-all ${editProfile.workoutType === 'home' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted}`}`}
                               >
                                 <div className="flex flex-col items-center gap-1">
                                   <Home className="w-5 h-5" />
@@ -4573,12 +4439,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             </div>
                           </div>
 
-                          <div className="space-y-1.5 text-left">
-                            <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Objetivo</label>
+                          <div className="space-y-1.5">
+                            <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Objetivo de entrenamiento</label>
                             <select
                               value={editProfile.gymGoal}
                               onChange={(e) => setEditProfile({...editProfile, gymGoal: e.target.value as any})}
-                              className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500/50 transition-all appearance-none`}
+                              className={`w-full ${themeStyles.input} rounded-xl px-3 py-2.5 text-sm focus:outline-none transition-all appearance-none`}
                             >
                               <option value="muscle">Ganar Músculo</option>
                               <option value="strength">Fuerza</option>
@@ -4587,84 +4453,73 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               <option value="flexibility">Flexibilidad</option>
                               <option value="maintenance">Mantenimiento</option>
                             </select>
-                            {getSuggestions(editProfile)
-                              .filter(s => ['goal', 'macroDistribution'].includes(s.field) && !dismissedSuggestions.includes(`${s.field}:${s.suggestedValue}`))
-                              .map(s => {
-                                const key = `${s.field}:${s.suggestedValue}`;
-                                const fieldLabel = s.field === 'goal' ? 'Objetivo nutricional' : 'Distribución Macros';
-                                return (
-                                  <div key={key} className={`mt-2 p-2.5 rounded-xl border animate-in fade-in slide-in-from-top-1 duration-200 ${profile.theme === 'light' ? 'bg-indigo-50 border-indigo-200' : 'bg-indigo-950/30 border-indigo-800/40'}`}>
-                                    <div className="flex items-start gap-2 mb-2">
-                                      <span className="text-xs shrink-0">💡</span>
-                                      <p className={`text-xs leading-snug ${profile.theme === 'light' ? 'text-indigo-700' : 'text-indigo-300'}`}>
-                                        <span className="font-bold">{fieldLabel}:</span> {s.reason}
-                                      </p>
-                                    </div>
-                                    <div className="flex gap-2 justify-end">
-                                      <button type="button" onClick={() => dismissSuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-slate-500 hover:text-slate-700 hover:bg-slate-100' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'}`}>Ignorar</button>
-                                      <button type="button" onClick={() => applySuggestion(s)} className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'bg-indigo-500 text-white hover:bg-indigo-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}>Aplicar</button>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            {appliedSuggestionKey && ['goal', 'macroDistribution'].some(f => appliedSuggestionKey.startsWith(`${f}:`)) && (
-                              <p className={`text-xs font-semibold ${themeStyles.accent} pt-1 animate-in fade-in`}>✓ Aplicado</p>
-                            )}
                           </div>
-                          
-                          <div className="space-y-1.5 text-left">
+
+                          <div className="space-y-1.5">
                             <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Frecuencia Semanal</label>
-                            <div className={`${profile.theme === 'light' ? 'bg-slate-50' : 'bg-zinc-950'} border ${themeStyles.border} rounded-2xl p-4 space-y-4`}>
+                            <div className={`${profile.theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-zinc-950 border-zinc-800'} border rounded-2xl p-4 space-y-3`}>
                               <div className="flex justify-between items-baseline">
-                                <span className={`text-xl font-black ${themeStyles.accent}`}>{editProfile.trainingDaysPerWeek} <span className={`text-xs ${themeStyles.textMuted} uppercase font-bold tracking-tighter`}>días</span></span>
-                                <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest opacity-50`}>Intensidad Sugerida</span>
+                                <span className={`text-xl font-black ${themeStyles.accent}`}>{editProfile.trainingDaysPerWeek} <span className={`text-xs ${themeStyles.textMuted} uppercase font-bold`}>días</span></span>
                               </div>
-                              <input 
-                                type="range" 
-                                min="0" 
-                                max="7" 
-                                step="1"
+                              <input
+                                type="range"
+                                min="1" max="7" step="1"
                                 value={editProfile.trainingDaysPerWeek}
                                 onChange={(e) => setEditProfile({...editProfile, trainingDaysPerWeek: parseInt(e.target.value)})}
-                                className={`w-full ${profile.theme === 'light' ? 'accent-emerald-500 bg-slate-200' : 'accent-lime-400 bg-zinc-800'} h-2 rounded-lg appearance-none cursor-pointer`}
+                                className={`w-full ${profile.theme === 'light' ? 'accent-emerald-500' : 'accent-lime-400'} h-2 rounded-lg appearance-none cursor-pointer`}
                               />
                               <div className="flex justify-between text-xs font-bold text-zinc-500 uppercase">
-                                <span>0</span>
-                                <span>7</span>
+                                <span>1</span><span>7</span>
                               </div>
                             </div>
                           </div>
 
                           <div className={`flex gap-2 p-3 ${themeStyles.iconBg} border ${themeStyles.border} rounded-xl`}>
                             <Info className={`w-3.5 h-3.5 ${themeStyles.accent} shrink-0 mt-0.5`} />
-                            <p className={`text-xs ${themeStyles.textMuted} italic leading-relaxed`}>
-                              El sistema ajustará tu gasto calórico (TDEE) basándose en estos días de entreno para que tu dieta sea 100% efectiva.
-                            </p>
+                            <p className={`text-xs ${themeStyles.textMuted} italic leading-relaxed`}>El sistema ajustará tu TDEE según los días de entreno para que la dieta sea más precisa.</p>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="py-8 text-center px-4">
-                          <p className={`text-xs ${themeStyles.textMuted} font-medium uppercase tracking-widest leading-loose opacity-60`}>
-                            Activa el plan AI para obtener rutinas profesionales diseñadas para tu edad y nivel.
-                          </p>
                         </div>
                       )}
                     </div>
-                  </div>
-                )}
-
-                <div className="pt-4 border-t border-zinc-800 shrink-0">
-                  {(!editWeight || !editProfile.name || !editProfile.age || !editProfile.height) && profileTab !== 'user' && (
-                    <p className="text-xs text-red-500 text-center font-bold mb-3 uppercase tracking-widest bg-red-500/10 py-2 rounded-xl">Falta información en pestaña Personal</p>
                   )}
-                  <button 
-                    type="submit"
-                    disabled={!editWeight || !editProfile.name || !editProfile.age || !editProfile.height}
-                    className={`${themeStyles.buttonPrimary} w-full md:w-auto md:min-w-[250px] mx-auto py-3 px-6 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    <Save className="w-4 h-4" />
-                    Actualizar Perfil
-                  </button>
+                </div>
+
+                {/* Navigation buttons */}
+                <div className={`pt-4 mt-2 border-t ${themeStyles.border} flex gap-3 shrink-0`}>
+                  {profileWizardStep > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setProfileWizardStep(s => (s - 1) as 1 | 2 | 3)}
+                      className={`flex-1 py-3 rounded-xl border ${themeStyles.border} ${themeStyles.textMuted} text-xs font-bold uppercase tracking-widest transition-colors`}
+                    >
+                      ← Volver
+                    </button>
+                  )}
+                  {profileWizardStep < 3 ? (
+                    <button
+                      type="button"
+                      disabled={profileWizardStep === 1 && (!editProfile.name.trim() || !editWeight || parseFloat(editWeight) <= 0 || editProfile.age <= 0 || editProfile.height <= 0)}
+                      onClick={() => {
+                        if (profileWizardStep === 1) {
+                          handleSaveGoal(null, false);
+                          setProfileWizardStep(2);
+                        } else {
+                          setProfileWizardStep(3);
+                        }
+                      }}
+                      className={`flex-1 ${themeStyles.buttonPrimary} py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      Continuar →
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      className={`flex-1 ${themeStyles.buttonPrimary} py-3 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98]`}
+                    >
+                      <Save className="w-4 h-4" />
+                      Guardar
+                    </button>
+                  )}
                 </div>
               </form>
             </motion.div>
