@@ -336,6 +336,8 @@ export default function App() {
   
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [profileWizardStep, setProfileWizardStep] = useState<1 | 2 | 3>(1);
+  const [wizardMenuPicked, setWizardMenuPicked] = useState<boolean | null>(null);
+  const [wizardGymPicked, setWizardGymPicked] = useState<boolean | null>(null);
   const [profileTab, setProfileTab] = useState<'user' | 'diet' | 'exercise'>('user');
   const [dismissedSuggestions, setDismissedSuggestions] = useState<string[]>([]);
   const [dismissedPrompts, setDismissedPrompts] = useState<string[]>(() => {
@@ -390,6 +392,14 @@ export default function App() {
   const recalcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+
+  // Reset wizard picks every time the modal opens
+  useEffect(() => {
+    if (isGoalModalOpen) {
+      setWizardMenuPicked(null);
+      setWizardGymPicked(null);
+    }
+  }, [isGoalModalOpen]);
 
   // Auto-open profile modal the first time a user logs in (no name saved yet)
   const hasAutoOpenedProfileRef = useRef(false);
@@ -4261,23 +4271,23 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           type="button"
-                          onClick={() => setEditProfile(p => ({...p, menuEnabled: true}))}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${editProfile.menuEnabled ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
+                          onClick={() => { setWizardMenuPicked(true); setEditProfile(p => ({...p, menuEnabled: true})); }}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${wizardMenuPicked === true ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className={`text-2xl ${editProfile.menuEnabled ? '' : 'opacity-30'}`}>✓</span>
+                          <span className={`text-2xl ${wizardMenuPicked === true ? '' : 'opacity-30'}`}>✓</span>
                           <span className="text-xs font-bold uppercase tracking-widest">Sí, quiero mi menú</span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => { setEditProfile(p => ({...p, menuEnabled: false})); setProfileWizardStep(3); }}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${!editProfile.menuEnabled ? `${profile.theme === 'light' ? 'bg-slate-100 border-slate-400 text-slate-700' : 'bg-zinc-700/60 border-zinc-500 text-zinc-100'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
+                          onClick={() => { setWizardMenuPicked(false); setEditProfile(p => ({...p, menuEnabled: false})); }}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${wizardMenuPicked === false ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className={`text-2xl ${!editProfile.menuEnabled ? '' : 'opacity-30'}`}>✕</span>
+                          <span className={`text-2xl ${wizardMenuPicked === false ? '' : 'opacity-30'}`}>✕</span>
                           <span className="text-xs font-bold uppercase tracking-widest">No por ahora</span>
                         </button>
                       </div>
 
-                      {editProfile.menuEnabled && (
+                      {wizardMenuPicked === true && (
                         <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-4 duration-300">
                           <div className={`w-full h-px ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'}`} />
 
@@ -4409,23 +4419,23 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className="grid grid-cols-2 gap-3">
                         <button
                           type="button"
-                          onClick={() => setEditProfile(p => ({...p, gymEnabled: true}))}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${editProfile.gymEnabled ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
+                          onClick={() => { setWizardGymPicked(true); setEditProfile(p => ({...p, gymEnabled: true})); }}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${wizardGymPicked === true ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className={`text-2xl ${editProfile.gymEnabled ? '' : 'opacity-30'}`}>✓</span>
+                          <span className={`text-2xl ${wizardGymPicked === true ? '' : 'opacity-30'}`}>✓</span>
                           <span className="text-xs font-bold uppercase tracking-widest">Sí, quiero entrenar</span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => setEditProfile(p => ({...p, gymEnabled: false}))}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${!editProfile.gymEnabled ? `${profile.theme === 'light' ? 'bg-slate-100 border-slate-400 text-slate-700' : 'bg-zinc-700/60 border-zinc-500 text-zinc-100'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
+                          onClick={() => { setWizardGymPicked(false); setEditProfile(p => ({...p, gymEnabled: false})); }}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${wizardGymPicked === false ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-<span className={`text-2xl ${!editProfile.gymEnabled ? '' : 'opacity-30'}`}>✕</span>
+                          <span className={`text-2xl ${wizardGymPicked === false ? '' : 'opacity-30'}`}>✕</span>
                           <span className="text-xs font-bold uppercase tracking-widest">No por ahora</span>
                         </button>
                       </div>
 
-                      {editProfile.gymEnabled && (
+                      {wizardGymPicked === true && (
                         <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-4 duration-300">
                           <div className={`w-full h-px ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'}`} />
 
@@ -4514,7 +4524,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   {profileWizardStep < 3 ? (
                     <button
                       type="button"
-                      disabled={profileWizardStep === 1 && (!editProfile.name.trim() || !editWeight || parseFloat(editWeight) <= 0 || editProfile.age <= 0 || editProfile.height <= 0)}
+                      disabled={
+                        (profileWizardStep === 1 && (!editProfile.name.trim() || !editWeight || parseFloat(editWeight) <= 0 || editProfile.age <= 0 || editProfile.height <= 0)) ||
+                        (profileWizardStep === 2 && wizardMenuPicked === null)
+                      }
                       onClick={() => {
                         if (profileWizardStep === 1) {
                           handleSaveGoal(null, false);
@@ -4530,7 +4543,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   ) : (
                     <button
                       type="submit"
-                      className={`flex-1 ${themeStyles.buttonPrimary} py-3 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98]`}
+                      disabled={wizardGymPicked === null}
+                      className={`flex-1 ${themeStyles.buttonPrimary} py-3 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       <Save className="w-4 h-4" />
                       Guardar
