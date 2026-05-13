@@ -2115,6 +2115,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
                 setEditWeight(latestWeight);
                 setDismissedSuggestions([]);
+                setProfileWizardStep(1);
                 setIsGoalModalOpen(true);
               }}
               className={`relative h-10 px-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
@@ -2803,8 +2804,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               className="space-y-6 pb-32"
             >
               {/* Meals Sub Tabs */}
-              {(profile.menuEnabled || generatedMenu) && (
-                <div className={`grid ${profile.menuEnabled && generatedMenu ? 'grid-cols-3' : profile.menuEnabled ? 'grid-cols-2' : 'grid-cols-1'} ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border} shadow-lg mb-6`}>
+              <div className={`grid ${profile.menuEnabled && generatedMenu ? 'grid-cols-3' : (profile.menuEnabled || generatedMenu) ? 'grid-cols-2' : 'grid-cols-1'} ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border} shadow-lg mb-6`}>
                   <button
                     onClick={() => setMealsSubTab('daily')}
                     className={`py-3 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'daily' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
@@ -2838,7 +2838,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     </button>
                   )}
                 </div>
-              )}
 
               {(mealsSubTab === 'daily' || (!profile.menuEnabled && mealsSubTab === 'plan')) ? (
                 <div className="space-y-8">
