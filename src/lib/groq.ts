@@ -255,7 +255,8 @@ export async function generateWeeklyMenu(profile: any, currentWeight: number): P
   const medicalRules: string[] = [];
   if (hasDiabetes) {
     medicalRules.push(
-      `DIABETES${profile.diabetesType && profile.diabetesType !== 'none' ? ` tipo ${profile.diabetesType}` : ''}: Total diario ${adjustedTargets.carbs}g carbohidratos. Máximo 50g por ingesta. ` +
+      `DIABETES${profile.diabetesType && profile.diabetesType !== 'none' ? ` tipo ${profile.diabetesType}` : ''}: Total diario exactamente ${adjustedTargets.carbs}g carbohidratos. ` +
+      `Distribuye uniformemente entre las 4 comidas (~${Math.round(adjustedTargets.carbs / 4)}g por comida). ` +
       'Prohibido: azúcar, arroz blanco, pan blanco, patata, zumos. Priorizar bajo índice glucémico.'
     );
   }
@@ -321,7 +322,7 @@ COMIDA LIBRE:
 - Tipo: ${profile.freeMealType || ''}`;
 
   const diabetesRule = hasDiabetes
-    ? `- RESTRICCIÓN ABSOLUTA DIABETES: Total diario ${adjustedTargets.carbs}g carbohidratos. NINGUNA comida individual puede superar 50g. Este límite es INVIOLABLE. Alimentos de índice glucémico bajo.`
+    ? `- DIABETES: El total diario de carbohidratos ES ${adjustedTargets.carbs}g. Distribuye ~${Math.round(adjustedTargets.carbs / 4)}g en cada una de las 4 comidas. Alimentos de bajo índice glucémico.`
     : '';
 
   const freeMealRule = profile.freeMealEnabled

@@ -2199,7 +2199,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         {/* Menu + gym setup banner — one single banner for both features */}
         {activeTab === 'today' && !!profile.name && profile.height > 0 &&
           (!profile.menuEnabled || !profile.gymEnabled) &&
-          !dismissedPrompts.includes('setup_diet_gym') &&
+          !dismissedPrompts.includes('setup_features_v2') &&
           Date.now() > dietGymBannerRemindAfter && (() => {
             const openProfile = (step: 1 | 2 | 3 = 1) => {
               setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' });
@@ -2253,7 +2253,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     Recordar mañana
                   </button>
                   <button
-                    onClick={() => dismissPrompt('setup_diet_gym')}
+                    onClick={() => dismissPrompt('setup_features_v2')}
                     className={`flex-1 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`}
                   >
                     Quitar
@@ -2834,7 +2834,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     >
                       <ClipboardList className="w-3.5 h-3.5" />
                       Plan
-                      {menuNeedsRegeneration && profile.age !== 0 && (
+                      {(menuNeedsRegeneration || !generatedMenu) && profile.age !== 0 && (
                         <span className="relative flex h-2.5 w-2.5 shrink-0">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
