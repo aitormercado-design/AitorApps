@@ -325,6 +325,8 @@ export default function App() {
 
   type AppSection = 'hoy' | 'menu' | 'gym' | 'semana' | 'perfil';
   const [activeSection, setActiveSection] = useState<AppSection>('hoy');
+  // Tracks when a new nav section was first unlocked (timestamp), per user — shown as pulsing badge for 24h
+  const [sectionUnlockedAt, setSectionUnlockedAt] = useState<Record<string, number>>({});
   const [mealsSubTab, setMealsSubTab] = useState<'daily' | 'plan' | 'shopping'>('daily');
   const getTodayDayIndex = () => (new Date().getDay() + 6) % 7; // Mon=0 … Sun=6
   const [menuSelectedDay, setMenuSelectedDay] = useState<number>(getTodayDayIndex);
@@ -553,6 +555,10 @@ export default function App() {
         } catch {}
         const dietRemind = localStorage.getItem(`kilokalo_diet_gym_banner_remind_${uid}`);
         setDietGymBannerRemindAfter(dietRemind ? parseInt(dietRemind) : 0);
+        try {
+          const badges = JSON.parse(localStorage.getItem(`kilokalo_section_badges_${uid}`) ?? '{}');
+          setSectionUnlockedAt(badges);
+        } catch { setSectionUnlockedAt({}); }
 
         try {
           const docRef = doc(db, 'users', currentUser.uid);
@@ -789,6 +795,26 @@ export default function App() {
     if (workoutNeedsRegeneration) localStorage.setItem('workoutNeedsRegen', 'true');
     else localStorage.removeItem('workoutNeedsRegen');
   }, [workoutNeedsRegeneration]);
+
+  // Badge: record when gym/menu sections first unlock so we can show a pulsing dot for 24h
+  useEffect(() => {
+    if (!isDataLoaded || !user) return;
+    const now = Date.now();
+    let changed = false;
+    const next = { ...sectionUnlockedAt };
+    if (profile.gymEnabled && !next['gym']) { next['gym'] = now; changed = true; }
+    if (profile.goal && !next['menu']) { next['menu'] = now; changed = true; }
+    if (changed) {
+      setSectionUnlockedAt(next);
+      localStorage.setItem(`kilokalo_section_badges_${user.uid}`, JSON.stringify(next));
+    }
+  }, [profile.gymEnabled, profile.goal, isDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Redirect to 'hoy' if current section is no longer available
+  useEffect(() => {
+    if (activeSection === 'gym' && !profile.gymEnabled) setActiveSection('hoy');
+    if (activeSection === 'menu' && !profile.goal) setActiveSection('hoy');
+  }, [profile.gymEnabled, profile.goal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-dismiss error toast: 10s for rate-limit, 6s for everything else
   useEffect(() => {
@@ -2262,13 +2288,23 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
           <AnimatePresence mode="wait">
           {activeSection === 'hoy' && (
-            <motion.div
-              key="hoy"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="space-y-6 pb-24"
-            >
+            <motion.div key="hoy" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 pb-24">
+              {/* Welcome screen for users without a profile yet */}
+              {(!profile.name || profile.age === 0) ? (
+                <div className={`${themeStyles.bento} p-8 flex flex-col items-center text-center gap-5`}>
+                  <img src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'} alt="KiloKalo" className="w-16 h-16 rounded-2xl" />
+                  <div>
+                    <h2 className={`text-xl font-display font-black ${themeStyles.textMain} mb-2`}>Bienvenido a KiloKalo</h2>
+                    <p className={`text-sm ${themeStyles.textMuted} leading-relaxed`}>Completa tu perfil para ver tu balance calórico personalizado y empezar a registrar tus comidas.</p>
+                  </div>
+                  <button
+                    onClick={() => { setEditProfile({ ...profile, allergies: [], dislikedFoods: '' }); setEditWeight(''); setDismissedSuggestions([]); setProfileWizardStep(1); setProfileModalTab('datos'); setIsGoalModalOpen(true); }}
+                    className={`px-6 py-3 rounded-xl text-sm font-bold uppercase tracking-wider ${themeStyles.buttonPrimary}`}
+                  >
+                    Ir al perfil →
+                  </button>
+                </div>
+              ) : (
               <div className="flex flex-col gap-4">
                 <div className="space-y-6">
                     <div className="space-y-6">
@@ -2356,8 +2392,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           </div>
                         </div>
 
-                        {/* 2. Distribution (Macros) */}
-                        {(() => {
+                        {/* 2. Distribution (Macros) — only when goals are set */}
+                        {goals.calories > 0 && (() => {
                           const getMacroBar = (consumed: number, target: number) => {
                             const pct = target > 0 ? consumed / target : 0;
                             if (pct >= 1.0) return 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]';
@@ -2545,6 +2581,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     </section>
                     </div>
                 </div>
+              )} {/* end profile-complete else */}
             </motion.div>
           )}
 
@@ -4787,16 +4824,18 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         profile.theme === 'light' ? 'bg-white border-slate-200' : 'bg-zinc-950 border-white/8'
       }`}>
         <div className="max-w-md mx-auto h-full flex items-center justify-around px-2">
-          {[
-            { id: 'hoy', label: 'Hoy', Icon: Home },
-            { id: 'menu', label: 'Menú', Icon: UtensilsCrossed },
-            { id: 'gym', label: 'Gym', Icon: Dumbbell },
-            { id: 'semana', label: 'Semana', Icon: BarChart2 },
-            { id: 'perfil', label: 'Perfil', Icon: UserIcon },
-          ].map(({ id, label, Icon }) => {
+          {([
+            { id: 'hoy',    label: 'Hoy',    Icon: Home,            visible: true },
+            { id: 'menu',   label: 'Menú',   Icon: UtensilsCrossed, visible: !!profile.goal },
+            { id: 'gym',    label: 'Gym',    Icon: Dumbbell,        visible: !!profile.gymEnabled },
+            { id: 'semana', label: 'Semana', Icon: BarChart2,        visible: true },
+            { id: 'perfil', label: 'Perfil', Icon: UserIcon,         visible: true },
+          ] as const).filter(t => t.visible).map(({ id, label, Icon }) => {
             const isActive = activeSection === id;
             const accentColor = profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400';
             const mutedColor = profile.theme === 'light' ? 'text-slate-400' : 'text-zinc-500';
+            const unlockedAt = sectionUnlockedAt[id] ?? 0;
+            const showBadge = unlockedAt > 0 && Date.now() - unlockedAt < 24 * 60 * 60 * 1000 && !isActive;
             return (
               <button
                 key={id}
@@ -4818,12 +4857,18 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     setActiveSection(id as AppSection);
                   }
                 }}
-                className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full"
+                className="relative flex flex-col items-center justify-center gap-0.5 flex-1 h-full"
               >
                 <Icon className={`w-5 h-5 ${isActive ? accentColor : mutedColor}`} />
                 <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? accentColor : mutedColor}`}>{label}</span>
+                {showBadge && (
+                  <span className="absolute top-2 right-1/4 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className={`relative inline-flex rounded-full h-2 w-2 ${profile.theme === 'light' ? 'bg-emerald-500' : 'bg-lime-400'}`} />
+                  </span>
+                )}
                 {id === 'perfil' && !profile.name && (
-                  <span className="absolute top-1 w-1.5 h-1.5 rounded-full bg-red-500" />
+                  <span className="absolute top-2 right-1/4 w-2 h-2 rounded-full bg-red-500" />
                 )}
               </button>
             );
