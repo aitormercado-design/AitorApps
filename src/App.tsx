@@ -339,6 +339,7 @@ export default function App() {
   const [wizardMenuPicked, setWizardMenuPicked] = useState<boolean | null>(null);
   const [wizardGymPicked, setWizardGymPicked] = useState<boolean | null>(null);
   const [profileTab, setProfileTab] = useState<'user' | 'diet' | 'exercise'>('user');
+  const [profileModalTab, setProfileModalTab] = useState<'datos' | 'dieta' | 'entrenamiento'>('datos');
   const [dismissedSuggestions, setDismissedSuggestions] = useState<string[]>([]);
   const [dismissedPrompts, setDismissedPrompts] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem('kilokalo_dismissed_prompts') ?? '[]'); } catch { return []; }
@@ -399,9 +400,11 @@ export default function App() {
       if (profile.name) {
         setWizardMenuPicked(profile.menuEnabled ? true : false);
         setWizardGymPicked(profile.gymEnabled ? true : false);
+        // profileModalTab is set by the caller (openProfile), don't reset here
       } else {
         setWizardMenuPicked(null);
         setWizardGymPicked(null);
+        setProfileModalTab('datos');
       }
     }
   }, [isGoalModalOpen]);
@@ -2136,10 +2139,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 setEditWeight(latestWeight);
                 setDismissedSuggestions([]);
                 setProfileWizardStep(1);
+                setProfileModalTab('datos');
                 setIsGoalModalOpen(true);
               }}
               className={`relative h-10 px-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
-                profile.age === 0 
+                profile.age === 0
                   ? (profile.theme === 'light' ? 'bg-emerald-500 shadow-emerald-500/20 shadow-lg' : 'bg-lime-400 shadow-[0_0_20px_rgba(163,230,53,0.4)] shadow-lg')
                   : `${themeStyles.iconBg} border ${themeStyles.border} shadow-sm hover:${themeStyles.iconBg}`
               }`}
@@ -2223,6 +2227,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' });
               setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : '');
               setDismissedSuggestions([]);
+              setProfileModalTab(step === 2 ? 'dieta' : step === 3 ? 'entrenamiento' : 'datos');
               setProfileWizardStep(step);
               setIsGoalModalOpen(true);
             };
@@ -2286,7 +2291,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
             <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
             <p className={`text-xs ${themeStyles.textMuted} flex-1`}>Añade tu altura para que tus objetivos de calorías sean precisos</p>
-            <button onClick={() => { setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setProfileWizardStep(1); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Añadir datos</button>
+            <button onClick={() => { setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setProfileWizardStep(1); setProfileModalTab('datos'); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Añadir datos</button>
             <button onClick={() => dismissPrompt('add_height')} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
           </motion.div>
         )}
@@ -3005,7 +3010,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
                     <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
                     <p className={`text-xs ${themeStyles.textMuted} flex-1`}>Dieta configurada como Normal. ¿Sigues algún régimen especial? El menú se adaptará</p>
-                    <button onClick={() => { setProfileWizardStep(2); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Indicar dieta</button>
+                    <button onClick={() => { setProfileWizardStep(2); setProfileModalTab('dieta'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Indicar dieta</button>
                     <button onClick={() => dismissPrompt('add_diet_type')} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
                   </motion.div>
                 )}
@@ -3046,6 +3051,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
                       setEditWeight(latestWeight);
                       setDismissedSuggestions([]);
+                      setProfileModalTab('dieta');
                 setIsGoalModalOpen(true);
                     }}
                     className={themeStyles.buttonPrimary + " px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-sm"}
@@ -3358,7 +3364,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
               <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
               <p className={`text-xs ${themeStyles.textMuted} flex-1`}>Configura tu entrenamiento para un plan personalizado</p>
-              <button onClick={() => { setProfileWizardStep(3); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Configurar rutina</button>
+              <button onClick={() => { setProfileWizardStep(3); setProfileModalTab('entrenamiento'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Configurar rutina</button>
               <button onClick={() => dismissPrompt('add_gym_goal')} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
             </motion.div>
           )}
@@ -4057,7 +4063,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         )}
       </AnimatePresence>
 
-      {/* Goal Modal — 3-step wizard */}
+      {/* Goal Modal — wizard (new users) or tabs (returning users) */}
       <AnimatePresence>
         {isGoalModalOpen && (
           <motion.div
@@ -4084,9 +4090,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <h3 className={`text-lg font-display font-bold ${themeStyles.textMain} uppercase tracking-tight leading-none`}>
                       {profile.name ? 'Editar Perfil' : '¡Bienvenido!'}
                     </h3>
-                    <p className={`text-xs ${themeStyles.textMuted} mt-0.5`}>
-                      {profileWizardStep === 1 ? 'Paso 1 — Datos personales' : profileWizardStep === 2 ? 'Paso 2 — Menú semanal' : 'Paso 3 — Entrenamiento'}
-                    </p>
+                    {!profile.name && (
+                      <p className={`text-xs ${themeStyles.textMuted} mt-0.5`}>
+                        {profileWizardStep === 1 ? 'Paso 1 — Datos personales' : profileWizardStep === 2 ? 'Paso 2 — Menú semanal' : 'Paso 3 — Entrenamiento'}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {profile.name && (
@@ -4096,18 +4104,36 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 )}
               </div>
 
-              {/* Step dots */}
-              <div className="flex justify-center items-center gap-2 mb-5 shrink-0">
-                {([1, 2, 3] as const).map(s => (
-                  <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${s === profileWizardStep ? `w-8 ${themeStyles.accentBg}` : s < profileWizardStep ? `w-2 ${themeStyles.accentBg} opacity-40` : `w-2 ${profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700'}`}`} />
-                ))}
-              </div>
+              {/* Wizard step dots (new users only) */}
+              {!profile.name && (
+                <div className="flex justify-center items-center gap-2 mb-5 shrink-0">
+                  {([1, 2, 3] as const).map(s => (
+                    <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${s === profileWizardStep ? `w-8 ${themeStyles.accentBg}` : s < profileWizardStep ? `w-2 ${themeStyles.accentBg} opacity-40` : `w-2 ${profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700'}`}`} />
+                  ))}
+                </div>
+              )}
+
+              {/* Tab bar (returning users only) */}
+              {profile.name && (
+                <div className={`flex gap-1 p-1 rounded-xl mb-4 shrink-0 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'}`}>
+                  {(['datos', 'dieta', 'entrenamiento'] as const).map(tab => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setProfileModalTab(tab)}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-widest transition-all ${profileModalTab === tab ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-sm` : `${themeStyles.textMuted} hover:opacity-80`}`}
+                    >
+                      {tab === 'datos' ? 'Datos' : tab === 'dieta' ? 'Dieta' : 'Entreno'}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <form onSubmit={handleSaveGoal} className="flex-1 min-h-0 flex flex-col">
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4 text-left">
 
-                  {/* ── STEP 1: Personal data ── */}
-                  {profileWizardStep === 1 && (
+                  {/* ── STEP 1 / Datos tab: Personal data ── */}
+                  {((!profile.name && profileWizardStep === 1) || (profile.name && profileModalTab === 'datos')) && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
                       <div className={`${themeStyles.iconBg} p-4 rounded-2xl border ${themeStyles.border} space-y-2`}>
                         <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Nombre</label>
@@ -4265,8 +4291,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     </div>
                   )}
 
-                  {/* ── STEP 2: Weekly menu ── */}
-                  {profileWizardStep === 2 && (
+                  {/* ── STEP 2 / Dieta tab: Weekly menu ── */}
+                  {((!profile.name && profileWizardStep === 2) || (profile.name && profileModalTab === 'dieta')) && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                       <div className="text-center pt-2 pb-1">
                         <ChefHat className={`w-10 h-10 ${themeStyles.accent} mx-auto mb-3`} />
@@ -4277,22 +4303,22 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         <button
                           type="button"
                           onClick={() => { setWizardMenuPicked(true); setEditProfile(p => ({...p, menuEnabled: true})); }}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${wizardMenuPicked === true ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${(profile.name ? editProfile.menuEnabled : wizardMenuPicked === true) ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className={`text-2xl ${wizardMenuPicked === true ? '' : 'opacity-30'}`}>✓</span>
+                          <span className={`text-2xl ${(profile.name ? editProfile.menuEnabled : wizardMenuPicked === true) ? '' : 'opacity-30'}`}>✓</span>
                           <span className="text-xs font-bold uppercase tracking-widest">Sí, quiero mi menú</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => { setWizardMenuPicked(false); setEditProfile(p => ({...p, menuEnabled: false})); }}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${wizardMenuPicked === false ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${(profile.name ? !editProfile.menuEnabled : wizardMenuPicked === false) ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className={`text-2xl ${wizardMenuPicked === false ? '' : 'opacity-30'}`}>✕</span>
+                          <span className={`text-2xl ${(profile.name ? !editProfile.menuEnabled : wizardMenuPicked === false) ? '' : 'opacity-30'}`}>✕</span>
                           <span className="text-xs font-bold uppercase tracking-widest">No por ahora</span>
                         </button>
                       </div>
 
-                      {wizardMenuPicked === true && (
+                      {(profile.name ? editProfile.menuEnabled : wizardMenuPicked === true) && (
                         <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-4 duration-300">
                           <div className={`w-full h-px ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'}`} />
 
@@ -4413,8 +4439,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     </div>
                   )}
 
-                  {/* ── STEP 3: Training ── */}
-                  {profileWizardStep === 3 && (
+                  {/* ── STEP 3 / Entreno tab: Training ── */}
+                  {((!profile.name && profileWizardStep === 3) || (profile.name && profileModalTab === 'entrenamiento')) && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                       <div className="text-center pt-2 pb-1">
                         <Dumbbell className={`w-10 h-10 ${themeStyles.accent} mx-auto mb-3`} />
@@ -4425,22 +4451,22 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         <button
                           type="button"
                           onClick={() => { setWizardGymPicked(true); setEditProfile(p => ({...p, gymEnabled: true})); }}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${wizardGymPicked === true ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${(profile.name ? editProfile.gymEnabled : wizardGymPicked === true) ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className={`text-2xl ${wizardGymPicked === true ? '' : 'opacity-30'}`}>✓</span>
+                          <span className={`text-2xl ${(profile.name ? editProfile.gymEnabled : wizardGymPicked === true) ? '' : 'opacity-30'}`}>✓</span>
                           <span className="text-xs font-bold uppercase tracking-widest">Sí, quiero entrenar</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => { setWizardGymPicked(false); setEditProfile(p => ({...p, gymEnabled: false})); }}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${wizardGymPicked === false ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${(profile.name ? !editProfile.gymEnabled : wizardGymPicked === false) ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className={`text-2xl ${wizardGymPicked === false ? '' : 'opacity-30'}`}>✕</span>
+                          <span className={`text-2xl ${(profile.name ? !editProfile.gymEnabled : wizardGymPicked === false) ? '' : 'opacity-30'}`}>✕</span>
                           <span className="text-xs font-bold uppercase tracking-widest">No por ahora</span>
                         </button>
                       </div>
 
-                      {wizardGymPicked === true && (
+                      {(profile.name ? editProfile.gymEnabled : wizardGymPicked === true) && (
                         <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-4 duration-300">
                           <div className={`w-full h-px ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'}`} />
 
@@ -4517,43 +4543,58 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                 {/* Navigation buttons */}
                 <div className={`pt-4 mt-2 border-t ${themeStyles.border} flex gap-3 shrink-0`}>
-                  {profileWizardStep > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setProfileWizardStep(s => (s - 1) as 1 | 2 | 3)}
-                      className={`flex-1 py-3 rounded-xl border ${themeStyles.border} ${themeStyles.textMuted} text-xs font-bold uppercase tracking-widest transition-colors`}
-                    >
-                      ← Volver
-                    </button>
-                  )}
-                  {profileWizardStep < 3 ? (
-                    <button
-                      type="button"
-                      disabled={
-                        (profileWizardStep === 1 && (!editProfile.name.trim() || !editWeight || parseFloat(editWeight) <= 0 || editProfile.age <= 0 || editProfile.height <= 0)) ||
-                        (profileWizardStep === 2 && wizardMenuPicked === null)
-                      }
-                      onClick={() => {
-                        if (profileWizardStep === 1) {
-                          handleSaveGoal(null, false);
-                          setProfileWizardStep(2);
-                        } else {
-                          setProfileWizardStep(3);
-                        }
-                      }}
-                      className={`flex-1 ${themeStyles.buttonPrimary} py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      Continuar →
-                    </button>
-                  ) : (
+                  {profile.name ? (
+                    /* Tab mode: single Guardar button per tab */
                     <button
                       type="submit"
-                      disabled={wizardGymPicked === null}
+                      disabled={profileModalTab === 'datos' && (!editProfile.name.trim() || editProfile.age <= 0 || editProfile.height <= 0)}
                       className={`flex-1 ${themeStyles.buttonPrimary} py-3 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       <Save className="w-4 h-4" />
                       Guardar
                     </button>
+                  ) : (
+                    /* Wizard mode: Volver + Continuar/Guardar */
+                    <>
+                      {profileWizardStep > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setProfileWizardStep(s => (s - 1) as 1 | 2 | 3)}
+                          className={`flex-1 py-3 rounded-xl border ${themeStyles.border} ${themeStyles.textMuted} text-xs font-bold uppercase tracking-widest transition-colors`}
+                        >
+                          ← Volver
+                        </button>
+                      )}
+                      {profileWizardStep < 3 ? (
+                        <button
+                          type="button"
+                          disabled={
+                            (profileWizardStep === 1 && (!editProfile.name.trim() || !editWeight || parseFloat(editWeight) <= 0 || editProfile.age <= 0 || editProfile.height <= 0)) ||
+                            (profileWizardStep === 2 && wizardMenuPicked === null)
+                          }
+                          onClick={() => {
+                            if (profileWizardStep === 1) {
+                              handleSaveGoal(null, false);
+                              setProfileWizardStep(2);
+                            } else {
+                              setProfileWizardStep(3);
+                            }
+                          }}
+                          className={`flex-1 ${themeStyles.buttonPrimary} py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          Continuar →
+                        </button>
+                      ) : (
+                        <button
+                          type="submit"
+                          disabled={wizardGymPicked === null}
+                          className={`flex-1 ${themeStyles.buttonPrimary} py-3 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          <Save className="w-4 h-4" />
+                          Guardar
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </form>
