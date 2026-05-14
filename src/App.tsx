@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, ChevronUp, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, User as UserIcon, Pizza, Save, Edit2, Trash2, Home, Sparkles } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, ChevronUp, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, User as UserIcon, Pizza, Save, Edit2, Trash2, Home, Sparkles, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
 import { RulerPicker } from './components/RulerPicker';
+import { AppBanner } from './components/AppBanner';
 import { useCooldown } from './hooks/useCooldown';
 import remarkGfm from 'remark-gfm';
 import { analyzeFoodText, streamCompletion, generateWeeklyMenu, generateWorkoutPlan, generateShoppingList, generateWeeklyAnalysis } from './lib/groq';
@@ -2242,37 +2243,15 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.97 }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className={`relative overflow-hidden rounded-2xl shadow-xl ${
-                profile.theme === 'light'
-                  ? 'bg-gradient-to-br from-emerald-500 via-emerald-500 to-teal-600'
-                  : 'bg-zinc-900 border border-lime-400/30'
-              }`}
             >
-              {/* Glow accent strip */}
-              {profile.theme === 'dark' && (
-                <div className="absolute inset-y-0 left-0 w-1 bg-lime-400 rounded-l-2xl" />
-              )}
-              {/* Decorative blob */}
-              <div className={`absolute -top-8 -right-8 w-28 h-28 rounded-full blur-3xl ${profile.theme === 'light' ? 'bg-white/30' : 'bg-lime-400/15'}`} />
-              <div className={`relative flex items-start gap-3 p-4 ${profile.theme === 'dark' ? 'pl-5' : ''}`}>
-                <div className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ${profile.theme === 'light' ? 'bg-white/20 shadow-sm' : 'bg-lime-400/10 border border-lime-400/30'}`}>
-                  <img
-                    src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'}
-                    alt="Coach"
-                    className="w-5 h-5 rounded-lg"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className={`text-[10px] font-black uppercase tracking-[0.15em] ${profile.theme === 'light' ? 'text-white/70' : 'text-lime-400'}`}>Tu coach</span>
-                  <p className={`text-sm font-semibold leading-snug mt-0.5 ${profile.theme === 'light' ? 'text-white' : 'text-white'}`}>{proactiveMessage}</p>
-                </div>
-                <button
-                  onClick={clearMessage}
-                  className={`shrink-0 p-1 rounded-lg transition-colors mt-0.5 ${profile.theme === 'light' ? 'text-white/60 hover:text-white hover:bg-white/15' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+              <AppBanner
+                variant="coach"
+                theme={profile.theme}
+                label="Tu coach"
+                message={proactiveMessage}
+                icon={<img src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'} alt="Coach" className="w-5 h-5 rounded-lg" />}
+                onDismiss={clearMessage}
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -2291,67 +2270,71 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               setIsGoalModalOpen(true);
             };
             return (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-4`}
-              >
-                <div className="flex items-start gap-3 mb-3">
-                  <Sparkles className={`w-4 h-4 ${themeStyles.accent} shrink-0 mt-0.5`} />
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-bold ${themeStyles.textMain} mb-0.5`}>Configura tu experiencia</p>
-                    <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>
-                      Activa los módulos que quieras: planes de comidas y/o seguimiento de entrenamiento.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 mb-2.5">
-                  {!profile.menuEnabled && (
-                    <button
-                      onClick={() => openProfile(2)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} transition-all`}
-                    >
-                      Menú semanal
-                    </button>
-                  )}
-                  {!profile.gymEnabled && (
-                    <button
-                      onClick={() => openProfile(3)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} transition-all`}
-                    >
-                      Entrenamiento
-                    </button>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      const after = Date.now() + 24 * 60 * 60 * 1000;
-                      setDietGymBannerRemindAfter(after);
-                      localStorage.setItem('kilokalo_diet_gym_banner_remind', String(after));
-                    }}
-                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold border ${themeStyles.border} ${themeStyles.textMuted}`}
-                  >
-                    Recordar mañana
-                  </button>
-                  <button
-                    onClick={() => dismissPrompt('setup_features_v2')}
-                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`}
-                  >
-                    No avisar más
-                  </button>
-                </div>
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+                <AppBanner
+                  variant="warning"
+                  theme={profile.theme}
+                  icon={<Sparkles className="w-4 h-4" />}
+                  title="Configura tu experiencia"
+                  message="Activa los módulos que quieras: planes de comidas y/o seguimiento de entrenamiento."
+                  actions={
+                    <>
+                      <div className="flex flex-wrap gap-2 mb-2.5">
+                        {!profile.menuEnabled && (
+                          <button
+                            onClick={() => openProfile(2)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} transition-all`}
+                          >
+                            Menú semanal
+                          </button>
+                        )}
+                        {!profile.gymEnabled && (
+                          <button
+                            onClick={() => openProfile(3)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} transition-all`}
+                          >
+                            Entrenamiento
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            const after = Date.now() + 24 * 60 * 60 * 1000;
+                            setDietGymBannerRemindAfter(after);
+                            localStorage.setItem('kilokalo_diet_gym_banner_remind', String(after));
+                          }}
+                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold border ${themeStyles.border} ${themeStyles.textMuted}`}
+                        >
+                          Recordar mañana
+                        </button>
+                        <button
+                          onClick={() => dismissPrompt('setup_features_v2')}
+                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`}
+                        >
+                          No avisar más
+                        </button>
+                      </div>
+                    </>
+                  }
+                />
               </motion.div>
             );
           })()}
 
         {/* Height missing prompt */}
         {activeTab === 'today' && profile.height === 0 && !!profile.name && !dismissedPrompts.includes('add_height') && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
-            <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
-            <p className={`text-xs ${themeStyles.textMuted} flex-1`}>Añade tu altura para que tus objetivos de calorías sean precisos</p>
-            <button onClick={() => { setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setProfileWizardStep(1); setProfileModalTab('datos'); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Añadir datos</button>
-            <button onClick={() => dismissPrompt('add_height')} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+            <AppBanner
+              variant="info"
+              theme={profile.theme}
+              icon={<Info className="w-4 h-4" />}
+              message="Añade tu altura para que tus objetivos de calorías sean precisos"
+              actions={
+                <button onClick={() => { setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setProfileWizardStep(1); setProfileModalTab('datos'); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Añadir datos</button>
+              }
+              onDismiss={() => dismissPrompt('add_height')}
+            />
           </motion.div>
         )}
 
@@ -2944,7 +2927,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <Plus className={`w-5 h-5 ${themeStyles.accent}`} />
                     Añadir Comida
                   </h3>
-                  <p className={`text-xs ${themeStyles.textMuted} mb-4 relative z-10`}>{mealTimeHint}</p>
+                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium mb-4 relative z-10 ${profile.theme === 'light' ? 'bg-slate-100 text-slate-500' : 'bg-zinc-800 text-zinc-400'}`}>
+                    <Clock className="w-3 h-3 shrink-0" />
+                    {mealTimeHint}
+                  </div>
                   <div className="relative mb-4 z-10">
                     <input
                       type="text"
@@ -3067,33 +3053,37 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     Esta es una propuesta de menú semanal para ayudarte a cumplir con tus objetivos de calorías y macronutrientes.
                 </p>
                 {(!profile.dietType || profile.dietType === '') && !dismissedPrompts.includes('add_diet_type') && (
-                  <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
-                    <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
-                    <p className={`text-xs ${themeStyles.textMuted} flex-1`}>Dieta configurada como Normal. ¿Sigues algún régimen especial? El menú se adaptará</p>
-                    <button onClick={() => { setProfileWizardStep(2); setProfileModalTab('dieta'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Indicar dieta</button>
-                    <button onClick={() => dismissPrompt('add_diet_type')} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
+                  <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+                    <AppBanner
+                      variant="info"
+                      theme={profile.theme}
+                      icon={<Info className="w-4 h-4" />}
+                      message="Dieta configurada como Normal. ¿Sigues algún régimen especial? El menú se adaptará"
+                      actions={
+                        <button onClick={() => { setProfileWizardStep(2); setProfileModalTab('dieta'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Indicar dieta</button>
+                      }
+                      onDismiss={() => dismissPrompt('add_diet_type')}
+                    />
                   </motion.div>
                 )}
 
                 {/* Invalidation banner */}
                 {menuNeedsRegeneration && generatedMenu && profile.age !== 0 && (
-                  <div className={`rounded-2xl border border-red-500/40 ${profile.theme === 'light' ? 'bg-red-50' : 'bg-red-500/5'} p-4 flex items-center gap-3`}>
-                    <span className="relative flex h-3 w-3 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-red-500 uppercase tracking-widest">Tu perfil ha cambiado</p>
-                      <p className={`text-xs mt-0.5 ${profile.theme === 'light' ? 'text-red-700' : 'text-red-400/80'}`}>El menú puede no reflejar tus nuevos datos.</p>
-                    </div>
-                    <button
-                      disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
-                      onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
-                      className="shrink-0 px-3 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isGeneratingMenu ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Regenerar ahora'}
-                    </button>
-                  </div>
+                  <AppBanner
+                    variant="error"
+                    theme={profile.theme}
+                    title="Tu perfil ha cambiado"
+                    message="El menú puede no reflejar tus nuevos datos."
+                    actions={
+                      <button
+                        disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
+                        onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
+                        className="shrink-0 px-3 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isGeneratingMenu ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Regenerar ahora'}
+                      </button>
+                    }
+                  />
                 )}
 
               {profile.age === 0 ? (
@@ -3421,11 +3411,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           )}
 
           {activeTab === 'gym' && !profile.gymEnabled && !dismissedPrompts.includes('add_gym_goal') && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className={`rounded-2xl border ${themeStyles.border} ${themeStyles.card} p-3 flex items-center gap-3`}>
-              <Info className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
-              <p className={`text-xs ${themeStyles.textMuted} flex-1`}>Configura tu entrenamiento para un plan personalizado</p>
-              <button onClick={() => { setProfileWizardStep(3); setProfileModalTab('entrenamiento'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Configurar rutina</button>
-              <button onClick={() => dismissPrompt('add_gym_goal')} className={`${themeStyles.textMuted} hover:text-red-400 transition-colors shrink-0`}><X className="w-3.5 h-3.5" /></button>
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+              <AppBanner
+                variant="info"
+                theme={profile.theme}
+                icon={<Info className="w-4 h-4" />}
+                message="Configura tu entrenamiento para un plan personalizado"
+                actions={
+                  <button onClick={() => { setProfileWizardStep(3); setProfileModalTab('entrenamiento'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Configurar rutina</button>
+                }
+                onDismiss={() => dismissPrompt('add_gym_goal')}
+              />
             </motion.div>
           )}
 
@@ -3438,7 +3434,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               className="space-y-8 pb-32"
             >
               {/* Time-of-day gym hint */}
-              <p className={`text-xs ${themeStyles.textMuted} -mb-2`}>{gymTimeHint}</p>
+              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium -mb-2 ${profile.theme === 'light' ? 'bg-slate-100 text-slate-500' : 'bg-zinc-800 text-zinc-400'}`}>
+                <Clock className="w-3 h-3 shrink-0" />
+                {gymTimeHint}
+              </div>
 
               {/* Workout Content */}
               <div className="space-y-6">
@@ -3511,27 +3510,21 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <div className="space-y-6">
                         {/* Invalidation banner */}
                         {workoutNeedsRegeneration && (
-                          <div className={`rounded-2xl border border-red-500/40 ${profile.theme === 'light' ? 'bg-red-50' : 'bg-red-500/5'} p-4 flex items-center gap-3`}>
-                            <span className="relative flex h-3 w-3 shrink-0">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-bold text-red-500 uppercase tracking-widest">
-                                {workoutPlan ? 'Tu perfil ha cambiado' : 'Rutina pendiente de generar'}
-                              </p>
-                              <p className={`text-xs mt-0.5 ${profile.theme === 'light' ? 'text-red-700' : 'text-red-400/80'}`}>
-                                {workoutPlan ? 'La rutina puede no reflejar tus nuevos datos.' : 'Genera tu rutina personalizada con el perfil actual.'}
-                              </p>
-                            </div>
-                            <button
-                              disabled={isAIGenerating || isGeneratingWorkout || workoutCooldown.isActive}
-                              onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
-                              className="shrink-0 px-3 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {isGeneratingWorkout ? <Loader2 className="w-3 h-3 animate-spin" /> : workoutPlan ? 'Regenerar ahora' : 'Generar ahora'}
-                            </button>
-                          </div>
+                          <AppBanner
+                            variant="error"
+                            theme={profile.theme}
+                            title={workoutPlan ? 'Tu perfil ha cambiado' : 'Rutina pendiente de generar'}
+                            message={workoutPlan ? 'La rutina puede no reflejar tus nuevos datos.' : 'Genera tu rutina personalizada con el perfil actual.'}
+                            actions={
+                              <button
+                                disabled={isAIGenerating || isGeneratingWorkout || workoutCooldown.isActive}
+                                onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
+                                className="shrink-0 px-3 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {isGeneratingWorkout ? <Loader2 className="w-3 h-3 animate-spin" /> : workoutPlan ? 'Regenerar ahora' : 'Generar ahora'}
+                              </button>
+                            }
+                          />
                         )}
 
                         {/* Premium Gym Header */}
