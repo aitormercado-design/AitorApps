@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, ChevronUp, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, User as UserIcon, Pizza, Save, Edit2, Trash2, Home, Sparkles, Clock } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, ChevronUp, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, User as UserIcon, Pizza, Save, Edit2, Trash2, Home, Sparkles, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
@@ -76,12 +76,6 @@ type Meal = NutritionalInfo & {
   timestamp: number;
 };
 
-type WeightEntry = {
-  id: string;
-  weight: number;
-  timestamp: number;
-};
-
 type MedicalConditions = {
   diabetes: boolean;
   highCholesterol: boolean;
@@ -112,6 +106,7 @@ type UserProfile = {
   gymGoal: 'muscle' | 'strength' | 'cardio' | 'fat_loss' | 'flexibility' | 'maintenance';
   trainingDaysPerWeek: number;
   theme: 'light' | 'dark';
+  weight: number;
 };
 
 type ManualWorkoutEntry = {
@@ -225,7 +220,8 @@ const DEFAULT_PROFILE: UserProfile = {
   workoutType: 'gym',
   gymGoal: 'muscle',
   trainingDaysPerWeek: 3,
-  theme: 'light'
+  theme: 'light',
+  weight: 0,
 };
 
 const NutriScoreBadge = ({ score }: { score?: "A" | "B" | "C" | "D" | "E" }) => {
@@ -296,7 +292,6 @@ export default function App() {
   const [resetEmailSent, setResetEmailSent] = useState(false);
 
   const [meals, setMeals] = useState<Meal[]>([]);
-  const [weights, setWeights] = useState<WeightEntry[]>([]);
   const [goals, setGoals] = useState(DEFAULT_GOALS);
   const [profile, setProfile] = useState<UserProfile>({
     name: '',
@@ -320,7 +315,8 @@ export default function App() {
     workoutType: 'gym',
     gymGoal: 'muscle',
     trainingDaysPerWeek: 3,
-    theme: 'light'
+    theme: 'light',
+    weight: 0,
   });
   const [habits, setHabits] = useState<DailyHabits>({});
   const [workoutPlan, setWorkoutPlan] = useState<string | null>(null);
@@ -366,9 +362,6 @@ export default function App() {
     return () => clearInterval(timer);
   }, [todayStr]);
 
-  const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
-  const [newWeight, setNewWeight] = useState('');
-  
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [profileWizardStep, setProfileWizardStep] = useState<1 | 2 | 3>(1);
   const [isWizardMode, setIsWizardMode] = useState(false);
@@ -404,7 +397,8 @@ export default function App() {
     workoutType: 'gym',
     gymGoal: 'muscle',
     trainingDaysPerWeek: 3,
-    theme: 'light'
+    theme: 'light',
+    weight: 0,
   });
   const [editWeight, setEditWeight] = useState('');
 
@@ -533,7 +527,6 @@ export default function App() {
       // and the persistence effects would then write that stale data into the new user's document.
       hasAutoOpenedProfileRef.current = false; // allow wizard to re-open for new first-time users
       setMeals([]);
-      setWeights([]);
       setGoals(DEFAULT_GOALS);
       setProfile({ ...DEFAULT_PROFILE });
       setGeneratedMenu(null);
@@ -613,15 +606,6 @@ export default function App() {
             );
 
             try {
-              const weightsSnap = await getDocs(collection(db, 'users', currentUser.uid, 'weights'));
-              const loadedWeights: WeightEntry[] = [];
-              weightsSnap.forEach(doc => loadedWeights.push(doc.data() as WeightEntry));
-              setWeights(loadedWeights.sort((a, b) => a.timestamp - b.timestamp));
-            } catch (err) {
-              handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}/weights`);
-            }
-
-            try {
               const habitsSnap = await getDocs(collection(db, 'users', currentUser.uid, 'habits'));
               const loadedHabits: DailyHabits = {};
               habitsSnap.forEach(doc => { loadedHabits[doc.id] = doc.data() as any; });
@@ -642,7 +626,6 @@ export default function App() {
           const savedMenu = localStorage.getItem('nutritivapp_generated_menu');
           const savedShoppingList = localStorage.getItem('nutritivapp_shopping_list');
           const savedMeals = localStorage.getItem('nutritivapp_meals');
-          const savedWeights = localStorage.getItem('nutritivapp_weights');
           const savedChecked = localStorage.getItem('nutritivapp_checked_items');
 
           if (savedProfile) {
@@ -677,7 +660,6 @@ export default function App() {
           if (savedShoppingList) setShoppingList(JSON.parse(savedShoppingList));
           if (localStorage.getItem('nutritivapp_workout_plan')) setWorkoutPlan(localStorage.getItem('nutritivapp_workout_plan'));
           if (savedMeals) setMeals(JSON.parse(savedMeals));
-          if (savedWeights) setWeights(JSON.parse(savedWeights));
           if (savedChecked) setCheckedItems(JSON.parse(savedChecked));
         } catch (e) {
           console.error("Error loading from localStorage:", e);
@@ -697,12 +679,6 @@ export default function App() {
       localStorage.setItem('nutritivapp_meals', JSON.stringify(meals));
     }
   }, [meals, user, isDataLoaded]);
-
-  useEffect(() => {
-    if (isDataLoaded) {
-      localStorage.setItem('nutritivapp_weights', JSON.stringify(weights));
-    }
-  }, [weights, user, isDataLoaded]);
 
   useEffect(() => {
     if (isDataLoaded) {
@@ -794,7 +770,7 @@ export default function App() {
   // showing a different value than what the profile actually dictates.
   useEffect(() => {
     if (!isDataLoaded || profile.age === 0 || profile.height === 0) return;
-    const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+    const latestWeight = profile.weight > 0 ? profile.weight : 70;
     updateGoalsForProfile(profile, latestWeight);
   }, [isDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -882,7 +858,7 @@ export default function App() {
 
   const getAssistantState = () => {
     const todayHabits = habits[todayStr] || { water: 0, sleep: 0 };
-    const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+    const latestWeight = profile.weight > 0 ? profile.weight : 70;
     
     // Estimate burned calories from workout per section
     let burnedCalories = 0;
@@ -937,7 +913,7 @@ export default function App() {
   const { proactiveMessage, clearMessage } = useProactiveCoach({
     meals: todaysMeals,
     habits,
-    weights,
+    weights: [],
     goals: { ...goals, calories: assistant.totalTarget },
     profile,
     todayStr,
@@ -1039,8 +1015,8 @@ export default function App() {
         const dayStr = getLocalDateStr(day);
         const dayHabits = habits[dayStr];
         const completed = (dayHabits?.completedExercises || []).filter(Boolean);
-        const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
-        
+        const latestWeight = profile.weight > 0 ? profile.weight : 70;
+
         if (dayHabits?.workoutDone) {
           burnedCalories += dayHabits.workoutCalories ??
             calculateExpertCalories(latestWeight, profile.gymGoal, 'warm') +
@@ -1074,7 +1050,7 @@ export default function App() {
 
   const weeklyGoals = useMemo(() => {
     const gymDays = Math.min(7, Math.max(0, profile.trainingDaysPerWeek));
-    const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+    const latestWeight = profile.weight > 0 ? profile.weight : 70;
     const bmrValue = calcularBMR(profile, latestWeight);
     const sedentaryTDEE = bmrValue * 1.2;
     const activeTDEE = bmrValue * getActivityFactor(gymDays);
@@ -1088,7 +1064,7 @@ export default function App() {
       carbs: goals.carbs * 7,
       fat: goals.fat * 7,
     };
-  }, [goals, weeklyStats, profile, weights]);
+  }, [goals, weeklyStats, profile]);
 
   // Build per-day data for the semaphore weekly view
   const weekDays = useMemo(() => {
@@ -1169,7 +1145,7 @@ export default function App() {
     const length = periodDays[evolutionPeriod];
 
     const gymDays = Math.min(7, Math.max(0, profile.trainingDaysPerWeek));
-    const latestWeightForBMR = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+    const latestWeightForBMR = profile.weight > 0 ? profile.weight : 70;
     const bmrValue = calcularBMR(profile, latestWeightForBMR);
     const sedentaryTDEE = bmrValue * 1.2;
     const activeTDEE = bmrValue * getActivityFactor(gymDays);
@@ -1185,9 +1161,8 @@ export default function App() {
       
       const dayMeals = meals.filter(m => m.timestamp >= start && m.timestamp < end);
       const dayCals = dayMeals.reduce((sum, m) => sum + m.calories, 0);
-      
-      const pastWeights = weights.filter(w => w.timestamp < end);
-      const dayWeight = pastWeights.length > 0 ? pastWeights[pastWeights.length - 1].weight : null;
+
+      const currentWeight = profile.weight > 0 ? profile.weight : 70;
 
       // Calculate burned for this specific day with independent sections
       let dayBurned = 0;
@@ -1196,9 +1171,9 @@ export default function App() {
         const completed = (dayHabits?.completedExercises || []).filter(Boolean);
         if (dayHabits?.workoutDone) {
           dayBurned += dayHabits.workoutCalories ??
-            calculateExpertCalories(dayWeight, profile.gymGoal, 'warm') +
-            calculateExpertCalories(dayWeight, profile.gymGoal, 'main') +
-            calculateExpertCalories(dayWeight, profile.gymGoal, 'cool');
+            calculateExpertCalories(currentWeight, profile.gymGoal, 'warm') +
+            calculateExpertCalories(currentWeight, profile.gymGoal, 'main') +
+            calculateExpertCalories(currentWeight, profile.gymGoal, 'cool');
         } else if (workoutPlan && completed.length > 0) {
           const getSectionOfTable = (tableId: string) => {
             if (!tableId.includes('-')) return null;
@@ -1214,9 +1189,9 @@ export default function App() {
             return null;
           };
           const sectionsDone = new Set(completed.map(id => getSectionOfTable(id)).filter(Boolean) as string[]);
-          if (sectionsDone.has('main')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'main');
-          if (sectionsDone.has('warm')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'warm');
-          if (sectionsDone.has('cool')) dayBurned += calculateExpertCalories(dayWeight, profile.gymGoal, 'cool');
+          if (sectionsDone.has('main')) dayBurned += calculateExpertCalories(currentWeight, profile.gymGoal, 'main');
+          if (sectionsDone.has('warm')) dayBurned += calculateExpertCalories(currentWeight, profile.gymGoal, 'warm');
+          if (sectionsDone.has('cool')) dayBurned += calculateExpertCalories(currentWeight, profile.gymGoal, 'cool');
         }
         dayBurned += getManualWorkoutKcal(dayHabits);
       }
@@ -1241,11 +1216,10 @@ export default function App() {
         name: formatLabel(),
         calories: dayCals,
         burned: dayBurned,
-        weight: dayWeight,
         goal: goals.calories + dayDelta
       };
     });
-  }, [meals, weights, goals, habits, profile, workoutPlan, evolutionPeriod]);
+  }, [meals, goals, habits, profile, workoutPlan, evolutionPeriod]);
 
   const compressImage = (file: File, maxWidth = 800): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -1539,29 +1513,6 @@ export default function App() {
     return newGoals;
   };
 
-  const handleAddWeight = (e: React.FormEvent) => {
-    e.preventDefault();
-    const weightVal = parseFloat(newWeight);
-    if (!isNaN(weightVal) && weightVal > 0) {
-      const newEntry: WeightEntry = {
-        id: Date.now().toString(),
-        weight: weightVal,
-        timestamp: Date.now(),
-      };
-      setWeights(prev => [...prev, newEntry].sort((a, b) => a.timestamp - b.timestamp));
-      if (user) {
-        setDoc(doc(db, 'users', user.uid, 'weights', newEntry.id), newEntry).catch(console.error);
-      }
-      setIsWeightModalOpen(false);
-      setNewWeight('');
-      
-      if (profile.age > 0 && profile.height > 0) {
-        updateGoalsForProfile(profile, weightVal);
-        if (generatedMenu) setMenuNeedsRegeneration(true);
-      }
-    }
-  };
-
   const handleGenerateMenu = async (customProfile?: UserProfile, customGoals?: typeof goals, customWeight?: number) => {
     const raw = customProfile || profile;
     // Fill in defaults so the AI prompt always has valid values
@@ -1585,7 +1536,7 @@ export default function App() {
     setExpandedMeal(0);
     if (menuTabsRef.current) menuTabsRef.current.scrollLeft = 0;
     try {
-      const currentWeight = customWeight || (weights.length > 0 ? weights[weights.length - 1].weight : 70);
+      const currentWeight = customWeight || (profile.weight > 0 ? profile.weight : 70);
       const menu = await generateWeeklyMenu(activeProfile, currentWeight);
       setGeneratedMenu(menu);
       setMenuNeedsRegeneration(false);
@@ -1660,10 +1611,10 @@ export default function App() {
 
   const handleSaveGoal = (e: React.FormEvent | null, closeAfter = true) => {
     e?.preventDefault();
-    // Use editWeight if valid, otherwise fall back to last recorded weight
+    // Use editWeight if valid, otherwise fall back to profile.weight
     const weightVal = editWeight.trim()
       ? parseFloat(editWeight)
-      : weights.length > 0 ? weights[weights.length - 1].weight : NaN;
+      : profile.weight > 0 ? profile.weight : NaN;
     if (!editProfile.name.trim() || isNaN(weightVal) || weightVal <= 0 || editProfile.age <= 0 || editProfile.height <= 0) return;
 
     const hasFullData = true; // all required fields validated above
@@ -1674,21 +1625,8 @@ export default function App() {
       name: editProfile.name.trim(),
       dietType: editProfile.dietType || 'Normal',
       macroDistribution: editProfile.macroDistribution || 'balanced',
+      weight: weightVal,
     };
-
-    // Save weight if it's a new value
-    const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : null;
-    if (weightVal !== latestWeight) {
-      const newEntry: WeightEntry = {
-        id: Date.now().toString(),
-        weight: weightVal,
-        timestamp: Date.now(),
-      };
-      setWeights(prev => [...prev, newEntry].sort((a, b) => a.timestamp - b.timestamp));
-      if (user) {
-        setDoc(doc(db, 'users', user.uid, 'weights', newEntry.id), newEntry).catch(console.error);
-      }
-    }
 
     // Compare key fields to decide on regeneration
     const dietChanged =
@@ -1715,7 +1653,7 @@ export default function App() {
   };
 
   const getSessionCalories = () => {
-    const currentWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+    const currentWeight = profile.weight > 0 ? profile.weight : 70;
     return (
       calculateExpertCalories(currentWeight, profile.gymGoal, 'warm') +
       calculateExpertCalories(currentWeight, profile.gymGoal, 'main') +
@@ -1853,7 +1791,7 @@ export default function App() {
       const profileStr = JSON.stringify({
         ...targetProfile,
         diabetes: targetProfile.diabetesType,
-        currentWeight: weights.length > 0 ? weights[weights.length - 1].weight : 'Desconocido'
+        currentWeight: targetProfile.weight > 0 ? targetProfile.weight : 'Desconocido'
       });
       const plan = await generateWorkoutPlan(profileStr, (step) => setWorkoutProgressMsg(step));
       setWorkoutPlan(plan);
@@ -1882,19 +1820,6 @@ export default function App() {
       setDoc(doc(db, 'users', user.uid, 'habits', dateStr), newHabits[dateStr]).catch(console.error);
     }
   };
-
-  const isStagnant = useMemo(() => {
-    if (weights.length < 3) return false;
-    const latest = weights[weights.length - 1];
-    const twoWeeksAgo = latest.timestamp - 14 * 24 * 60 * 60 * 1000;
-    const recentWeights = weights.filter(w => w.timestamp >= twoWeeksAgo);
-    if (recentWeights.length >= 3) {
-      const max = Math.max(...recentWeights.map(w => w.weight));
-      const min = Math.min(...recentWeights.map(w => w.weight));
-      if (max - min <= 0.5) return true;
-    }
-    return false;
-  }, [weights]);
 
   const todayHabits = habits[todayStr] || { water: 0, sleep: 0 };
 
@@ -2026,7 +1951,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
       await signOut(auth);
       // Clear localStorage on logout
       localStorage.removeItem('nutritivapp_meals');
-      localStorage.removeItem('nutritivapp_weights');
       localStorage.removeItem('nutritivapp_goals');
       localStorage.removeItem('nutritivapp_profile');
       localStorage.removeItem('nutritivapp_habits');
@@ -2035,7 +1959,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
       // Reset state on logout
       setMeals([]);
-      setWeights([]);
       setGoals(DEFAULT_GOALS);
       setProfile({ ...DEFAULT_PROFILE });
       setHabits({});
@@ -2219,8 +2142,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   allergies: Array.isArray(profile.allergies) ? profile.allergies : [],
                   dislikedFoods: profile.dislikedFoods || ''
                 });
-                const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
-                setEditWeight(latestWeight);
+                setEditWeight(profile.weight > 0 ? profile.weight.toString() : '');
                 setDismissedSuggestions([]);
                 setProfileWizardStep(1);
                 setProfileModalTab('datos');
@@ -2301,7 +2223,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           Date.now() > dietGymBannerRemindAfter && (() => {
             const openProfile = (step: 1 | 2 | 3 = 1) => {
               setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' });
-              setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : '');
+              setEditWeight(profile.weight > 0 ? profile.weight.toString() : '');
               setDismissedSuggestions([]);
               setProfileModalTab(step === 2 ? 'dieta' : step === 3 ? 'entrenamiento' : 'datos');
               setProfileWizardStep(step);
@@ -2371,7 +2293,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               icon={<Info className="w-4 h-4" />}
               message="Añade tu altura para que tus objetivos de calorías sean precisos"
               actions={
-                <button onClick={() => { setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setProfileWizardStep(1); setProfileModalTab('datos'); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Añadir datos</button>
+                <button onClick={() => { setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(profile.weight > 0 ? profile.weight.toString() : ''); setDismissedSuggestions([]); setProfileWizardStep(1); setProfileModalTab('datos'); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Añadir datos</button>
               }
               onDismiss={() => dismissPrompt('add_height')}
             />
@@ -3102,7 +3024,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       icon={<Info className="w-4 h-4" />}
                       message="Dieta configurada como Normal. ¿Sigues algún régimen especial? El menú se adaptará"
                       actions={
-                        <button onClick={() => { setProfileWizardStep(2); setProfileModalTab('dieta'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Indicar dieta</button>
+                        <button onClick={() => { setProfileWizardStep(2); setProfileModalTab('dieta'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(profile.weight > 0 ? profile.weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Indicar dieta</button>
                       }
                       onDismiss={() => dismissPrompt('add_diet_type')}
                     />
@@ -3119,7 +3041,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     actions={
                       <button
                         disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
-                        onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
+                        onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, profile.weight > 0 ? profile.weight : 70); }}
                         className="shrink-0 px-3 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isGeneratingMenu ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Regenerar ahora'}
@@ -3140,8 +3062,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         allergies: Array.isArray(profile.allergies) ? profile.allergies : [],
                         dislikedFoods: profile.dislikedFoods || ''
                       });
-                      const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight.toString() : '';
-                      setEditWeight(latestWeight);
+                      setEditWeight(profile.weight > 0 ? profile.weight.toString() : '');
                       setDismissedSuggestions([]);
                       setProfileModalTab('dieta');
                 setIsGoalModalOpen(true);
@@ -3202,7 +3123,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           </div>
                           <button
                             disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
-                            onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
+                            onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, profile.weight > 0 ? profile.weight : 70); }}
                             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border ${themeStyles.border} ${themeStyles.iconBg} ${themeStyles.textMuted} text-xs font-bold uppercase tracking-widest hover:${themeStyles.textMain} transition-all disabled:opacity-50`}
                           >
                             <RefreshCw className="w-3 h-3" />
@@ -3330,7 +3251,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </div>
                         <button
                           disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
-                          onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, weights.length > 0 ? weights[weights.length - 1].weight : 70); }}
+                          onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, profile.weight > 0 ? profile.weight : 70); }}
                           className={`${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} font-bold uppercase tracking-widest px-8 py-3 rounded-xl transition-all shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:scale-100 text-sm`}
                         >
                           {menuCooldown.isActive ? `Espera ${menuCooldown.remaining}s` : 'Generar menú semanal'}
@@ -3460,7 +3381,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 icon={<Info className="w-4 h-4" />}
                 message="Configura tu entrenamiento para un plan personalizado"
                 actions={
-                  <button onClick={() => { setProfileWizardStep(3); setProfileModalTab('entrenamiento'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(weights.length > 0 ? weights[weights.length - 1].weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Configurar rutina</button>
+                  <button onClick={() => { setProfileWizardStep(3); setProfileModalTab('entrenamiento'); setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(profile.weight > 0 ? profile.weight.toString() : ''); setDismissedSuggestions([]); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Configurar rutina</button>
                 }
                 onDismiss={() => dismissPrompt('add_gym_goal')}
               />
@@ -3866,7 +3787,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                         {/* Form */}
                         {(() => {
-                          const weightKg = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+                          const weightKg = profile.weight > 0 ? profile.weight : 70;
                           const mins = parseFloat(manualWorkoutMinutes) || 0;
                           const metKcal = mins > 0 ? calculateMETCalories(manualWorkoutActivity, manualWorkoutIntensidad, mins, weightKg) : 0;
                           const finalKcal = manualWorkoutCaloriesOverride !== '' ? (parseInt(manualWorkoutCaloriesOverride) || 0) : metKcal;
@@ -4114,51 +4035,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 <p className="text-zinc-400 text-sm font-medium">Calculando calorías y macronutrientes</p>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Weight Modal */}
-      <AnimatePresence>
-        {isWeightModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className={`fixed inset-0 z-50 flex items-center justify-center p-6 ${profile.theme === 'light' ? 'bg-slate-900/60' : 'bg-zinc-950/90'} backdrop-blur-sm`}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className={`rounded-2xl p-5 w-full max-w-sm ${themeStyles.card} ${themeStyles.border} shadow-2xl`}
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h3 className={`text-xl font-display font-bold ${themeStyles.textMain}`}>Registrar Peso</h3>
-                <button onClick={() => setIsWeightModalOpen(false)} className={`${themeStyles.textMuted} hover:${themeStyles.accent} transition-colors`}>
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <form onSubmit={handleAddWeight} className="space-y-4 pb-12">
-                <NumberInput
-                  label="Peso (kg)"
-                  value={newWeight}
-                  onChange={setNewWeight}
-                  step={0.1}
-                  min={30}
-                  max={300}
-                  placeholder="Ej. 75.5"
-                  theme={profile.theme}
-                />
-                <button 
-                  type="submit"
-                  disabled={!newWeight}
-                  className={`w-full ${themeStyles.buttonPrimary} font-semibold py-3 rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  Guardar
-                </button>
-              </form>
-            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
