@@ -367,17 +367,9 @@ export default function App() {
   const [profileTab, setProfileTab] = useState<'user' | 'diet' | 'exercise'>('user');
   const [profileModalTab, setProfileModalTab] = useState<'datos' | 'dieta' | 'entrenamiento'>('datos');
   const [dismissedSuggestions, setDismissedSuggestions] = useState<string[]>([]);
-  const [dismissedPrompts, setDismissedPrompts] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem('kilokalo_dismissed_prompts') ?? '[]'); } catch { return []; }
-  });
-  const [optionalBannerRemindAfter, setOptionalBannerRemindAfter] = useState<number>(() => {
-    const s = localStorage.getItem('kilokalo_optional_banner_remind');
-    return s ? parseInt(s) : 0;
-  });
-  const [dietGymBannerRemindAfter, setDietGymBannerRemindAfter] = useState<number>(() => {
-    const s = localStorage.getItem('kilokalo_diet_gym_banner_remind');
-    return s ? parseInt(s) : 0;
-  });
+  const [dismissedPrompts, setDismissedPrompts] = useState<string[]>([]);
+  const [optionalBannerRemindAfter, setOptionalBannerRemindAfter] = useState<number>(0);
+  const [dietGymBannerRemindAfter, setDietGymBannerRemindAfter] = useState<number>(0);
 
   const [appliedSuggestionKey, setAppliedSuggestionKey] = useState<string | null>(null);
   const [editProfile, setEditProfile] = useState<UserProfile>({
@@ -532,8 +524,19 @@ export default function App() {
       setHabits({});
       setMenuNeedsRegeneration(false);
       setWorkoutNeedsRegeneration(false);
+      setDismissedPrompts([]);
+      setDietGymBannerRemindAfter(0);
 
       if (currentUser) {
+        // Load user-specific banner dismiss state from localStorage
+        const uid = currentUser.uid;
+        try {
+          const dismissed = JSON.parse(localStorage.getItem(`kilokalo_dismissed_prompts_${uid}`) ?? '[]');
+          setDismissedPrompts(dismissed);
+        } catch {}
+        const dietRemind = localStorage.getItem(`kilokalo_diet_gym_banner_remind_${uid}`);
+        setDietGymBannerRemindAfter(dietRemind ? parseInt(dietRemind) : 0);
+
         try {
           const docRef = doc(db, 'users', currentUser.uid);
           const docSnap = await getDoc(docRef);
@@ -975,7 +978,9 @@ export default function App() {
   const dismissPrompt = (id: string) => {
     const updated = [...dismissedPrompts, id];
     setDismissedPrompts(updated);
-    localStorage.setItem('kilokalo_dismissed_prompts', JSON.stringify(updated));
+    if (user?.uid) {
+      localStorage.setItem(`kilokalo_dismissed_prompts_${user.uid}`, JSON.stringify(updated));
+    }
   };
 
   // Calculate weekly totals
@@ -2302,7 +2307,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           onClick={() => {
                             const after = Date.now() + 24 * 60 * 60 * 1000;
                             setDietGymBannerRemindAfter(after);
-                            localStorage.setItem('kilokalo_diet_gym_banner_remind', String(after));
+                            if (user?.uid) {
+                              localStorage.setItem(`kilokalo_diet_gym_banner_remind_${user.uid}`, String(after));
+                            }
                           }}
                           className={`flex-1 py-1.5 rounded-xl text-xs font-bold border ${themeStyles.border} ${themeStyles.textMuted}`}
                         >
