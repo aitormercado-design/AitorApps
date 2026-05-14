@@ -948,6 +948,24 @@ export default function App() {
 
   // Profile completeness (0–100) — based on saved profile
 
+  // Time-of-day context — recomputed on each render (cheap)
+  const currentHour = new Date().getHours();
+  const mealTimeHint =
+    currentHour < 10 ? '¿Qué desayunaste hoy?' :
+    currentHour < 12 ? '¿Algo a media mañana?' :
+    currentHour < 15 ? 'Hora del almuerzo — ¿qué comiste?' :
+    currentHour < 18 ? '¿Merienda o post-entreno?' :
+    currentHour < 21 ? 'Registra la cena cuando estés listo' :
+    '¿Último registro del día?';
+
+  const gymTimeHint =
+    currentHour < 10 ? 'Entreno matutino — el mejor momento para activarse.' :
+    currentHour < 12 ? 'Buena hora para entrenar.' :
+    currentHour < 15 ? 'Entreno al mediodía — recuerda hidratarte bien.' :
+    currentHour < 18 ? 'Hora pico de rendimiento — aprovéchala.' :
+    currentHour < 21 ? 'Entreno vespertino — termina antes de las 21h para dormir bien.' :
+    'Tarde para entreno intenso — mejor movilidad o estiramientos.';
+
   const dismissPrompt = (id: string) => {
     const updated = [...dismissedPrompts, id];
     setDismissedPrompts(updated);
@@ -2907,6 +2925,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <Plus className={`w-5 h-5 ${themeStyles.accent}`} />
                     Añadir Comida
                   </h3>
+                  <p className={`text-xs ${themeStyles.textMuted} mb-4 relative z-10`}>{mealTimeHint}</p>
                   <div className="relative mb-4 z-10">
                     <input
                       type="text"
@@ -3399,6 +3418,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               exit={{ opacity: 0, x: -20 }}
               className="space-y-8 pb-32"
             >
+              {/* Time-of-day gym hint */}
+              <p className={`text-xs ${themeStyles.textMuted} -mb-2`}>{gymTimeHint}</p>
+
               {/* Workout Content */}
               <div className="space-y-6">
                 {workoutPlan && !isGeneratingWorkout && (
