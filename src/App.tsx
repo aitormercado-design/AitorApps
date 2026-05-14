@@ -770,6 +770,15 @@ export default function App() {
     }
   }, [workoutPlan, user, isDataLoaded]);
 
+  // When Firestore data finishes loading, always recalculate goals from the current user's
+  // profile. This prevents stale or missing Firestore goals (e.g. DEFAULT_GOALS = 2500) from
+  // showing a different value than what the profile actually dictates.
+  useEffect(() => {
+    if (!isDataLoaded || profile.age === 0 || profile.height === 0) return;
+    const latestWeight = weights.length > 0 ? weights[weights.length - 1].weight : 70;
+    updateGoalsForProfile(profile, latestWeight);
+  }, [isDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Persist regen flags to localStorage
   useEffect(() => {
     if (menuNeedsRegeneration) localStorage.setItem('menuNeedsRegen', 'true');
