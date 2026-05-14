@@ -4886,6 +4886,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <span className={`relative inline-flex rounded-full h-2 w-2 ${profile.theme === 'light' ? 'bg-emerald-500' : 'bg-lime-400'}`} />
                   </span>
                 )}
+                {!showBadge && id === 'menu' && menuNeedsRegeneration && (
+                  <span className="absolute top-2 right-1/4 w-2 h-2 rounded-full bg-amber-500" />
+                )}
+                {!showBadge && id === 'gym' && workoutNeedsRegeneration && (
+                  <span className="absolute top-2 right-1/4 w-2 h-2 rounded-full bg-amber-500" />
+                )}
                 {id === 'perfil' && !profile.name && (
                   <span className="absolute top-2 right-1/4 w-2 h-2 rounded-full bg-red-500" />
                 )}
