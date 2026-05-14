@@ -193,6 +193,30 @@ const DEFAULT_GOALS = {
   fat: 86,
 };
 
+const DEFAULT_PROFILE: UserProfile = {
+  name: '',
+  age: 0,
+  height: 0,
+  gender: 'male',
+  dietType: 'Normal',
+  allergies: [],
+  otherAllergies: '',
+  diabetesType: 'none',
+  medicalConditions: { diabetes: false, highCholesterol: false, hypertension: false, hypothyroidism: false, insulinResistance: false },
+  dislikedFoods: '',
+  goal: 'maintain',
+  macroDistribution: 'balanced',
+  freeMealEnabled: false,
+  freeMealDay: 'Sábado',
+  freeMealType: 'cena',
+  menuEnabled: false,
+  gymEnabled: false,
+  workoutType: 'gym',
+  gymGoal: 'muscle',
+  trainingDaysPerWeek: 3,
+  theme: 'light'
+};
+
 const NutriScoreBadge = ({ score }: { score?: "A" | "B" | "C" | "D" | "E" }) => {
   if (!score) return null;
   const colors = {
@@ -487,6 +511,22 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setIsDataLoaded(false); // block save effects during any auth transition
       setUser(currentUser);
+
+      // Reset all user-specific state before loading the new user's data.
+      // Without this, fields missing from Firestore keep the previous user's values,
+      // and the persistence effects would then write that stale data into the new user's document.
+      setMeals([]);
+      setWeights([]);
+      setGoals(DEFAULT_GOALS);
+      setProfile({ ...DEFAULT_PROFILE });
+      setGeneratedMenu(null);
+      setShoppingList(null);
+      setWorkoutPlan(null);
+      setCheckedItems({});
+      setHabits({});
+      setMenuNeedsRegeneration(false);
+      setWorkoutNeedsRegeneration(false);
+
       if (currentUser) {
         try {
           const docRef = doc(db, 'users', currentUser.uid);
@@ -1935,32 +1975,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
       setMeals([]);
       setWeights([]);
       setGoals(DEFAULT_GOALS);
-      setProfile({
-        name: '',
-        age: 0,
-        height: 170,
-        gender: 'male',
-        dietType: 'Normal',
-        allergies: [],
-        otherAllergies: '',
-        diabetesType: 'none',
-        medicalConditions: { diabetes: false, highCholesterol: false, hypertension: false, hypothyroidism: false, insulinResistance: false },
-        dislikedFoods: '',
-        goal: 'maintain',
-        macroDistribution: 'balanced',
-        freeMealEnabled: false,
-        freeMealDay: 'Sábado',
-        freeMealType: 'cena',
-        menuEnabled: false,
-    gymEnabled: false,
-        workoutType: 'gym',
-        gymGoal: 'maintenance',
-        trainingDaysPerWeek: 3,
-        theme: 'light'
-      });
+      setProfile({ ...DEFAULT_PROFILE });
       setHabits({});
       setGeneratedMenu(null);
       setShoppingList(null);
+      setWorkoutPlan(null);
+      setCheckedItems({});
+      setMenuNeedsRegeneration(false);
+      setWorkoutNeedsRegeneration(false);
     } catch (error) {
       console.error("Error signing out:", error);
     }
