@@ -2310,7 +2310,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             className={`flex-[1.2] shrink-0 px-4 py-2.5 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap ${activeTab === 'meals' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} ${themeStyles.tabActiveShadow} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
           >
             <Utensils className="w-3.5 h-3.5" />
-            Consumir Calorías
+            Ingerir Calorías
           </button>
           {profile.gymEnabled && (
             <button 
