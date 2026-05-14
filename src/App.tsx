@@ -519,6 +519,7 @@ export default function App() {
       // Reset all user-specific state before loading the new user's data.
       // Without this, fields missing from Firestore keep the previous user's values,
       // and the persistence effects would then write that stale data into the new user's document.
+      hasAutoOpenedProfileRef.current = false; // allow wizard to re-open for new first-time users
       setMeals([]);
       setWeights([]);
       setGoals(DEFAULT_GOALS);
@@ -2241,12 +2242,20 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.97 }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className={`relative overflow-hidden rounded-2xl p-4 shadow-lg ${profile.theme === 'light' ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-200' : 'bg-gradient-to-br from-lime-400/20 to-emerald-600/20 border border-lime-400/20 shadow-lime-900/30'}`}
+              className={`relative overflow-hidden rounded-2xl shadow-xl ${
+                profile.theme === 'light'
+                  ? 'bg-gradient-to-br from-emerald-500 via-emerald-500 to-teal-600'
+                  : 'bg-zinc-900 border border-lime-400/30'
+              }`}
             >
-              {/* Decorative glow blob */}
-              <div className={`absolute -top-6 -right-6 w-24 h-24 rounded-full blur-2xl opacity-40 ${profile.theme === 'light' ? 'bg-white' : 'bg-lime-400'}`} />
-              <div className="relative flex items-start gap-3">
-                <div className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm ${profile.theme === 'light' ? 'bg-white/25' : 'bg-lime-400/15 border border-lime-400/30'}`}>
+              {/* Glow accent strip */}
+              {profile.theme === 'dark' && (
+                <div className="absolute inset-y-0 left-0 w-1 bg-lime-400 rounded-l-2xl" />
+              )}
+              {/* Decorative blob */}
+              <div className={`absolute -top-8 -right-8 w-28 h-28 rounded-full blur-3xl ${profile.theme === 'light' ? 'bg-white/30' : 'bg-lime-400/15'}`} />
+              <div className={`relative flex items-start gap-3 p-4 ${profile.theme === 'dark' ? 'pl-5' : ''}`}>
+                <div className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ${profile.theme === 'light' ? 'bg-white/20 shadow-sm' : 'bg-lime-400/10 border border-lime-400/30'}`}>
                   <img
                     src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'}
                     alt="Coach"
@@ -2254,12 +2263,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className={`text-[10px] font-black uppercase tracking-[0.15em] ${profile.theme === 'light' ? 'text-white/70' : themeStyles.accent}`}>Tu coach</span>
-                  <p className={`text-sm font-medium leading-snug mt-0.5 ${profile.theme === 'light' ? 'text-white' : themeStyles.textMain}`}>{proactiveMessage}</p>
+                  <span className={`text-[10px] font-black uppercase tracking-[0.15em] ${profile.theme === 'light' ? 'text-white/70' : 'text-lime-400'}`}>Tu coach</span>
+                  <p className={`text-sm font-semibold leading-snug mt-0.5 ${profile.theme === 'light' ? 'text-white' : 'text-white'}`}>{proactiveMessage}</p>
                 </div>
                 <button
                   onClick={clearMessage}
-                  className={`shrink-0 p-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-white/60 hover:text-white hover:bg-white/15' : `${themeStyles.textMuted} hover:${themeStyles.textMain}`}`}
+                  className={`shrink-0 p-1 rounded-lg transition-colors mt-0.5 ${profile.theme === 'light' ? 'text-white/60 hover:text-white hover:bg-white/15' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
                 >
                   <X className="w-4 h-4" />
                 </button>
