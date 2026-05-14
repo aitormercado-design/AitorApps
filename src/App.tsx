@@ -2613,6 +2613,85 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               exit={{ opacity: 0, x: -20 }}
               className="space-y-6 pb-24"
             >
+              {/* ── COMPARATIVA VS SEMANA ANTERIOR ── */}
+              {weekOffset === 0 && (() => {
+                // Compute previous week stats
+                const prevStats = (weekDays as any[]).map(day => {
+                  const prevDate = new Date(day.date + 'T12:00:00');
+                  prevDate.setDate(prevDate.getDate() - 7);
+                  const dateStr = getLocalDateStr(prevDate);
+                  const dayMeals = meals.filter((m: any) => getLocalDateStr(new Date(m.timestamp)) === dateStr);
+                  const cal = dayMeals.reduce((s: number, m: any) => s + m.calories, 0);
+                  const pct = goals.calories > 0 ? cal / goals.calories : 0;
+                  const dayHabits = habits[dateStr];
+                  const workoutDone = dayHabits?.workoutDone ?? false;
+                  const hasData = cal > 0 || workoutDone;
+                  const onTarget = hasData && pct >= 0.85 && pct <= 1.1;
+                  return { cal, onTarget, workoutDone, hasData };
+                });
+
+                const prevDaysWithData = prevStats.filter((d: any) => d.hasData).length;
+                if (prevDaysWithData < 2) {
+                  return (
+                    <div className={`${themeStyles.bento} p-4`}>
+                      <p className={`text-xs font-bold ${themeStyles.accent} uppercase tracking-[0.2em] mb-1`}>VS semana anterior</p>
+                      <p className={`text-xs ${themeStyles.textMuted}`}>Primera semana — ¡buen comienzo!</p>
+                    </div>
+                  );
+                }
+
+                const currentDays = (weekDays as any[]).filter(d => !d.isFuture);
+                const currOnTarget = currentDays.filter(d => d.status === 'green').length;
+                const currTotal = currentDays.length;
+                const currAvgCal = currTotal > 0
+                  ? Math.round(currentDays.filter(d => d.caloriesConsumed > 0).reduce((s: number, d: any) => s + d.caloriesConsumed, 0) / Math.max(1, currentDays.filter(d => d.caloriesConsumed > 0).length))
+                  : 0;
+                const currWorkouts = currentDays.filter(d => d.workoutDone).length;
+
+                const prevOnTarget = prevStats.filter((d: any) => d.onTarget).length;
+                const prevAvgCal = Math.round(prevStats.filter((d: any) => d.hasData && d.cal > 0).reduce((s: number, d: any) => s + d.cal, 0) / Math.max(1, prevStats.filter((d: any) => d.hasData && d.cal > 0).length));
+                const prevWorkouts = prevStats.filter((d: any) => d.workoutDone).length;
+
+                const onTargetDiff = currOnTarget - prevOnTarget;
+                const calDiff = currAvgCal - prevAvgCal;
+                const workoutDiff = currWorkouts - prevWorkouts;
+
+                const arrow = (diff: number, invert = false) => {
+                  if (diff === 0) return { sym: '=', cls: themeStyles.textMuted };
+                  const improve = invert ? diff < 0 : diff > 0;
+                  return improve
+                    ? { sym: `↑ +${diff > 0 ? diff : -diff}`, cls: profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400' }
+                    : { sym: `↓ ${diff > 0 ? `+${diff}` : diff}`, cls: 'text-red-500' };
+                };
+
+                const targetArrow = arrow(onTargetDiff);
+                const calArrow = arrow(calDiff, true); // less calories = better if losing, neutral otherwise
+                const workoutArrow = arrow(workoutDiff);
+
+                const rows = [
+                  { label: 'Días en objetivo', curr: `${currOnTarget}/${currTotal}`, prev: `${prevOnTarget}/7`, ar: targetArrow },
+                  { label: 'Kcal promedio', curr: currAvgCal > 0 ? currAvgCal.toLocaleString('es-ES') : '—', prev: prevAvgCal > 0 ? prevAvgCal.toLocaleString('es-ES') : '—', ar: { sym: calDiff === 0 ? '=' : (calDiff > 0 ? `+${calDiff}` : `${calDiff}`), cls: calDiff === 0 ? themeStyles.textMuted : themeStyles.textMuted } },
+                  ...(profile.gymEnabled ? [{ label: 'Entrenamientos', curr: `${currWorkouts}`, prev: `${prevWorkouts}`, ar: workoutArrow }] : []),
+                ];
+
+                return (
+                  <div className={`${themeStyles.bento} p-4`}>
+                    <p className={`text-xs font-bold ${themeStyles.accent} uppercase tracking-[0.2em] mb-3`}>VS semana anterior</p>
+                    <div className="space-y-2">
+                      {rows.map(row => (
+                        <div key={row.label} className="flex items-center justify-between">
+                          <span className={`text-xs ${themeStyles.textMuted}`}>{row.label}</span>
+                          <div className="flex items-center gap-3">
+                            <span className={`text-xs font-bold ${themeStyles.textMain}`}>{row.curr}</span>
+                            <span className={`text-xs font-bold ${row.ar.cls}`}>{row.ar.sym}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* ── SEMAPHORE WEEKLY VIEW ── */}
               <div className="space-y-4">
 
