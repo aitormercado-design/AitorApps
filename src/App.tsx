@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, ChevronUp, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, User as UserIcon, Pizza, Save, Edit2, Trash2, Home, Sparkles } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, ChevronUp, Scale, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, User as UserIcon, Pizza, Save, Edit2, Trash2, Home, Sparkles, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
@@ -2944,7 +2944,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <Plus className={`w-5 h-5 ${themeStyles.accent}`} />
                     Añadir Comida
                   </h3>
-                  <p className={`text-xs ${themeStyles.textMuted} mb-4 relative z-10`}>{mealTimeHint}</p>
+                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium mb-4 relative z-10 ${profile.theme === 'light' ? 'bg-slate-100 text-slate-500' : 'bg-zinc-800 text-zinc-400'}`}>
+                    <Clock className="w-3 h-3 shrink-0" />
+                    {mealTimeHint}
+                  </div>
                   <div className="relative mb-4 z-10">
                     <input
                       type="text"
@@ -3438,7 +3441,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               className="space-y-8 pb-32"
             >
               {/* Time-of-day gym hint */}
-              <p className={`text-xs ${themeStyles.textMuted} -mb-2`}>{gymTimeHint}</p>
+              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium -mb-2 ${profile.theme === 'light' ? 'bg-slate-100 text-slate-500' : 'bg-zinc-800 text-zinc-400'}`}>
+                <Clock className="w-3 h-3 shrink-0" />
+                {gymTimeHint}
+              </div>
 
               {/* Workout Content */}
               <div className="space-y-6">
