@@ -15,7 +15,7 @@ import type { NutritionalInfo, WeeklyMenu, ShoppingList } from './types/nutritio
 import { extractIngredients, calcularBMR, calculateStreak, calculateDailyCalories } from './utils/nutrition';
 import { calculateMETCalories, ACTIVITY_OPTIONS } from './utils/metCalculator';
 import { getSuggestions, type ProfileSuggestion } from './utils/profileSuggestions';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, getDocs, collection, deleteDoc, updateDoc, getDocFromServer, onSnapshot, deleteField, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
@@ -185,6 +185,16 @@ const calculateExpertCalories = (weight: number | null | undefined, goal: string
     mins = 60;
   }
   return Math.round(kcalPerMin * mins * factor);
+};
+
+// Detect iOS / Safari: all browsers on iOS use WebKit and block popups from async handlers.
+// Safari on macOS also has this restriction.
+const isIOSorSafari = (): boolean => {
+  const ua = window.navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isSafari = /Safari/.test(ua) && !/Chrome/.test(ua) && !/CriOS/.test(ua) && !/FxiOS/.test(ua);
+  return isIOS || isSafari;
 };
 
 const DEFAULT_GOALS = {
@@ -491,6 +501,15 @@ export default function App() {
 
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
 
+
+  // Handle Google sign-in redirect result (iOS/Safari flow)
+  useEffect(() => {
+    getRedirectResult(auth).catch((error: any) => {
+      if (error?.code && error.code !== 'auth/no-current-user' && error.code !== 'auth/null-user') {
+        setAuthError("Error al iniciar sesión con Google.");
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const testConnection = async () => {
@@ -1958,7 +1977,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      if (isIOSorSafari()) {
+        // Popup sign-in is blocked by Safari/iOS WebKit — use redirect flow instead
+        await signInWithRedirect(auth, provider);
+      } else {
+        await signInWithPopup(auth, provider);
+      }
     } catch (error: any) {
       console.error("Error signing in with Google:", error);
       if (error.code === 'auth/popup-closed-by-user') {
