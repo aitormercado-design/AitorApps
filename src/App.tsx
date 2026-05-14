@@ -2920,6 +2920,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
               {(mealsSubTab === 'daily' || (!profile.menuEnabled && mealsSubTab === 'plan')) ? (
                 <div className="space-y-8">
+                <AppBanner
+                  variant="info"
+                  theme={profile.theme}
+                  icon={<Clock className="w-4 h-4" />}
+                  message={mealTimeHint}
+                />
                 {/* Primary Food Entry */}
                 <div className={`${themeStyles.bento} p-4 relative overflow-hidden`}>
                   <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-2xl`}></div>
@@ -2927,10 +2933,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <Plus className={`w-5 h-5 ${themeStyles.accent}`} />
                     Añadir Comida
                   </h3>
-                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium mb-4 relative z-10 ${profile.theme === 'light' ? 'bg-slate-100 text-slate-500' : 'bg-zinc-800 text-zinc-400'}`}>
-                    <Clock className="w-3 h-3 shrink-0" />
-                    {mealTimeHint}
-                  </div>
                   <div className="relative mb-4 z-10">
                     <input
                       type="text"
@@ -3434,10 +3436,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               className="space-y-8 pb-32"
             >
               {/* Time-of-day gym hint */}
-              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium -mb-2 ${profile.theme === 'light' ? 'bg-slate-100 text-slate-500' : 'bg-zinc-800 text-zinc-400'}`}>
-                <Clock className="w-3 h-3 shrink-0" />
-                {gymTimeHint}
-              </div>
+              <AppBanner
+                variant="info"
+                theme={profile.theme}
+                icon={<Clock className="w-4 h-4" />}
+                message={gymTimeHint}
+              />
 
               {/* Workout Content */}
               <div className="space-y-6">
