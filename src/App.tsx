@@ -995,6 +995,7 @@ export default function App() {
   // Time-of-day context — recomputed on each render (cheap)
   const currentHour = new Date().getHours();
   const mealTimeHint =
+    currentHour < 6 ? '¿Último registro del día?' :
     currentHour < 10 ? '¿Qué desayunaste hoy?' :
     currentHour < 12 ? '¿Algo a media mañana?' :
     currentHour < 15 ? 'Hora del almuerzo — ¿qué comiste?' :
@@ -2138,24 +2139,27 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
   return (
     <div className={`min-h-screen transition-colors duration-500 ${themeStyles.mainBg} pb-24 font-sans selection:${themeStyles.accentMuted}`}>
       {/* Header */}
-      <header className={`pt-10 pb-2 px-3 sticky top-0 backdrop-blur-2xl z-40 border-b ${themeStyles.headerBg} ${profile.theme === 'light' ? 'border-slate-200' : 'border-white/5'}`}>
+      <header className={`pb-4 px-6 sticky top-0 backdrop-blur-2xl z-40 border-b ${themeStyles.headerBg} ${profile.theme === 'light' ? 'border-slate-200' : 'border-white/5'}`} style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
         <div className="flex items-center justify-between max-w-md mx-auto">
-          <h1 className={`text-lg font-display font-black tracking-tighter ${themeStyles.textMain} flex items-center gap-1.5`}>
-            <img src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'} alt="KiloKalo" className="w-7 h-7 rounded-lg" />
-            KiloKalo
-          </h1>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-col">
+            <h1 className={`text-2xl font-display font-black tracking-tighter ${themeStyles.textMain} flex items-center gap-2`}>
+              <img src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'} alt="KiloKalo" className="w-8 h-8 rounded-lg" />
+              KiloKalo
+            </h1>
+            <p className={`${themeStyles.textMuted} text-[10px] font-bold tracking-wide uppercase mt-0.5`}>COME · ENTRENA · EQUILIBRA</p>
+          </div>
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setProfile({ ...profile, theme: profile.theme === 'light' ? 'dark' : 'light' })}
-              className={`h-8 w-8 rounded-lg ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center`}
+              className={`h-10 w-10 rounded-xl ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center`}
             >
-              {profile.theme === 'light' ? <Moon className={`w-3.5 h-3.5 ${themeStyles.textMain}`} /> : <Sun className={`w-3.5 h-3.5 ${themeStyles.textMain}`} />}
+              {profile.theme === 'light' ? <Moon className={`w-4 h-4 ${themeStyles.textMain}`} /> : <Sun className={`w-4 h-4 ${themeStyles.textMain}`} />}
             </button>
             <button
               onClick={handleLogout}
-              className={`h-8 w-8 rounded-lg ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted}`}
+              className={`h-10 w-10 rounded-xl ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted}`}
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -2306,88 +2310,59 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 <div className="space-y-6">
                     <div className="space-y-6">
                       {/* 1. Calories Summary Card */}
-                        <div className={`${themeStyles.bento} p-5 relative overflow-hidden group border-b-4 ${assistant.stateType === 'over' ? 'border-amber-500' : (profile.theme === 'light' ? 'border-emerald-500' : themeStyles.accentBorder)} shadow-2xl`}>
+                        {(() => {
+                          const consumed = Math.round(assistant.consumedCalories);
+                          const burned = Math.round(assistant.burnedCalories);
+                          const target = Math.round(goals.calories);
+                          const remaining = Math.round(assistant.remainingCalories);
+                          const isOver = remaining < 0;
+                          const progressPct = target > 0 ? Math.min(100, (consumed / target) * 100) : 0;
+                          const accentCls = isOver ? 'text-amber-500' : (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400');
+                          const barCls = isOver ? 'bg-amber-500' : (profile.theme === 'light' ? 'bg-emerald-500' : 'bg-lime-400');
+                          return (
+                        <div className={`${themeStyles.bento} p-5 relative overflow-hidden border-b-4 ${isOver ? 'border-amber-500' : (profile.theme === 'light' ? 'border-emerald-500' : themeStyles.accentBorder)} shadow-2xl`}>
                           <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : 'bg-lime-400/5'} rounded-full blur-3xl`} />
                           <div className="relative z-10">
-                            {/* Header */}
-                            <div className="flex items-center justify-between mb-6">
-                              <div>
-                                <span className={`text-xs font-bold ${themeStyles.accent} uppercase tracking-[0.25em]`}>Balance del día</span>
-                                <p className={`text-sm ${themeStyles.textMuted} font-medium mt-0.5`}>{profile.name ? `Hola, ${profile.name}` : 'Resumen calórico de hoy'}</p>
-                              </div>
+                            {/* Title row */}
+                            <div className="flex items-center justify-between mb-4">
+                              <span className={`text-xs font-bold ${themeStyles.accent} uppercase tracking-[0.25em]`}>Margen de hoy</span>
                               {streak > 1 && (
-                                <span className={`text-xs font-bold ${profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400'}`}>
-                                  🔥 {streak >= 30 ? `${streak} días — ¡Imparable!` : streak >= 7 ? `${streak} días — ¡Semana perfecta!` : `${streak} días seguidos`}
+                                <span className={`text-xs font-bold ${accentCls}`}>
+                                  🔥 {streak} {streak === 1 ? 'día' : 'días'}
                                 </span>
                               )}
                             </div>
-
                             {/* Big number */}
-                            <div className="flex flex-col items-center gap-1 mb-8 group-hover:scale-105 transition-transform">
-                              <span className={`text-6xl font-display font-black tracking-tighter ${assistant.remainingCalories < 0 ? 'text-amber-500' : (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400')}`}>
-                                {Math.abs(Math.round(assistant.remainingCalories))}
+                            <div className="flex flex-col items-center gap-0.5 mb-5">
+                              <span className={`text-6xl font-display font-black tracking-tighter ${accentCls}`}>
+                                {Math.abs(remaining).toLocaleString('es-ES')}
                               </span>
                               <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>
-                                {assistant.remainingCalories < 0 ? 'kcal superadas' : 'kcal restantes'}
+                                {isOver ? 'kcal superadas' : 'kcal restantes'}
                               </span>
                             </div>
-
-                            {/* Balance rows */}
-                            <div className="space-y-3">
-                              {/* Objetivo */}
-                              <div className="flex items-center justify-between">
-                                <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest w-24`}>Objetivo</span>
-                                <span className={`text-sm font-black ${themeStyles.textMain} w-24 text-right`}>{Math.round(goals.calories)} <span className="text-xs opacity-40 font-normal">kcal</span></span>
-                                <div className={`flex-1 mx-3 h-2 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'} rounded-full`}>
-                                  <div className="h-full w-full rounded-full opacity-20 bg-current" />
-                                </div>
-                              </div>
-                              {/* Ingeridas */}
-                              <div className="flex items-center justify-between">
-                                <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest w-24`}>Ingeridas</span>
-                                <span className={`text-sm font-black ${themeStyles.textMain} w-24 text-right`}>{Math.round(assistant.consumedCalories)} <span className="text-xs opacity-40 font-normal">kcal</span></span>
-                                <div className={`flex-1 mx-3 h-2 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'} rounded-full overflow-hidden`}>
-                                  <motion.div
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${Math.min(100, (assistant.consumedCalories / goals.calories) * 100)}%` }}
-                                    className={`h-full rounded-full ${assistant.remainingCalories < 0 ? 'bg-amber-500' : (profile.theme === 'light' ? 'bg-emerald-500' : 'bg-lime-400')}`}
-                                  />
-                                </div>
-                              </div>
-                              {/* Quemadas — solo si > 0 */}
-                              {assistant.burnedCalories > 0 && (
-                                <div className="flex items-center justify-between">
-                                  <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest w-24`}>Quemadas</span>
-                                  <span className={`text-sm font-black ${profile.theme === 'light' ? 'text-emerald-500' : 'text-lime-400'} w-24 text-right`}>+{Math.round(assistant.burnedCalories)} <span className="text-xs opacity-40 font-normal">kcal</span></span>
-                                  <div className={`flex-1 mx-3 h-2 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'} rounded-full overflow-hidden`}>
-                                    <motion.div
-                                      initial={{ width: 0 }}
-                                      animate={{ width: `${Math.min(100, (assistant.burnedCalories / goals.calories) * 100)}%` }}
-                                      className={`h-full rounded-full ${profile.theme === 'light' ? 'bg-emerald-400' : 'bg-lime-500'}`}
-                                    />
-                                  </div>
-                                </div>
-                              )}
-                              {/* Divider */}
-                              <div className={`border-t ${themeStyles.border} border-dashed pt-3`}>
-                                <div className="flex items-center justify-between">
-                                  <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest w-24`}>Restantes</span>
-                                  <span className={`text-sm font-black w-24 text-right ${assistant.remainingCalories < 0 ? 'text-amber-500' : (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400')}`}>
-                                    {assistant.remainingCalories < 0
-                                      ? `−${Math.abs(Math.round(assistant.remainingCalories))}`
-                                      : Math.round(assistant.remainingCalories)
-                                    } <span className="text-xs opacity-40 font-normal">kcal</span>
-                                  </span>
-                                  <div className="flex-1 mx-3 flex justify-end">
-                                    <span className={`text-xs font-bold ${assistant.remainingCalories < 0 ? 'text-amber-500' : (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400')}`}>
-                                      {assistant.remainingCalories < 0 ? `Objetivo superado en ${Math.abs(Math.round(assistant.remainingCalories))} kcal` : '✓'}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
+                            {/* Progress bar */}
+                            <div className={`h-2 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'} rounded-full overflow-hidden mb-2`}>
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${progressPct}%` }}
+                                className={`h-full rounded-full ${barCls}`}
+                              />
+                            </div>
+                            {/* Stats line */}
+                            <div className="flex items-center justify-between">
+                              <p className={`text-xs ${themeStyles.textMuted}`}>
+                                {burned > 0
+                                  ? <>{consumed.toLocaleString('es-ES')} consumidas · <span className={profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400'}>+{burned} quemadas</span></>
+                                  : <>{consumed.toLocaleString('es-ES')} consumidas de {target.toLocaleString('es-ES')} objetivo</>
+                                }
+                              </p>
+                              <span className={`text-xs font-bold ${accentCls}`}>{Math.round(progressPct)}%</span>
                             </div>
                           </div>
                         </div>
+                          );
+                        })()}
 
                         {/* 2. Distribution (Macros) — only when goals are set */}
                         {goals.calories > 0 && (() => {
@@ -2448,12 +2423,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                     {/* ── DAILY MEAL ENTRY & LIST (HOY section) ── */}
                     <div className="space-y-8">
-                    <AppBanner
-                      variant="info"
-                      theme={profile.theme}
-                      icon={<Clock className="w-4 h-4" />}
-                      message={mealTimeHint}
-                    />
+                    {/* Contextual time hint */}
+                    <p className={`text-xs ${themeStyles.textMuted} px-1`}>{mealTimeHint}</p>
                     {/* Primary Food Entry */}
                     <div className={`${themeStyles.bento} p-4 relative overflow-hidden`}>
                       <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-2xl`}></div>
@@ -2576,6 +2547,57 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </AnimatePresence>
                       </div>
                     </section>
+
+                    {/* ── MENÚ DE HOY ── */}
+                    {generatedMenu?.days?.length && profile.menuEnabled && (() => {
+                      const todayName = new Date().toLocaleDateString('es-ES', { weekday: 'long' }).toLowerCase();
+                      const todayDay = generatedMenu.days.find((d: any) => d.day?.toLowerCase() === todayName);
+                      if (!todayDay?.meals?.length) return null;
+                      const nextMealType =
+                        currentHour < 10 ? 'desayuno' :
+                        currentHour < 12 ? 'almuerzo' :
+                        currentHour < 17 ? 'merienda' :
+                        'cena';
+                      const plannedMeal = todayDay.meals.find((m: any) =>
+                        m.type?.toLowerCase().includes(nextMealType) && m.description !== 'COMIDA LIBRE'
+                      ) ?? todayDay.meals.find((m: any) => m.description !== 'COMIDA LIBRE');
+                      if (!plannedMeal) return null;
+                      return (
+                        <div className={`${themeStyles.bento} p-4`}>
+                          <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${themeStyles.accent} mb-3`}>📋 Menú de hoy</p>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest mb-0.5`}>{plannedMeal.type}</p>
+                              <p className={`text-sm font-semibold ${themeStyles.textMain} leading-snug truncate`}>{plannedMeal.description}</p>
+                              <p className={`text-xs ${themeStyles.textMuted} mt-0.5`}>{plannedMeal.calories ?? '—'} kcal</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const menuMeal = {
+                                  id: Date.now().toString(),
+                                  foodName: plannedMeal.description ?? 'Comida del menú',
+                                  calories: plannedMeal.calories ?? 0,
+                                  protein: plannedMeal.proteinas ?? 0,
+                                  carbs: plannedMeal.carbohidratos ?? 0,
+                                  fat: plannedMeal.grasas ?? 0,
+                                  timestamp: Date.now(),
+                                  imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(plannedMeal.description ?? 'Comida')}&background=27272a&color=a3e635&size=200`,
+                                };
+                                setMealEditMode('create');
+                                setPortionMultiplier(1);
+                                setOriginalAnalyzedName(menuMeal.foodName);
+                                setMacrosManuallyEdited(false);
+                                setMacrosJustUpdated(false);
+                                setEditingMeal(menuMeal);
+                              }}
+                              className={`shrink-0 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider ${themeStyles.buttonPrimary}`}
+                            >
+                              Registrar →
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     </div>
                 </div>
               )} {/* end profile-complete else */}
