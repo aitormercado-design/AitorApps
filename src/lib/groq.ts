@@ -99,6 +99,22 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
   const { profile, goals } = context;
   const dayName = new Date().toLocaleDateString('es-ES', { weekday: 'long' });
 
+  const hour = new Date().getHours();
+  const timeOfDay =
+    hour < 10 ? 'mañana_temprano' :
+    hour < 12 ? 'media_mañana' :
+    hour < 15 ? 'mediodia' :
+    hour < 18 ? 'tarde' :
+    hour < 21 ? 'tarde_noche' :
+    'noche';
+
+  const goalLabels: Record<string, string> = {
+    lose: 'perder grasa (déficit calórico, énfasis en proteínas)',
+    maintain: 'mantener peso (equilibrio calórico)',
+    gain: 'ganar músculo (superávit calórico, énfasis en carbohidratos)',
+  };
+  const goalLabel = goalLabels[profile.goal] ?? 'equilibrio calórico';
+
   const eventPrompts: Record<ProactiveEvent['type'], string> = {
     day_start: `Es ${dayName}. Di a ${profile.name || 'usuario'} su objetivo de hoy en una sola frase: ${goals.calories}kcal.`,
     meal_added: `El usuario acaba de registrar: ${event.data.meal?.foodName} (${Math.round(event.data.meal?.calories ?? 0)}kcal). Lleva ${Math.round(event.data.totalCalories)}kcal de ${goals.calories}kcal objetivo. Comenta brevemente y dile qué le queda.`,
@@ -123,9 +139,13 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
   const isShortEvent = event.type === 'day_start' || event.type === 'streak_milestone';
   const streakNote = context.streak && context.streak > 1 ? `\n- Racha actual: ${context.streak} días consecutivos` : '';
 
+  const timeNote = `\nSon las ${hour}:00h (${timeOfDay}). Ten en cuenta la hora: no sugieras desayuno si son las 15h, no hables de entrenar si son las 22h, no hables de cenar si son las 9h.`;
+  const nameNote = `\nUsa el nombre del usuario (${profile.name || 'amigo'}) de forma ocasional — solo cuando refuerce la personalización, no en cada frase.`;
+  const goalNote = `\nSu objetivo es ${goalLabel}. Alinea todos tus consejos con ese objetivo.`;
+
   const systemPrompt = isShortEvent
-    ? `Eres el coach de ${profile.name || 'usuario'}. Una sola frase. En español. Sin anglicismos. Directo al objetivo.${conditionsNote}${streakNote}`
-    : `Eres el coach personal de ${profile.name || 'usuario'}. Conoces su perfil y su plan de la semana. Responde en máximo 2 frases. Tono directo y motivador. NUNCA uses saludos largos ni despedidas. Solo el mensaje esencial.${conditionsNote}${streakNote}
+    ? `Eres el coach de ${profile.name || 'usuario'}. Una sola frase. En español. Sin anglicismos. Directo al objetivo.${conditionsNote}${streakNote}${timeNote}${goalNote}`
+    : `Eres el coach personal de ${profile.name || 'usuario'}. Conoces su perfil y su plan de la semana. Responde en máximo 2 frases. Tono directo y motivador. NUNCA uses saludos largos ni despedidas. Solo el mensaje esencial.${conditionsNote}${streakNote}${timeNote}${nameNote}${goalNote}
 CRÍTICO: Máximo 2 frases cortas. Sin saludos como "Excelente trabajo" o "Enhorabuena". Empieza directamente con el dato o la acción. Ejemplo correcto: "533kcal quemadas — gran sesión. Toma proteína en la próxima hora para recuperar." Ejemplo incorrecto: "Excelente trabajo Aitor, has quemado 533kcal..."`;
 
   try {
