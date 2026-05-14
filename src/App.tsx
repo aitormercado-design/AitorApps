@@ -803,17 +803,17 @@ export default function App() {
     let changed = false;
     const next = { ...sectionUnlockedAt };
     if (profile.gymEnabled && !next['gym']) { next['gym'] = now; changed = true; }
-    if (profile.goal && !next['menu']) { next['menu'] = now; changed = true; }
+    if (profile.menuEnabled && !next['menu']) { next['menu'] = now; changed = true; }
     if (changed) {
       setSectionUnlockedAt(next);
       localStorage.setItem(`kilokalo_section_badges_${user.uid}`, JSON.stringify(next));
     }
-  }, [profile.gymEnabled, profile.goal, isDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profile.gymEnabled, profile.menuEnabled, isDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Redirect to 'hoy' if current section is no longer available
   useEffect(() => {
     if (activeSection === 'gym' && !profile.gymEnabled) setActiveSection('hoy');
-    if (activeSection === 'menu' && !profile.goal) setActiveSection('hoy');
+    if (activeSection === 'menu' && !profile.menuEnabled) setActiveSection('hoy');
   }, [profile.gymEnabled, profile.goal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-dismiss error toast: 10s for rate-limit, 6s for everything else
@@ -2138,27 +2138,24 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
   return (
     <div className={`min-h-screen transition-colors duration-500 ${themeStyles.mainBg} pb-24 font-sans selection:${themeStyles.accentMuted}`}>
       {/* Header */}
-      <header className={`pt-12 pb-4 px-6 sticky top-0 backdrop-blur-2xl z-40 border-b ${themeStyles.headerBg} ${profile.theme === 'light' ? 'border-slate-200' : 'border-white/5'}`}>
+      <header className={`pt-10 pb-2 px-3 sticky top-0 backdrop-blur-2xl z-40 border-b ${themeStyles.headerBg} ${profile.theme === 'light' ? 'border-slate-200' : 'border-white/5'}`}>
         <div className="flex items-center justify-between max-w-md mx-auto">
-          <div className="flex flex-col">
-            <h1 className={`text-2xl font-display font-black tracking-tighter ${themeStyles.textMain} flex items-center gap-2`}>
-              <img src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'} alt="KiloKalo" className="w-8 h-8 rounded-lg" />
-              KiloKalo
-            </h1>
-            <p className={`${themeStyles.textMuted} text-[10px] font-bold tracking-wide uppercase mt-0.5`}>COME · ENTRENA · EQUILIBRA</p>
-          </div>
-          <div className="flex items-center gap-2">
+          <h1 className={`text-lg font-display font-black tracking-tighter ${themeStyles.textMain} flex items-center gap-1.5`}>
+            <img src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'} alt="KiloKalo" className="w-7 h-7 rounded-lg" />
+            KiloKalo
+          </h1>
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setProfile({ ...profile, theme: profile.theme === 'light' ? 'dark' : 'light' })}
-              className={`h-10 w-10 rounded-xl ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center`}
+              className={`h-8 w-8 rounded-lg ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center`}
             >
-              {profile.theme === 'light' ? <Moon className={`w-4 h-4 ${themeStyles.textMain}`} /> : <Sun className={`w-4 h-4 ${themeStyles.textMain}`} />}
+              {profile.theme === 'light' ? <Moon className={`w-3.5 h-3.5 ${themeStyles.textMain}`} /> : <Sun className={`w-3.5 h-3.5 ${themeStyles.textMain}`} />}
             </button>
             <button
               onClick={handleLogout}
-              className={`h-10 w-10 rounded-xl ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted}`}
+              className={`h-8 w-8 rounded-lg ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted}`}
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -3934,7 +3931,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6"
+            className="fixed inset-0 z-[70] bg-zinc-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6"
           >
             <div className="w-full max-w-sm space-y-8 flex flex-col items-center">
               <div className={`relative w-64 h-64 rounded-2xl overflow-hidden shadow-2xl border ${themeStyles.border} ${themeStyles.iconBg} flex items-center justify-center`}>
@@ -3980,7 +3977,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={!isWizardMode ? () => setIsGoalModalOpen(false) : undefined}
-            className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[70] bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center p-4"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -4520,7 +4517,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[70] bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center p-4"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -4826,7 +4823,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         <div className="max-w-md mx-auto h-full flex items-center justify-around px-2">
           {([
             { id: 'hoy',    label: 'Hoy',    Icon: Home,            visible: true },
-            { id: 'menu',   label: 'Menú',   Icon: UtensilsCrossed, visible: !!profile.goal },
+            { id: 'menu',   label: 'Menú',   Icon: UtensilsCrossed, visible: profile.menuEnabled === true },
             { id: 'gym',    label: 'Gym',    Icon: Dumbbell,        visible: !!profile.gymEnabled },
             { id: 'semana', label: 'Semana', Icon: BarChart2,        visible: true },
             { id: 'perfil', label: 'Perfil', Icon: UserIcon,         visible: true },
