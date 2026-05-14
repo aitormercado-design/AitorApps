@@ -2260,61 +2260,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           </motion.div>
         )}
 
-        {/* Tabs */}
-        <div className={`flex flex-nowrap overflow-x-auto hide-scrollbar ${profile.theme === 'light' ? 'bg-slate-200/50' : 'bg-zinc-950/80'} backdrop-blur-md p-1.5 rounded-2xl border ${profile.theme === 'light' ? 'border-slate-300/50' : 'border-white/5'} mb-8 shadow-2xl gap-1`}>
-          <button 
-            onClick={() => setActiveTab('today')}
-            className={`flex-1 shrink-0 px-4 py-2.5 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap ${activeTab === 'today' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} ${themeStyles.tabActiveShadow} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            Resumen
-          </button>
-          <button 
-            onClick={() => setActiveTab('meals')}
-            className={`flex-[1.2] shrink-0 px-4 py-2.5 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap ${activeTab === 'meals' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} ${themeStyles.tabActiveShadow} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
-          >
-            <Utensils className="w-3.5 h-3.5" />
-            Ingerir Calorías
-          </button>
-          {profile.gymEnabled && (
-            <button 
-              onClick={() => setActiveTab('gym')}
-              className={`flex-[1.2] shrink-0 px-4 py-2.5 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap ${activeTab === 'gym' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} ${themeStyles.tabActiveShadow} shadow-lg` : `${themeStyles.textMuted} hover:text-current`}`}
-            >
-              <Flame className="w-3.5 h-3.5" />
-              Quemar Calorías
-            </button>
-          )}
-        </div>
-
           <AnimatePresence mode="wait">
-          {activeTab === 'today' && (
+          {activeSection === 'hoy' && (
             <motion.div
-              key="today"
+              key="hoy"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="space-y-6 pb-32"
+              className="space-y-6 pb-24"
             >
               <div className="flex flex-col gap-4">
-                {/* Period Toggle: Hoy / Semana */}
-                <div className={`grid grid-cols-2 ${profile.theme === 'light' ? 'bg-slate-200/50' : 'bg-zinc-950/80'} p-1.5 rounded-2xl border ${profile.theme === 'light' ? 'border-slate-300/50' : 'border-white/5'} shadow-xl`}>
-                  <button
-                    onClick={() => setEvolutionPeriod('today')}
-                    className={`py-3 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${evolutionPeriod === 'today' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-lg` : themeStyles.textMuted}`}
-                  >
-                    Hoy
-                  </button>
-                  <button
-                    onClick={() => { setEvolutionPeriod('weekly'); setWeekOffset(0); setExpandedWeekDay(null); setWeeklyAnalysis(''); }}
-                    className={`py-3 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${evolutionPeriod === 'weekly' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-lg` : themeStyles.textMuted}`}
-                  >
-                    Esta semana
-                  </button>
-                </div>
-
-                {evolutionPeriod === 'today' ? (
-                  <div className="space-y-6">
+                <div className="space-y-6">
                     <div className="space-y-6">
                       {/* 1. Calories Summary Card */}
                         <div className={`${themeStyles.bento} p-5 relative overflow-hidden group border-b-4 ${assistant.stateType === 'over' ? 'border-amber-500' : (profile.theme === 'light' ? 'border-emerald-500' : themeStyles.accentBorder)} shadow-2xl`}>
@@ -2456,8 +2412,152 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         })()}
                       </div>
                     </div>
-            ) : evolutionPeriod === 'weekly' ? (
-              /* ── SEMAPHORE WEEKLY VIEW ── */
+
+                    {/* ── DAILY MEAL ENTRY & LIST (HOY section) ── */}
+                    <div className="space-y-8">
+                    <AppBanner
+                      variant="info"
+                      theme={profile.theme}
+                      icon={<Clock className="w-4 h-4" />}
+                      message={mealTimeHint}
+                    />
+                    {/* Primary Food Entry */}
+                    <div className={`${themeStyles.bento} p-4 relative overflow-hidden`}>
+                      <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-2xl`}></div>
+                      <h3 className={`text-lg font-display font-bold ${themeStyles.textMain} tracking-tight uppercase mb-4 relative z-10 flex items-center gap-2`}>
+                        <Plus className={`w-5 h-5 ${themeStyles.accent}`} />
+                        Añadir Comida
+                      </h3>
+                      <div className="relative mb-4 z-10">
+                        <input
+                          type="text"
+                          placeholder="Ej: He comido arroz con pollo..."
+                          className={`w-full ${themeStyles.input} rounded-2xl pl-5 pr-14 py-5 transition-all text-base shadow-inner`}
+                          onFocus={() => setAppError(null)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !textFoodCooldown.isActive) {
+                              textFoodCooldown.start();
+                              handleTextFoodSubmit(e.currentTarget.value);
+                              e.currentTarget.value = '';
+                            }
+                          }}
+                        />
+                        <button
+                          disabled={textFoodCooldown.isActive}
+                          className={`absolute right-2.5 top-2.5 bottom-2.5 ${themeStyles.buttonPrimary} px-5 rounded-xl transition-colors flex items-center justify-center shadow-lg disabled:opacity-50`}
+                          onClick={() => {
+                            if (textFoodCooldown.isActive) return;
+                            const input = document.querySelector('input[placeholder="Ej: He comido arroz con pollo..."]') as HTMLInputElement;
+                            if (input && input.value) {
+                              textFoodCooldown.start();
+                              handleTextFoodSubmit(input.value);
+                              input.value = '';
+                            }
+                          }}
+                        >
+                          {textFoodCooldown.isActive
+                            ? <span className="text-xs font-mono font-bold">{textFoodCooldown.remaining}s</span>
+                            : <Send className="w-5 h-5" />}
+                        </button>
+                      </div>
+                      <button
+                        disabled={imageFoodCooldown.isActive}
+                        onClick={() => {
+                          if (imageFoodCooldown.isActive) return;
+                          imageFoodCooldown.start();
+                          setAppError(null);
+                          fileInputRef.current?.click();
+                        }}
+                        className={`w-full flex items-center justify-center gap-3 ${themeStyles.buttonSecondary} p-5 rounded-2xl transition-all border group relative z-10 disabled:opacity-50`}
+                      >
+                        <Camera className={`w-5 h-5 ${themeStyles.accent} group-hover:scale-110 transition-transform`} />
+                        <span className="text-sm font-bold uppercase tracking-widest">
+                          {imageFoodCooldown.isActive ? `Espera ${imageFoodCooldown.remaining}s` : 'Escanear comida'}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Meal List */}
+                    <section>
+                      <div className="flex items-center justify-between mb-6 px-2">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 ${themeStyles.accentMuted} rounded-xl border ${themeStyles.accentBorder}`}>
+                            <Utensils className={`w-5 h-5 ${themeStyles.accent}`} />
+                          </div>
+                          <h2 className={`text-lg font-display font-bold ${themeStyles.textMain} tracking-tight uppercase`}>Registros de hoy</h2>
+                        </div>
+                        <span className={`text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} px-3 py-1 rounded-full shadow-lg uppercase tracking-widest`}>
+                          {todaysMeals.length} ítems
+                        </span>
+                      </div>
+
+                      <div className="space-y-4">
+                        <AnimatePresence mode="popLayout">
+                          {todaysMeals.length === 0 ? (
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`text-center py-16 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border} border-dashed`}>
+                              <Utensils className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-3 opacity-20`} />
+                              <p className={`${themeStyles.textMuted} font-bold uppercase tracking-widest text-xs`}>No hay registros hoy</p>
+                              <p className={`${themeStyles.textMuted} text-xs mt-1 opacity-60`}>Usa el buscador o la cámara para empezar</p>
+                            </motion.div>
+                          ) : (
+                            todaysMeals.map((meal, index) => (
+                              <motion.div
+                                key={meal.id} layout
+                                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
+                                transition={{ duration: 0.2, delay: index * 0.05 }}
+                                className={`${themeStyles.card} rounded-2xl p-4 flex gap-4 group transition-all`}
+                              >
+                                <div className={`w-16 h-16 rounded-2xl overflow-hidden ${themeStyles.iconBg} shrink-0 shadow-xl border ${themeStyles.border}`}>
+                                  <img src={meal.imageUrl} alt={meal.foodName} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between mb-1">
+                                    <h3 className={`font-bold ${themeStyles.textMain} truncate text-base tracking-tight`}>{meal.foodName}</h3>
+                                    <div className="flex items-center gap-0.5 shrink-0 ml-2">
+                                      <button onClick={() => openMealForEdit(meal)} className={`${themeStyles.textMuted} hover:text-sky-400 p-1 rounded-lg hover:bg-sky-500/10 transition-all`} title="Editar">
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button onClick={() => removeMeal(meal.id)} className={`${themeStyles.textMuted} hover:text-rose-500 p-1 rounded-lg hover:bg-rose-500/10 transition-all`} title="Borrar">
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
+                                    <span className={`${themeStyles.accent} font-bold text-xs tracking-tight`}>{Math.round(meal.calories)} Kcal</span>
+                                    <div className={`flex items-center gap-3 text-xs font-bold uppercase ${themeStyles.textMuted} tracking-wider`}>
+                                      <span className={themeStyles.textMain}>P:{Math.round(meal.protein)}g</span>
+                                      <span className={themeStyles.textMain}>H:{Math.round(meal.carbs)}g</span>
+                                      <span className={themeStyles.textMain}>G:{Math.round(meal.fat)}g</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <NutriScoreBadge score={meal.nutriScore} />
+                                    {meal.isHealthy && (
+                                      <span className={`px-2 py-0.5 rounded-full ${themeStyles.accentMuted} ${themeStyles.accent} text-xs font-bold uppercase tracking-widest border ${themeStyles.accentBorder}`}>Saludable</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </motion.div>
+                            ))
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </section>
+                    </div>
+                </div>
+            </motion.div>
+          )}
+
+          {/* ── SEMANA SECTION ── */}
+          {activeSection === 'semana' && (
+            <motion.div
+              key="semana"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6 pb-24"
+            >
+              {/* ── SEMAPHORE WEEKLY VIEW ── */}
               <div className="space-y-4">
 
                 {/* Grid card */}
@@ -2716,7 +2816,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   </button>
                 </div>
               </div>
-            ) : (
+
               <section>
                   <div className={`${themeStyles.bento} p-5 relative overflow-hidden`}>
                     <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-3xl`}></div>
@@ -2792,187 +2892,20 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     </div>
                   </div>
                 </section>
-              )}
-            </div>
-          </motion.div>
-        )}
-          {activeTab === 'meals' && (
+            </motion.div>
+          )}
+
+          {/* ── MENU SECTION ── */}
+          {activeSection === 'menu' && (
             <motion.div
-              key="meals"
+              key="menu"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="space-y-6 pb-32"
+              className="space-y-6 pb-24"
             >
-              {/* Meals Sub Tabs */}
-              <div className={`grid ${profile.menuEnabled && generatedMenu ? 'grid-cols-3' : (profile.menuEnabled || generatedMenu) ? 'grid-cols-2' : 'grid-cols-1'} ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border} shadow-lg mb-6`}>
-                  <button
-                    onClick={() => setMealsSubTab('daily')}
-                    className={`py-3 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'daily' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
-                  >
-                    <Utensils className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Comidas del día</span>
-                    <span className="sm:hidden">Hoy</span>
-                  </button>
-                  {profile.menuEnabled && (
-                    <button
-                      onClick={() => setMealsSubTab('plan')}
-                      className={`py-3 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'plan' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
-                    >
-                      <ClipboardList className="w-3.5 h-3.5" />
-                      Plan
-                      {(menuNeedsRegeneration || !generatedMenu) && profile.age !== 0 && (
-                        <span className="relative flex h-2.5 w-2.5 shrink-0">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                        </span>
-                      )}
-                    </button>
-                  )}
-                  {generatedMenu && (
-                    <button
-                      onClick={() => setMealsSubTab('shopping')}
-                      className={`py-3 text-xs flex items-center justify-center gap-1.5 font-bold uppercase tracking-widest rounded-xl transition-all ${mealsSubTab === 'shopping' ? `${themeStyles.accentBg} ${themeStyles.tabActiveText} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
-                    >
-                      <ShoppingCart className="w-3.5 h-3.5" />
-                      Compra
-                    </button>
-                  )}
-                </div>
-
-              {(mealsSubTab === 'daily' || (!profile.menuEnabled && mealsSubTab === 'plan')) ? (
-                <div className="space-y-8">
-                <AppBanner
-                  variant="info"
-                  theme={profile.theme}
-                  icon={<Clock className="w-4 h-4" />}
-                  message={mealTimeHint}
-                />
-                {/* Primary Food Entry */}
-                <div className={`${themeStyles.bento} p-4 relative overflow-hidden`}>
-                  <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-2xl`}></div>
-                  <h3 className={`text-lg font-display font-bold ${themeStyles.textMain} tracking-tight uppercase mb-4 relative z-10 flex items-center gap-2`}>
-                    <Plus className={`w-5 h-5 ${themeStyles.accent}`} />
-                    Añadir Comida
-                  </h3>
-                  <div className="relative mb-4 z-10">
-                    <input
-                      type="text"
-                      placeholder="Ej: He comido arroz con pollo..."
-                      className={`w-full ${themeStyles.input} rounded-2xl pl-5 pr-14 py-5 transition-all text-base shadow-inner`}
-                      onFocus={() => setAppError(null)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !textFoodCooldown.isActive) {
-                          textFoodCooldown.start();
-                          handleTextFoodSubmit(e.currentTarget.value);
-                          e.currentTarget.value = '';
-                        }
-                      }}
-                    />
-                    <button
-                      disabled={textFoodCooldown.isActive}
-                      className={`absolute right-2.5 top-2.5 bottom-2.5 ${themeStyles.buttonPrimary} px-5 rounded-xl transition-colors flex items-center justify-center shadow-lg disabled:opacity-50`}
-                      onClick={() => {
-                        if (textFoodCooldown.isActive) return;
-                        const input = document.querySelector('input[placeholder="Ej: He comido arroz con pollo..."]') as HTMLInputElement;
-                        if (input && input.value) {
-                          textFoodCooldown.start();
-                          handleTextFoodSubmit(input.value);
-                          input.value = '';
-                        }
-                      }}
-                    >
-                      {textFoodCooldown.isActive
-                        ? <span className="text-xs font-mono font-bold">{textFoodCooldown.remaining}s</span>
-                        : <Send className="w-5 h-5" />}
-                    </button>
-                  </div>
-                  <button
-                    disabled={imageFoodCooldown.isActive}
-                    onClick={() => {
-                      if (imageFoodCooldown.isActive) return;
-                      imageFoodCooldown.start();
-                      setAppError(null);
-                      fileInputRef.current?.click();
-                    }}
-                    className={`w-full flex items-center justify-center gap-3 ${themeStyles.buttonSecondary} p-5 rounded-2xl transition-all border group relative z-10 disabled:opacity-50`}
-                  >
-                    <Camera className={`w-5 h-5 ${themeStyles.accent} group-hover:scale-110 transition-transform`} />
-                    <span className="text-sm font-bold uppercase tracking-widest">
-                      {imageFoodCooldown.isActive ? `Espera ${imageFoodCooldown.remaining}s` : 'Escanear comida'}
-                    </span>
-                  </button>
-                </div>
-
-                {/* Meal List */}
-                <section>
-                  <div className="flex items-center justify-between mb-6 px-2">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 ${themeStyles.accentMuted} rounded-xl border ${themeStyles.accentBorder}`}>
-                        <Utensils className={`w-5 h-5 ${themeStyles.accent}`} />
-                      </div>
-                      <h2 className={`text-lg font-display font-bold ${themeStyles.textMain} tracking-tight uppercase`}>Registros de hoy</h2>
-                    </div>
-                    <span className={`text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} px-3 py-1 rounded-full shadow-lg uppercase tracking-widest`}>
-                      {todaysMeals.length} ítems
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <AnimatePresence mode="popLayout">
-                      {todaysMeals.length === 0 ? (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`text-center py-16 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border} border-dashed`}>
-                          <Utensils className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-3 opacity-20`} />
-                          <p className={`${themeStyles.textMuted} font-bold uppercase tracking-widest text-xs`}>No hay registros hoy</p>
-                          <p className={`${themeStyles.textMuted} text-xs mt-1 opacity-60`}>Usa el buscador o la cámara para empezar</p>
-                        </motion.div>
-                      ) : (
-                        todaysMeals.map((meal, index) => (
-                          <motion.div
-                            key={meal.id} layout
-                            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
-                            transition={{ duration: 0.2, delay: index * 0.05 }}
-                            className={`${themeStyles.card} rounded-2xl p-4 flex gap-4 group transition-all`}
-                          >
-                            <div className={`w-16 h-16 rounded-2xl overflow-hidden ${themeStyles.iconBg} shrink-0 shadow-xl border ${themeStyles.border}`}>
-                              <img src={meal.imageUrl} alt={meal.foodName} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between mb-1">
-                                <h3 className={`font-bold ${themeStyles.textMain} truncate text-base tracking-tight`}>{meal.foodName}</h3>
-                                <div className="flex items-center gap-0.5 shrink-0 ml-2">
-                                  <button onClick={() => openMealForEdit(meal)} className={`${themeStyles.textMuted} hover:text-sky-400 p-1 rounded-lg hover:bg-sky-500/10 transition-all`} title="Editar">
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button onClick={() => removeMeal(meal.id)} className={`${themeStyles.textMuted} hover:text-rose-500 p-1 rounded-lg hover:bg-rose-500/10 transition-all`} title="Borrar">
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
-                                <span className={`${themeStyles.accent} font-bold text-xs tracking-tight`}>{Math.round(meal.calories)} Kcal</span>
-                                <div className={`flex items-center gap-3 text-xs font-bold uppercase ${themeStyles.textMuted} tracking-wider`}>
-                                  <span className={themeStyles.textMain}>P:{Math.round(meal.protein)}g</span>
-                                  <span className={themeStyles.textMain}>H:{Math.round(meal.carbs)}g</span>
-                                  <span className={themeStyles.textMain}>G:{Math.round(meal.fat)}g</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <NutriScoreBadge score={meal.nutriScore} />
-                                {meal.isHealthy && (
-                                  <span className={`px-2 py-0.5 rounded-full ${themeStyles.accentMuted} ${themeStyles.accent} text-xs font-bold uppercase tracking-widest border ${themeStyles.accentBorder}`}>Saludable</span>
-                                )}
-                              </div>
-                            </div>
-                          </motion.div>
-                        ))
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </section>
-              </div>
-              ) : mealsSubTab === 'plan' ? (
-                <div className="space-y-6">
+              {/* Plan section — always visible */}
+              <div className="space-y-6">
                 <p className={`${themeStyles.textMain} text-sm font-medium mb-4`}>
                     Esta es una propuesta de menú semanal para ayudarte a cumplir con tus objetivos de calorías y macronutrientes.
                 </p>
@@ -3225,8 +3158,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 </>
               )}
               </div>
-              ) : mealsSubTab === 'shopping' ? (
-                 <div className="space-y-6">
+
+              {/* Shopping List section — always visible below plan */}
+              {generatedMenu && (
+              <div className="space-y-6">
                  {/* Unified Shopping List Section */}
                  <div className={`${themeStyles.card} rounded-2xl p-5 md:p-6 space-y-6`}>
                    <div className="flex items-center gap-4">
@@ -3329,11 +3264,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                    )}
                  </div>
                  </div>
-              ) : null}
+              )}
             </motion.div>
           )}
 
-          {activeTab === 'gym' && !profile.gymEnabled && !dismissedPrompts.includes('add_gym_goal') && (
+          {/* ── GYM SECTION ── */}
+          {activeSection === 'gym' && !profile.gymEnabled && !dismissedPrompts.includes('add_gym_goal') && (
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
               <AppBanner
                 variant="info"
@@ -3348,13 +3284,13 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             </motion.div>
           )}
 
-          {activeTab === 'gym' && profile.gymEnabled && (
+          {activeSection === 'gym' && (
             <motion.div
               key="gym"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="space-y-8 pb-32"
+              className="space-y-8 pb-24"
             >
               {/* Time-of-day gym hint */}
               <AppBanner
@@ -4597,7 +4533,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   }
                   setEditingMeal(null);
                 }}
-                className="space-y-4 pb-32"
+                className="space-y-4 pb-24"
               >
                 {/* Food Name & Ingredients (Configurable Parameters) */}
                 <div>
@@ -4845,6 +4781,55 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Bottom Navigation Bar */}
+      <nav className={`fixed bottom-0 left-0 right-0 z-50 h-16 border-t ${
+        profile.theme === 'light' ? 'bg-white border-slate-200' : 'bg-zinc-950 border-white/8'
+      }`}>
+        <div className="max-w-md mx-auto h-full flex items-center justify-around px-2">
+          {[
+            { id: 'hoy', label: 'Hoy', Icon: Home },
+            { id: 'menu', label: 'Menú', Icon: UtensilsCrossed },
+            { id: 'gym', label: 'Gym', Icon: Dumbbell },
+            { id: 'semana', label: 'Semana', Icon: BarChart2 },
+            { id: 'perfil', label: 'Perfil', Icon: UserIcon },
+          ].map(({ id, label, Icon }) => {
+            const isActive = activeSection === id;
+            const accentColor = profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400';
+            const mutedColor = profile.theme === 'light' ? 'text-slate-400' : 'text-zinc-500';
+            return (
+              <button
+                key={id}
+                onClick={() => {
+                  if (id === 'perfil') {
+                    setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' });
+                    setEditWeight(profile.weight > 0 ? profile.weight.toString() : '');
+                    setDismissedSuggestions([]);
+                    setProfileWizardStep(1);
+                    setProfileModalTab('datos');
+                    setIsGoalModalOpen(true);
+                  } else if (id === 'semana') {
+                    setEvolutionPeriod('weekly');
+                    setWeekOffset(0);
+                    setExpandedWeekDay(null);
+                    setWeeklyAnalysis('');
+                    setActiveSection(id as AppSection);
+                  } else {
+                    setActiveSection(id as AppSection);
+                  }
+                }}
+                className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full"
+              >
+                <Icon className={`w-5 h-5 ${isActive ? accentColor : mutedColor}`} />
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? accentColor : mutedColor}`}>{label}</span>
+                {id === 'perfil' && !profile.name && (
+                  <span className="absolute top-1 w-1.5 h-1.5 rounded-full bg-red-500" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
