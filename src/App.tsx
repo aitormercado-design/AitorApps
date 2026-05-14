@@ -360,6 +360,7 @@ export default function App() {
   
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [profileWizardStep, setProfileWizardStep] = useState<1 | 2 | 3>(1);
+  const [isWizardMode, setIsWizardMode] = useState(false);
   const [wizardMenuPicked, setWizardMenuPicked] = useState<boolean | null>(null);
   const [wizardGymPicked, setWizardGymPicked] = useState<boolean | null>(null);
   const [profileTab, setProfileTab] = useState<'user' | 'diet' | 'exercise'>('user');
@@ -422,10 +423,12 @@ export default function App() {
   useEffect(() => {
     if (isGoalModalOpen) {
       if (profile.name) {
+        setIsWizardMode(false);
         setWizardMenuPicked(profile.menuEnabled ? true : false);
         setWizardGymPicked(profile.gymEnabled ? true : false);
         // profileModalTab is set by the caller (openProfile), don't reset here
       } else {
+        setIsWizardMode(true);
         setWizardMenuPicked(null);
         setWizardGymPicked(null);
         setProfileModalTab('datos');
@@ -442,6 +445,7 @@ export default function App() {
     setEditWeight('');
     setProfileTab('user');
     setProfileWizardStep(1);
+    setIsWizardMode(true);
     setIsGoalModalOpen(true);
   }, [isDataLoaded, user, profile.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2233,27 +2237,33 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           {proactiveMessage && (
             <motion.div
               key="proactive-banner"
-              initial={{ opacity: 0, y: -12, scale: 0.97 }}
+              initial={{ opacity: 0, y: -16, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.97 }}
-              transition={{ duration: 0.25 }}
-              className={`rounded-2xl border-l-4 ${profile.theme === 'light' ? 'bg-emerald-50 border-emerald-400' : 'bg-emerald-950/30 border-lime-400/70'} p-4 flex items-start gap-3 shadow-sm`}
+              exit={{ opacity: 0, y: -10, scale: 0.97 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              className={`relative overflow-hidden rounded-2xl p-4 shadow-lg ${profile.theme === 'light' ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-200' : 'bg-gradient-to-br from-lime-400/20 to-emerald-600/20 border border-lime-400/20 shadow-lime-900/30'}`}
             >
-              <img
-                src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'}
-                alt="KiloKalo"
-                className="w-7 h-7 rounded-xl shrink-0 mt-0.5"
-              />
-              <div className="flex-1 min-w-0">
-                <span className={`text-xs font-bold uppercase tracking-widest ${themeStyles.accent}`}>Coach</span>
-                <p className={`text-[13px] leading-snug mt-0.5 ${themeStyles.textMain}`}>{proactiveMessage}</p>
+              {/* Decorative glow blob */}
+              <div className={`absolute -top-6 -right-6 w-24 h-24 rounded-full blur-2xl opacity-40 ${profile.theme === 'light' ? 'bg-white' : 'bg-lime-400'}`} />
+              <div className="relative flex items-start gap-3">
+                <div className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center shadow-sm ${profile.theme === 'light' ? 'bg-white/25' : 'bg-lime-400/15 border border-lime-400/30'}`}>
+                  <img
+                    src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'}
+                    alt="Coach"
+                    className="w-5 h-5 rounded-lg"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className={`text-[10px] font-black uppercase tracking-[0.15em] ${profile.theme === 'light' ? 'text-white/70' : themeStyles.accent}`}>Tu coach</span>
+                  <p className={`text-sm font-medium leading-snug mt-0.5 ${profile.theme === 'light' ? 'text-white' : themeStyles.textMain}`}>{proactiveMessage}</p>
+                </div>
+                <button
+                  onClick={clearMessage}
+                  className={`shrink-0 p-1 rounded-lg transition-colors ${profile.theme === 'light' ? 'text-white/60 hover:text-white hover:bg-white/15' : `${themeStyles.textMuted} hover:${themeStyles.textMain}`}`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                onClick={clearMessage}
-                className={`${themeStyles.textMuted} hover:${themeStyles.textMain} transition-colors shrink-0 p-1`}
-              >
-                <X className="w-4 h-4" />
-              </button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -2429,9 +2439,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                   <div className="h-full w-full rounded-full opacity-20 bg-current" />
                                 </div>
                               </div>
-                              {/* Consumidas */}
+                              {/* Ingeridas */}
                               <div className="flex items-center justify-between">
-                                <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest w-24`}>Consumidas</span>
+                                <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest w-24`}>Ingeridas</span>
                                 <span className={`text-sm font-black ${themeStyles.textMain} w-24 text-right`}>{Math.round(assistant.consumedCalories)} <span className="text-xs opacity-40 font-normal">kcal</span></span>
                                 <div className={`flex-1 mx-3 h-2 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'} rounded-full overflow-hidden`}>
                                   <motion.div
@@ -2840,7 +2850,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             fill={profile.theme === 'light' ? '#10b981' : '#a3e635'}
                             radius={[2, 2, 0, 0]}
                             barSize={evolutionPeriod === 'monthly' ? 12 : 4}
-                            name="Consumidas"
+                            name="Ingeridas"
                           />
                           <Line
                             yAxisId="cal"
@@ -2859,7 +2869,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <div className={`mt-10 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted} border-t ${themeStyles.border} pt-8`}>
                       <div className="flex items-center gap-3">
                         <div className={`w-3 h-3 rounded-sm ${themeStyles.accentBg} shadow-sm`}></div>
-                        <span className={themeStyles.textMain}>Consumidas</span>
+                        <span className={themeStyles.textMain}>Ingeridas</span>
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="w-4 h-0.5 bg-indigo-400 border-t border-dashed border-indigo-400"></div>
@@ -4114,7 +4124,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={profile.name ? () => setIsGoalModalOpen(false) : undefined}
+            onClick={!isWizardMode ? () => setIsGoalModalOpen(false) : undefined}
             className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur-sm flex items-center justify-center p-4"
           >
             <motion.div
@@ -4132,16 +4142,16 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   </div>
                   <div>
                     <h3 className={`text-lg font-display font-bold ${themeStyles.textMain} uppercase tracking-tight leading-none`}>
-                      {profile.name ? 'Editar Perfil' : '¡Bienvenido!'}
+                      {!isWizardMode ? 'Editar Perfil' : '¡Bienvenido!'}
                     </h3>
-                    {!profile.name && (
+                    {isWizardMode && (
                       <p className={`text-xs ${themeStyles.textMuted} mt-0.5`}>
                         {profileWizardStep === 1 ? 'Paso 1 — Datos personales' : profileWizardStep === 2 ? 'Paso 2 — Menú semanal' : 'Paso 3 — Entrenamiento'}
                       </p>
                     )}
                   </div>
                 </div>
-                {profile.name && (
+                {!isWizardMode && (
                   <button onClick={() => setIsGoalModalOpen(false)} className={`${themeStyles.textMuted} hover:text-red-500 transition-colors p-1`}>
                     <X className="w-5 h-5" />
                   </button>
@@ -4149,7 +4159,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               </div>
 
               {/* Wizard step dots (new users only) */}
-              {!profile.name && (
+              {isWizardMode && (
                 <div className="flex justify-center items-center gap-2 mb-5 shrink-0">
                   {([1, 2, 3] as const).map(s => (
                     <div key={s} className={`h-1.5 rounded-full transition-all duration-300 ${s === profileWizardStep ? `w-8 ${themeStyles.accentBg}` : s < profileWizardStep ? `w-2 ${themeStyles.accentBg} opacity-40` : `w-2 ${profile.theme === 'light' ? 'bg-slate-300' : 'bg-zinc-700'}`}`} />
@@ -4158,7 +4168,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               )}
 
               {/* Tab bar (returning users only) */}
-              {profile.name && (
+              {!isWizardMode && (
                 <div className={`flex gap-1 p-1 rounded-xl mb-4 shrink-0 ${profile.theme === 'light' ? 'bg-slate-100' : 'bg-zinc-900'}`}>
                   {(['datos', 'dieta', 'entrenamiento'] as const).map(tab => (
                     <button
@@ -4177,7 +4187,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-4 text-left">
 
                   {/* ── STEP 1 / Datos tab: Personal data ── */}
-                  {((!profile.name && profileWizardStep === 1) || (profile.name && profileModalTab === 'datos')) && (
+                  {((isWizardMode && profileWizardStep === 1) || (!isWizardMode && profileModalTab === 'datos')) && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
                       <div className={`${themeStyles.iconBg} p-4 rounded-2xl border ${themeStyles.border} space-y-2`}>
                         <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Nombre</label>
@@ -4336,7 +4346,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   )}
 
                   {/* ── STEP 2 / Dieta tab: Weekly menu ── */}
-                  {((!profile.name && profileWizardStep === 2) || (profile.name && profileModalTab === 'dieta')) && (
+                  {((isWizardMode && profileWizardStep === 2) || (!isWizardMode && profileModalTab === 'dieta')) && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                       <div className="text-center pt-2 pb-1">
                         <ChefHat className={`w-10 h-10 ${themeStyles.accent} mx-auto mb-3`} />
@@ -4347,22 +4357,22 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         <button
                           type="button"
                           onClick={() => { setWizardMenuPicked(true); setEditProfile(p => ({...p, menuEnabled: true})); }}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${(profile.name ? editProfile.menuEnabled : wizardMenuPicked === true) ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${(!isWizardMode ? editProfile.menuEnabled : wizardMenuPicked === true) ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className={`text-2xl ${(profile.name ? editProfile.menuEnabled : wizardMenuPicked === true) ? '' : 'opacity-30'}`}>✓</span>
+                          <span className={`text-2xl ${(!isWizardMode ? editProfile.menuEnabled : wizardMenuPicked === true) ? '' : 'opacity-30'}`}>✓</span>
                           <span className="text-xs font-bold uppercase tracking-widest">Sí, quiero mi menú</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => { setWizardMenuPicked(false); setEditProfile(p => ({...p, menuEnabled: false})); }}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${(profile.name ? !editProfile.menuEnabled : wizardMenuPicked === false) ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${(!isWizardMode ? !editProfile.menuEnabled : wizardMenuPicked === false) ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className={`text-2xl ${(profile.name ? !editProfile.menuEnabled : wizardMenuPicked === false) ? '' : 'opacity-30'}`}>✕</span>
+                          <span className={`text-2xl ${(!isWizardMode ? !editProfile.menuEnabled : wizardMenuPicked === false) ? '' : 'opacity-30'}`}>✕</span>
                           <span className="text-xs font-bold uppercase tracking-widest">No por ahora</span>
                         </button>
                       </div>
 
-                      {(profile.name ? editProfile.menuEnabled : wizardMenuPicked === true) && (
+                      {(!isWizardMode ? editProfile.menuEnabled : wizardMenuPicked === true) && (
                         <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-4 duration-300">
                           <div className={`w-full h-px ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'}`} />
 
@@ -4484,7 +4494,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   )}
 
                   {/* ── STEP 3 / Entreno tab: Training ── */}
-                  {((!profile.name && profileWizardStep === 3) || (profile.name && profileModalTab === 'entrenamiento')) && (
+                  {((isWizardMode && profileWizardStep === 3) || (!isWizardMode && profileModalTab === 'entrenamiento')) && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                       <div className="text-center pt-2 pb-1">
                         <Dumbbell className={`w-10 h-10 ${themeStyles.accent} mx-auto mb-3`} />
@@ -4495,22 +4505,22 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         <button
                           type="button"
                           onClick={() => { setWizardGymPicked(true); setEditProfile(p => ({...p, gymEnabled: true})); }}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${(profile.name ? editProfile.gymEnabled : wizardGymPicked === true) ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${(!isWizardMode ? editProfile.gymEnabled : wizardGymPicked === true) ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className={`text-2xl ${(profile.name ? editProfile.gymEnabled : wizardGymPicked === true) ? '' : 'opacity-30'}`}>✓</span>
+                          <span className={`text-2xl ${(!isWizardMode ? editProfile.gymEnabled : wizardGymPicked === true) ? '' : 'opacity-30'}`}>✓</span>
                           <span className="text-xs font-bold uppercase tracking-widest">Sí, quiero entrenar</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => { setWizardGymPicked(false); setEditProfile(p => ({...p, gymEnabled: false})); }}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${(profile.name ? !editProfile.gymEnabled : wizardGymPicked === false) ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
+                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${(!isWizardMode ? !editProfile.gymEnabled : wizardGymPicked === false) ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
                         >
-                          <span className={`text-2xl ${(profile.name ? !editProfile.gymEnabled : wizardGymPicked === false) ? '' : 'opacity-30'}`}>✕</span>
+                          <span className={`text-2xl ${(!isWizardMode ? !editProfile.gymEnabled : wizardGymPicked === false) ? '' : 'opacity-30'}`}>✕</span>
                           <span className="text-xs font-bold uppercase tracking-widest">No por ahora</span>
                         </button>
                       </div>
 
-                      {(profile.name ? editProfile.gymEnabled : wizardGymPicked === true) && (
+                      {(!isWizardMode ? editProfile.gymEnabled : wizardGymPicked === true) && (
                         <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-4 duration-300">
                           <div className={`w-full h-px ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'}`} />
 
@@ -4587,7 +4597,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                 {/* Navigation buttons */}
                 <div className={`pt-4 mt-2 border-t ${themeStyles.border} flex gap-3 shrink-0`}>
-                  {profile.name ? (
+                  {!isWizardMode ? (
                     /* Tab mode: single Guardar button per tab */
                     <button
                       type="submit"
