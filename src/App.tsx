@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, ChevronUp, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, User as UserIcon, Pizza, Save, Edit2, Trash2, Home, Sparkles, Clock } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, ChevronUp, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, User as UserIcon, Pizza, Save, Edit2, Trash2, Home, Sparkles, Clock, UtensilsCrossed, BarChart2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
@@ -323,7 +323,8 @@ export default function App() {
   const [isGeneratingWorkout, setIsGeneratingWorkout] = useState(false);
   const [workoutProgressMsg, setWorkoutProgressMsg] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'today' | 'gym' | 'meals'>('today');
+  type AppSection = 'hoy' | 'menu' | 'gym' | 'semana' | 'perfil';
+  const [activeSection, setActiveSection] = useState<AppSection>('hoy');
   const [mealsSubTab, setMealsSubTab] = useState<'daily' | 'plan' | 'shopping'>('daily');
   const getTodayDayIndex = () => (new Date().getDay() + 6) % 7; // Mon=0 … Sun=6
   const [menuSelectedDay, setMenuSelectedDay] = useState<number>(getTodayDayIndex);
@@ -361,6 +362,10 @@ export default function App() {
     }, 60000);
     return () => clearInterval(timer);
   }, [todayStr]);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activeSection]);
 
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [profileWizardStep, setProfileWizardStep] = useState<1 | 2 | 3>(1);
@@ -2107,73 +2112,28 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
   return (
     <div className={`min-h-screen transition-colors duration-500 ${themeStyles.mainBg} pb-24 font-sans selection:${themeStyles.accentMuted}`}>
       {/* Header */}
-      <header className={`pt-12 pb-6 px-6 sticky top-0 backdrop-blur-2xl z-50 border-b ${themeStyles.headerBg} ${profile.theme === 'light' ? 'border-slate-200' : 'border-white/5'}`}>
+      <header className={`pt-12 pb-4 px-6 sticky top-0 backdrop-blur-2xl z-40 border-b ${themeStyles.headerBg} ${profile.theme === 'light' ? 'border-slate-200' : 'border-white/5'}`}>
         <div className="flex items-center justify-between max-w-md mx-auto">
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex flex-col"
-          >
+          <div className="flex flex-col">
             <h1 className={`text-2xl font-display font-black tracking-tighter ${themeStyles.textMain} flex items-center gap-2`}>
               <img src={profile.theme === 'dark' ? '/favicon-dark.png' : '/favicon-light.png'} alt="KiloKalo" className="w-8 h-8 rounded-lg" />
               KiloKalo
             </h1>
-            <p className={`${themeStyles.textMuted} text-[10px] font-bold tracking-wide uppercase mt-0.5 whitespace-nowrap`}>COME · ENTRENA · EQUILIBRA</p>
-          </motion.div>
-          <div className="flex items-center gap-3">
-            <motion.button
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              onClick={() => {
-                const newTheme = profile.theme === 'light' ? 'dark' : 'light';
-                setProfile({ ...profile, theme: newTheme });
-              }}
-              className={`h-10 w-10 rounded-xl ${themeStyles.iconBg} border ${themeStyles.border} shadow-sm hover:opacity-80 flex items-center justify-center transition-colors`}
-              title="Cambiar tema"
+            <p className={`${themeStyles.textMuted} text-[10px] font-bold tracking-wide uppercase mt-0.5`}>COME · ENTRENA · EQUILIBRA</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setProfile({ ...profile, theme: profile.theme === 'light' ? 'dark' : 'light' })}
+              className={`h-10 w-10 rounded-xl ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center`}
             >
               {profile.theme === 'light' ? <Moon className={`w-4 h-4 ${themeStyles.textMain}`} /> : <Sun className={`w-4 h-4 ${themeStyles.textMain}`} />}
-            </motion.button>
-            <motion.button 
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              onClick={() => { 
-                setEditProfile({
-                  ...profile,
-                  allergies: Array.isArray(profile.allergies) ? profile.allergies : [],
-                  dislikedFoods: profile.dislikedFoods || ''
-                });
-                setEditWeight(profile.weight > 0 ? profile.weight.toString() : '');
-                setDismissedSuggestions([]);
-                setProfileWizardStep(1);
-                setProfileModalTab('datos');
-                setIsGoalModalOpen(true);
-              }}
-              className={`relative h-10 px-3 rounded-xl flex items-center justify-center gap-2 transition-all ${
-                profile.age === 0
-                  ? (profile.theme === 'light' ? 'bg-emerald-500 shadow-emerald-500/20 shadow-lg' : 'bg-lime-400 shadow-[0_0_20px_rgba(163,230,53,0.4)] shadow-lg')
-                  : `${themeStyles.iconBg} border ${themeStyles.border} shadow-sm hover:${themeStyles.iconBg}`
-              }`}
-            >
-              <UserIcon className={`w-5 h-5 ${profile.age === 0 ? 'text-zinc-950' : themeStyles.accent}`} />
-              <span className={`text-xs font-bold uppercase tracking-wider hidden sm:block ${profile.age === 0 ? 'text-zinc-950' : themeStyles.accent}`}>
-                Perfil
-              </span>
-              {!profile.name && (
-                <span className="absolute -top-1.5 -right-1.5 flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
-                </span>
-              )}
-            </motion.button>
-            <motion.button
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
+            </button>
+            <button
               onClick={handleLogout}
-              className="h-10 w-10 rounded-xl bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-              title="Cerrar sesión"
+              className={`h-10 w-10 rounded-xl ${themeStyles.iconBg} border ${themeStyles.border} flex items-center justify-center ${themeStyles.textMuted}`}
             >
               <LogOut className="w-4 h-4" />
-            </motion.button>
+            </button>
           </div>
         </div>
       </header>
@@ -2217,7 +2177,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         </AnimatePresence>
 
         {/* Menu + gym setup banner — one single banner for both features */}
-        {activeTab === 'today' && !!profile.name && profile.height > 0 &&
+        {activeSection === 'hoy' && !!profile.name && profile.height > 0 &&
           (!profile.menuEnabled || !profile.gymEnabled) &&
           !dismissedPrompts.includes('setup_features_v2') &&
           Date.now() > dietGymBannerRemindAfter && (() => {
@@ -2285,7 +2245,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           })()}
 
         {/* Height missing prompt */}
-        {activeTab === 'today' && profile.height === 0 && !!profile.name && !dismissedPrompts.includes('add_height') && (
+        {activeSection === 'hoy' && profile.height === 0 && !!profile.name && !dismissedPrompts.includes('add_height') && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
             <AppBanner
               variant="info"
