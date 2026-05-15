@@ -378,6 +378,8 @@ export default function App() {
   const [profileModalTab, setProfileModalTab] = useState<'datos' | 'dieta' | 'entrenamiento'>('datos');
   const [dismissedSuggestions, setDismissedSuggestions] = useState<string[]>([]);
   const [dismissedPrompts, setDismissedPrompts] = useState<string[]>([]);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => localStorage.getItem('notificationsEnabled') === 'true');
+  const [notificationPermAsked, setNotificationPermAsked] = useState(() => localStorage.getItem('notificationPermAsked') === 'true');
   const [optionalBannerRemindAfter, setOptionalBannerRemindAfter] = useState<number>(0);
   const [dietGymBannerRemindAfter, setDietGymBannerRemindAfter] = useState<number>(0);
 
@@ -835,6 +837,38 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [appError]);
 
+  // Scheduled notifications: 9h, 14h, 21h — fires while app is open
+  useEffect(() => {
+    if (!notificationsEnabled || !isDataLoaded || !('Notification' in window) || Notification.permission !== 'granted') return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const now = new Date();
+
+    const schedule = (hour: number, buildMsg: () => { body: string } | null) => {
+      const target = new Date(now);
+      target.setHours(hour, 0, 0, 0);
+      const ms = target.getTime() - now.getTime();
+      if (ms < 0) return; // already past today
+      timers.push(setTimeout(() => {
+        const notif = buildMsg();
+        if (notif) new Notification('KiloKalo', { body: notif.body, icon: '/favicon.png' });
+      }, ms));
+    };
+
+    const mealsCount = todaysMeals.length;
+    const consumed = Math.round(todaysMeals.reduce((s, m) => s + m.calories, 0));
+    const remaining = Math.max(0, Math.round(goals.calories) - consumed);
+
+    schedule(9, () => mealsCount === 0 ? { body: 'Buenos días — recuerda registrar el desayuno para empezar bien el día' } : null);
+    schedule(14, () => mealsCount < 2 ? { body: '¿Ya registraste el almuerzo?' } : null);
+    schedule(21, () => ({
+      body: remaining > 0
+        ? `Llevas ${consumed} kcal hoy. Te quedan ${remaining} kcal`
+        : `Llevas ${consumed} kcal hoy. Objetivo cumplido 🎯`,
+    }));
+
+    return () => timers.forEach(clearTimeout);
+  }, [notificationsEnabled, isDataLoaded, todayStr]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!workoutPlan) return;
     // Only fill in keys that don't exist yet (handleGenerateWorkout sets them eagerly;
@@ -1041,6 +1075,22 @@ export default function App() {
     if (user?.uid) {
       localStorage.setItem(`kilokalo_dismissed_prompts_${user.uid}`, JSON.stringify(updated));
     }
+  };
+
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window) || Notification.permission === 'denied') return;
+    localStorage.setItem('notificationPermAsked', 'true');
+    setNotificationPermAsked(true);
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') {
+      setNotificationsEnabled(true);
+      localStorage.setItem('notificationsEnabled', 'true');
+    }
+  };
+
+  const disableNotifications = () => {
+    setNotificationsEnabled(false);
+    localStorage.removeItem('notificationsEnabled');
   };
 
   // Calculate weekly totals
@@ -2310,6 +2360,30 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
             />
           </motion.div>
         )}
+
+          {/* Notification permission banner */}
+          {activeSection === 'hoy' && !!profile.name && profile.age > 0 &&
+            'Notification' in window && Notification.permission !== 'denied' &&
+            !notificationsEnabled && !notificationPermAsked &&
+            !dismissedPrompts.includes('notifications_ask') && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+              <AppBanner
+                variant="info"
+                theme={profile.theme}
+                icon={<span className="text-sm">🔔</span>}
+                message="¿Activar recordatorios? KiloKalo te avisará para registrar tus comidas y entrenamientos."
+                actions={
+                  <button
+                    onClick={requestNotificationPermission}
+                    className={`shrink-0 text-xs font-bold ${themeStyles.accent} hover:underline`}
+                  >
+                    Activar
+                  </button>
+                }
+                onDismiss={() => dismissPrompt('notifications_ask')}
+              />
+            </motion.div>
+          )}
 
           <AnimatePresence mode="wait">
           {activeSection === 'hoy' && (
@@ -4571,6 +4645,22 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     </div>
                   )}
                 </div>
+
+                {/* Notification preference (tab mode only) */}
+                {!isWizardMode && 'Notification' in window && Notification.permission !== 'denied' && (
+                  <div className={`pt-3 mt-1 border-t ${themeStyles.border} flex items-center justify-between`}>
+                    <span className={`text-xs ${themeStyles.textMuted}`}>🔔 Recordatorios</span>
+                    {notificationsEnabled ? (
+                      <button onClick={disableNotifications} className="text-xs font-bold text-red-400 hover:text-red-500">
+                        Desactivar
+                      </button>
+                    ) : (
+                      <button onClick={requestNotificationPermission} className={`text-xs font-bold ${themeStyles.accent} hover:underline`}>
+                        Activar
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {/* Navigation buttons */}
                 <div className={`pt-4 mt-2 border-t ${themeStyles.border} flex gap-3 shrink-0`}>
