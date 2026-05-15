@@ -1661,6 +1661,11 @@ export default function App() {
       const menu = await generateWeeklyMenu(activeProfile, currentWeight);
       setGeneratedMenu(menu);
       setMenuNeedsRegeneration(false);
+      setSectionUnlockedAt(prev => {
+        const next = { ...prev, menu: 0 };
+        if (user?.uid) localStorage.setItem(`kilokalo_section_badges_${user.uid}`, JSON.stringify(next));
+        return next;
+      });
     } catch (error: any) {
       showError(error.message || 'Error al generar el plan. Inténtalo de nuevo.');
     } finally {
@@ -1917,6 +1922,11 @@ export default function App() {
       const plan = await generateWorkoutPlan(profileStr, (step) => setWorkoutProgressMsg(step));
       setWorkoutPlan(plan);
       setWorkoutNeedsRegeneration(false);
+      setSectionUnlockedAt(prev => {
+        const next = { ...prev, gym: 0 };
+        if (user?.uid) localStorage.setItem(`kilokalo_section_badges_${user.uid}`, JSON.stringify(next));
+        return next;
+      });
     } catch (error: any) {
       console.error("Error generating workout:", error);
       showError(error?.message || "Error al generar tu rutina de entrenamiento.");
@@ -2594,6 +2604,57 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       </button>
                     </div>
 
+                    {/* ── MENÚ DE HOY ── */}
+                    {generatedMenu?.days?.length && profile.menuEnabled && (() => {
+                      const todayName = new Date().toLocaleDateString('es-ES', { weekday: 'long' }).toLowerCase();
+                      const todayDay = generatedMenu.days.find((d: any) => d.day?.toLowerCase() === todayName);
+                      if (!todayDay?.meals?.length) return null;
+                      const nextMealType =
+                        currentHour < 10 ? 'desayuno' :
+                        currentHour < 12 ? 'almuerzo' :
+                        currentHour < 17 ? 'merienda' :
+                        'cena';
+                      const plannedMeal = todayDay.meals.find((m: any) =>
+                        m.type?.toLowerCase().includes(nextMealType) && m.description !== 'COMIDA LIBRE'
+                      ) ?? todayDay.meals.find((m: any) => m.description !== 'COMIDA LIBRE');
+                      if (!plannedMeal) return null;
+                      return (
+                        <div className={`${themeStyles.bento} p-4`}>
+                          <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${themeStyles.accent} mb-3`}>📋 Menú de hoy</p>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest mb-0.5`}>{plannedMeal.type}</p>
+                              <p className={`text-sm font-semibold ${themeStyles.textMain} leading-snug truncate`}>{plannedMeal.description}</p>
+                              <p className={`text-xs ${themeStyles.textMuted} mt-0.5`}>{plannedMeal.calories ?? '—'} kcal</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                const menuMeal = {
+                                  id: Date.now().toString(),
+                                  foodName: plannedMeal.description ?? 'Comida del menú',
+                                  calories: plannedMeal.calories ?? 0,
+                                  protein: plannedMeal.proteinas ?? 0,
+                                  carbs: plannedMeal.carbohidratos ?? 0,
+                                  fat: plannedMeal.grasas ?? 0,
+                                  timestamp: Date.now(),
+                                  imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(plannedMeal.description ?? 'Comida')}&background=27272a&color=a3e635&size=200`,
+                                };
+                                setMealEditMode('create');
+                                setPortionMultiplier(1);
+                                setOriginalAnalyzedName(menuMeal.foodName);
+                                setMacrosManuallyEdited(false);
+                                setMacrosJustUpdated(false);
+                                setEditingMeal(menuMeal);
+                              }}
+                              className={`shrink-0 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider ${themeStyles.buttonPrimary}`}
+                            >
+                              Registrar →
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* Meal List */}
                     <section>
                       <div className="flex items-center justify-between mb-6 px-2">
@@ -2660,57 +2721,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </AnimatePresence>
                       </div>
                     </section>
-
-                    {/* ── MENÚ DE HOY ── */}
-                    {generatedMenu?.days?.length && profile.menuEnabled && (() => {
-                      const todayName = new Date().toLocaleDateString('es-ES', { weekday: 'long' }).toLowerCase();
-                      const todayDay = generatedMenu.days.find((d: any) => d.day?.toLowerCase() === todayName);
-                      if (!todayDay?.meals?.length) return null;
-                      const nextMealType =
-                        currentHour < 10 ? 'desayuno' :
-                        currentHour < 12 ? 'almuerzo' :
-                        currentHour < 17 ? 'merienda' :
-                        'cena';
-                      const plannedMeal = todayDay.meals.find((m: any) =>
-                        m.type?.toLowerCase().includes(nextMealType) && m.description !== 'COMIDA LIBRE'
-                      ) ?? todayDay.meals.find((m: any) => m.description !== 'COMIDA LIBRE');
-                      if (!plannedMeal) return null;
-                      return (
-                        <div className={`${themeStyles.bento} p-4`}>
-                          <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${themeStyles.accent} mb-3`}>📋 Menú de hoy</p>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest mb-0.5`}>{plannedMeal.type}</p>
-                              <p className={`text-sm font-semibold ${themeStyles.textMain} leading-snug truncate`}>{plannedMeal.description}</p>
-                              <p className={`text-xs ${themeStyles.textMuted} mt-0.5`}>{plannedMeal.calories ?? '—'} kcal</p>
-                            </div>
-                            <button
-                              onClick={() => {
-                                const menuMeal = {
-                                  id: Date.now().toString(),
-                                  foodName: plannedMeal.description ?? 'Comida del menú',
-                                  calories: plannedMeal.calories ?? 0,
-                                  protein: plannedMeal.proteinas ?? 0,
-                                  carbs: plannedMeal.carbohidratos ?? 0,
-                                  fat: plannedMeal.grasas ?? 0,
-                                  timestamp: Date.now(),
-                                  imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(plannedMeal.description ?? 'Comida')}&background=27272a&color=a3e635&size=200`,
-                                };
-                                setMealEditMode('create');
-                                setPortionMultiplier(1);
-                                setOriginalAnalyzedName(menuMeal.foodName);
-                                setMacrosManuallyEdited(false);
-                                setMacrosJustUpdated(false);
-                                setEditingMeal(menuMeal);
-                              }}
-                              className={`shrink-0 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider ${themeStyles.buttonPrimary}`}
-                            >
-                              Registrar →
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })()}
                     </div>
                 </div>
               )} {/* end profile-complete else */}
