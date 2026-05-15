@@ -334,7 +334,7 @@ export default function App() {
   const [evolutionPeriod, setEvolutionPeriod] = useState<'today' | 'weekly' | 'monthly' | 'quarterly' | 'semiannually' | 'annually'>('today');
   const [gymSubTab, setGymSubTab] = useState<'manual' | 'plan'>('plan');
   const [planSubTab, setPlanSubTab] = useState<'info' | 'ejercicios' | 'tips'>('ejercicios');
-  const [macrosExpanded, setMacrosExpanded] = useState(false);
+  const [macrosExpanded, setMacrosExpanded] = useState(true);
   const [expandedExSection, setExpandedExSection] = useState<string | null>('Parte Principal');
   const [miDiaExpanded, setMiDiaExpanded] = useState(() => {
     const saved = localStorage.getItem('kilokalo_mi_dia_expanded');
@@ -2565,6 +2565,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <div className="space-y-8">
                     {/* Compact food entry row */}
                     <div className={`${themeStyles.bento} p-3`}>
+                      <p className={`text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-[0.18em] px-1 pb-2`}>
+                        Escribe lo que comiste · o haz una foto 📷
+                      </p>
                       <div className="flex items-center gap-2">
                         {/* Camera button */}
                         <button
@@ -2618,7 +2621,92 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       </div>
                     </div>
 
-                    {/* ── BLOQUE 4: MI DÍA (collapsible) ── */}
+                    {/* ── BLOQUE 4: REGISTROS DE HOY (collapsible) ── */}
+                    <div className={`${themeStyles.bento} overflow-hidden`}>
+                      <button
+                        onClick={() => setRegistrosExpanded(v => !v)}
+                        className="w-full flex items-center gap-2 px-4 py-3"
+                      >
+                        <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} shrink-0 transition-transform duration-200 ${registrosExpanded ? 'rotate-180' : ''}`} />
+                        <span className={`text-xs font-black uppercase tracking-[0.2em] ${themeStyles.textMain} flex-1 text-left`}>Registros de hoy</span>
+                        {registrosExpanded ? (
+                          <span className={`text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} px-2.5 py-0.5 rounded-full`}>
+                            {todaysMeals.length}
+                          </span>
+                        ) : (
+                          <span className={`text-xs font-bold ${themeStyles.textMuted}`}>
+                            {todaysMeals.length > 0
+                              ? `${todaysMeals.length} registros · ${Math.round(totals.calories).toLocaleString('es-ES')} kcal`
+                              : 'Sin registros'}
+                          </span>
+                        )}
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {registrosExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.22, ease: 'easeInOut' }}
+                            className="overflow-hidden"
+                          >
+                            <div className="px-4 pb-4 space-y-3">
+                              {todaysMeals.length === 0 ? (
+                                <div className={`text-center py-10 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border} border-dashed`}>
+                                  <Utensils className={`w-7 h-7 ${themeStyles.textMuted} mx-auto mb-2 opacity-20`} />
+                                  <p className={`${themeStyles.textMuted} font-bold uppercase tracking-widest text-xs`}>No hay registros hoy</p>
+                                  <p className={`${themeStyles.textMuted} text-xs mt-1 opacity-60`}>Usa el buscador o la cámara para empezar</p>
+                                </div>
+                              ) : (
+                                <AnimatePresence mode="popLayout">
+                                  {todaysMeals.map((meal, index) => (
+                                    <motion.div
+                                      key={meal.id} layout
+                                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
+                                      transition={{ duration: 0.2, delay: index * 0.05 }}
+                                      className={`${themeStyles.card} rounded-2xl p-4 flex gap-4 group transition-all`}
+                                    >
+                                      <div className={`w-16 h-16 rounded-2xl overflow-hidden ${themeStyles.iconBg} shrink-0 shadow-xl border ${themeStyles.border}`}>
+                                        <img src={meal.imageUrl} alt={meal.foodName} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-start justify-between mb-1">
+                                          <h3 className={`font-bold ${themeStyles.textMain} truncate text-base tracking-tight`}>{meal.foodName}</h3>
+                                          <div className="flex items-center gap-0.5 shrink-0 ml-2">
+                                            <button onClick={() => openMealForEdit(meal)} className={`${themeStyles.textMuted} hover:text-sky-400 p-1 rounded-lg hover:bg-sky-500/10 transition-all`} title="Editar">
+                                              <Pencil className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button onClick={() => removeMeal(meal.id)} className={`${themeStyles.textMuted} hover:text-rose-500 p-1 rounded-lg hover:bg-rose-500/10 transition-all`} title="Borrar">
+                                              <X className="w-4 h-4" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
+                                          <span className={`${themeStyles.accent} font-bold text-xs tracking-tight`}>{Math.round(meal.calories)} Kcal</span>
+                                          <div className={`flex items-center gap-3 text-xs font-bold uppercase ${themeStyles.textMuted} tracking-wider`}>
+                                            <span className={themeStyles.textMain}>P:{Math.round(meal.protein)}g</span>
+                                            <span className={themeStyles.textMain}>H:{Math.round(meal.carbs)}g</span>
+                                            <span className={themeStyles.textMain}>G:{Math.round(meal.fat)}g</span>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <NutriScoreBadge score={meal.nutriScore} />
+                                          {meal.isHealthy && (
+                                            <span className={`px-2 py-0.5 rounded-full ${themeStyles.accentMuted} ${themeStyles.accent} text-xs font-bold uppercase tracking-widest border ${themeStyles.accentBorder}`}>Saludable</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  ))}
+                                </AnimatePresence>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* ── BLOQUE 5: MI DÍA (collapsible) ── */}
                     {(() => {
                       const todayName = new Date().toLocaleDateString('es-ES', { weekday: 'long' }).toLowerCase();
                       const todayDay = generatedMenu?.days?.find((d: any) => d.day?.toLowerCase() === todayName);
@@ -2632,9 +2720,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       const todayGymEntry = profile.gymEnabled && workoutPlan && dayHeaders.length > 0
                         ? (dayHeaders.find(d => gymRoutineDates[d.label] === todayStr) ?? dayHeaders.find(d => d.label === gymDay) ?? dayHeaders[0])
                         : null;
-                      const workoutDoneToday = todayGymEntry
-                        ? (gymDayDone[todayGymEntry.label] || habits[todayStr]?.workoutDone || (habits[todayStr]?.workoutCalories ?? 0) > 0 || (habits[todayStr]?.manualWorkout?.caloriesBurned ?? 0) > 0)
-                        : false;
+                      const workoutDoneToday = todayGymEntry ? !!gymDayDone[todayGymEntry.label] : false;
                       const hasGymCard = !!todayGymEntry;
 
                       if (!hasMealCard && !hasGymCard) return null;
@@ -2656,33 +2742,20 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                       return (
                         <div className={`${themeStyles.bento} overflow-hidden`}>
-                          {/* Header */}
-                          <div className="flex items-center gap-2 px-4 py-3">
-                            <button
-                              onClick={() => { const next = !miDiaExpanded; setMiDiaExpanded(next); localStorage.setItem('kilokalo_mi_dia_expanded', String(next)); }}
-                              className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                            >
-                              <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} shrink-0 transition-transform duration-200 ${miDiaExpanded ? 'rotate-180' : ''}`} />
-                              <span className={`text-xs font-black uppercase tracking-[0.2em] ${themeStyles.textMain} shrink-0`}>Mi día</span>
-                              {!miDiaExpanded && (
-                                <span className={`text-xs ${themeStyles.textMuted} truncate ml-1`}>{summaryText}</span>
-                              )}
-                            </button>
-                            {profile.menuEnabled && (
-                              <button onClick={() => setActiveSection('menu')} className={`shrink-0 text-xs font-bold ${themeStyles.accent} hover:underline`}>
-                                ver todo →
-                              </button>
-                            )}
-                          </div>
+                          <button
+                            onClick={() => { const next = !miDiaExpanded; setMiDiaExpanded(next); localStorage.setItem('kilokalo_mi_dia_expanded', String(next)); }}
+                            className="w-full flex items-center gap-2 px-4 py-3 text-left"
+                          >
+                            <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} shrink-0 transition-transform duration-200 ${miDiaExpanded ? 'rotate-180' : ''}`} />
+                            <span className={`text-xs font-black uppercase tracking-[0.2em] ${themeStyles.textMain} flex-1`}>Mi día</span>
+                          </button>
 
-                          {/* Collapsed summary strip */}
                           {!miDiaExpanded && (
-                            <div className={`px-4 pb-3 -mt-1`}>
+                            <div className="px-4 pb-3 -mt-1">
                               <p className={`text-[10px] ${themeStyles.textMuted} pl-6`}>{summaryText}</p>
                             </div>
                           )}
 
-                          {/* Expandable content */}
                           <AnimatePresence initial={false}>
                             {miDiaExpanded && (
                               <motion.div
@@ -2693,7 +2766,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                 className="overflow-hidden"
                               >
                                 <div className="px-4 pb-4 space-y-3">
-                                  {/* Card 1: Menú de hoy */}
                                   {hasMealCard && (
                                     <div className={`rounded-2xl border p-4 ${profile.theme === 'light' ? 'bg-emerald-500/8 border-emerald-500/25' : 'bg-lime-400/6 border-lime-400/20'}`}>
                                       <div className="flex items-center gap-2 mb-3">
@@ -2730,8 +2802,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                       </button>
                                     </div>
                                   )}
-
-                                  {/* Card 2: Entrenamiento de hoy */}
                                   {hasGymCard && (
                                     <button
                                       onClick={() => { setActiveSection('gym'); setGymSubTab('plan'); setPlanSubTab('ejercicios'); setGymDay(todayGymEntry!.label); }}
@@ -2764,94 +2834,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </div>
                       );
                     })()}
-
-                    {/* ── BLOQUE 5: REGISTROS DE HOY (collapsible) ── */}
-                    <div className={`${themeStyles.bento} overflow-hidden`}>
-                      {/* Header */}
-                      <button
-                        onClick={() => setRegistrosExpanded(v => !v)}
-                        className="w-full flex items-center gap-2 px-4 py-3"
-                      >
-                        <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} shrink-0 transition-transform duration-200 ${registrosExpanded ? 'rotate-180' : ''}`} />
-                        <span className={`text-xs font-black uppercase tracking-[0.2em] ${themeStyles.textMain} flex-1 text-left`}>Registros de hoy</span>
-                        {registrosExpanded ? (
-                          <span className={`text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} px-2.5 py-0.5 rounded-full`}>
-                            {todaysMeals.length}
-                          </span>
-                        ) : (
-                          <span className={`text-xs font-bold ${themeStyles.textMuted}`}>
-                            {todaysMeals.length > 0
-                              ? `${todaysMeals.length} registros · ${Math.round(totals.calories).toLocaleString('es-ES')} kcal`
-                              : 'Sin registros'}
-                          </span>
-                        )}
-                      </button>
-
-                      {/* Expandable list */}
-                      <AnimatePresence initial={false}>
-                        {registrosExpanded && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.22, ease: 'easeInOut' }}
-                            className="overflow-hidden"
-                          >
-                            <div className="px-4 pb-4 space-y-3">
-                              {todaysMeals.length === 0 ? (
-                                <div className={`text-center py-10 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border} border-dashed`}>
-                                  <Utensils className={`w-7 h-7 ${themeStyles.textMuted} mx-auto mb-2 opacity-20`} />
-                                  <p className={`${themeStyles.textMuted} font-bold uppercase tracking-widest text-xs`}>No hay registros hoy</p>
-                                  <p className={`${themeStyles.textMuted} text-xs mt-1 opacity-60`}>Usa el buscador o la cámara para empezar</p>
-                                </div>
-                              ) : (
-                                <AnimatePresence mode="popLayout">
-                                  {todaysMeals.map((meal, index) => (
-                                    <motion.div
-                                      key={meal.id} layout
-                                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
-                                      transition={{ duration: 0.2, delay: index * 0.05 }}
-                                      className={`${themeStyles.card} rounded-2xl p-4 flex gap-4 group transition-all`}
-                                    >
-                                <div className={`w-16 h-16 rounded-2xl overflow-hidden ${themeStyles.iconBg} shrink-0 shadow-xl border ${themeStyles.border}`}>
-                                  <img src={meal.imageUrl} alt={meal.foodName} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-start justify-between mb-1">
-                                    <h3 className={`font-bold ${themeStyles.textMain} truncate text-base tracking-tight`}>{meal.foodName}</h3>
-                                    <div className="flex items-center gap-0.5 shrink-0 ml-2">
-                                      <button onClick={() => openMealForEdit(meal)} className={`${themeStyles.textMuted} hover:text-sky-400 p-1 rounded-lg hover:bg-sky-500/10 transition-all`} title="Editar">
-                                        <Pencil className="w-3.5 h-3.5" />
-                                      </button>
-                                      <button onClick={() => removeMeal(meal.id)} className={`${themeStyles.textMuted} hover:text-rose-500 p-1 rounded-lg hover:bg-rose-500/10 transition-all`} title="Borrar">
-                                        <X className="w-4 h-4" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
-                                    <span className={`${themeStyles.accent} font-bold text-xs tracking-tight`}>{Math.round(meal.calories)} Kcal</span>
-                                    <div className={`flex items-center gap-3 text-xs font-bold uppercase ${themeStyles.textMuted} tracking-wider`}>
-                                      <span className={themeStyles.textMain}>P:{Math.round(meal.protein)}g</span>
-                                      <span className={themeStyles.textMain}>H:{Math.round(meal.carbs)}g</span>
-                                      <span className={themeStyles.textMain}>G:{Math.round(meal.fat)}g</span>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <NutriScoreBadge score={meal.nutriScore} />
-                                    {meal.isHealthy && (
-                                      <span className={`px-2 py-0.5 rounded-full ${themeStyles.accentMuted} ${themeStyles.accent} text-xs font-bold uppercase tracking-widest border ${themeStyles.accentBorder}`}>Saludable</span>
-                                    )}
-                                  </div>
-                                </div>
-                                    </motion.div>
-                                  ))}
-                                </AnimatePresence>
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
                     </div>
                 </div>
               )} {/* end profile-complete else */}
