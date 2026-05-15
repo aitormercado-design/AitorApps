@@ -336,6 +336,12 @@ export default function App() {
   const [planSubTab, setPlanSubTab] = useState<'info' | 'ejercicios' | 'tips'>('ejercicios');
   const [macrosExpanded, setMacrosExpanded] = useState(false);
   const [expandedExSection, setExpandedExSection] = useState<string | null>('Parte Principal');
+  const [miDiaExpanded, setMiDiaExpanded] = useState(() => {
+    const saved = localStorage.getItem('kilokalo_mi_dia_expanded');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [registrosExpanded, setRegistrosExpanded] = useState(true);
+  const registrosInitialized = useRef(false);
   const [manualWorkoutActivity, setManualWorkoutActivity] = useState<string>('Correr');
   const [manualWorkoutIntensidad, setManualWorkoutIntensidad] = useState<'suave'|'moderada'|'intensa'>('moderada');
   const [manualWorkoutMinutes, setManualWorkoutMinutes] = useState('45');
@@ -927,6 +933,14 @@ export default function App() {
     todayStart.setHours(0, 0, 0, 0);
     return meals.filter(m => m.timestamp >= todayStart.getTime());
   }, [meals, todayStr]);
+
+  // Collapse registros on first load if no meals yet today
+  useEffect(() => {
+    if (isDataLoaded && !registrosInitialized.current) {
+      registrosInitialized.current = true;
+      setRegistrosExpanded(todaysMeals.length > 0);
+    }
+  }, [isDataLoaded, todaysMeals.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const totals = todaysMeals.reduce(
     (acc, meal) => ({
@@ -2604,131 +2618,201 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       </div>
                     </div>
 
-                    {/* ── MENÚ DE HOY ── */}
-                    {generatedMenu?.days?.length && profile.menuEnabled && (() => {
+                    {/* ── BLOQUE 4: MI DÍA (collapsible) ── */}
+                    {(() => {
                       const todayName = new Date().toLocaleDateString('es-ES', { weekday: 'long' }).toLowerCase();
-                      const todayDay = generatedMenu.days.find((d: any) => d.day?.toLowerCase() === todayName);
-                      if (!todayDay?.meals?.length) return null;
-                      const nextMealType =
-                        currentHour < 10 ? 'desayuno' :
-                        currentHour < 12 ? 'almuerzo' :
-                        currentHour < 17 ? 'merienda' :
-                        'cena';
-                      const plannedMeal = todayDay.meals.find((m: any) =>
-                        m.type?.toLowerCase().includes(nextMealType) && m.description !== 'COMIDA LIBRE'
-                      ) ?? todayDay.meals.find((m: any) => m.description !== 'COMIDA LIBRE');
-                      if (!plannedMeal) return null;
-                      return (
-                        <div className={`rounded-2xl border p-4 ${profile.theme === 'light' ? 'bg-emerald-500/8 border-emerald-500/25' : 'bg-lime-400/6 border-lime-400/20'}`}>
-                          <div className="flex items-center gap-2 mb-3">
-                            <UtensilsCrossed className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
-                            <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${themeStyles.accent}`}>Sugerencia del Menú</p>
-                          </div>
-                          <div className="mb-3">
-                            <p className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest mb-0.5`}>{plannedMeal.type}</p>
-                            <p className={`text-sm font-semibold ${themeStyles.textMain} leading-snug`}>{plannedMeal.description}</p>
-                            <p className={`text-xs ${themeStyles.textMuted} mt-0.5`}>{plannedMeal.calories ?? '—'} kcal</p>
-                          </div>
-                          <button
-                            onClick={() => {
-                              const menuMeal = {
-                                id: Date.now().toString(),
-                                foodName: plannedMeal.description ?? 'Comida del menú',
-                                calories: plannedMeal.calories ?? 0,
-                                protein: plannedMeal.proteinas ?? 0,
-                                carbs: plannedMeal.carbohidratos ?? 0,
-                                fat: plannedMeal.grasas ?? 0,
-                                timestamp: Date.now(),
-                                imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(plannedMeal.description ?? 'Comida')}&background=27272a&color=a3e635&size=200`,
-                              };
-                              setMealEditMode('create');
-                              setPortionMultiplier(1);
-                              setOriginalAnalyzedName(menuMeal.foodName);
-                              setMacrosManuallyEdited(false);
-                              setMacrosJustUpdated(false);
-                              setEditingMeal(menuMeal);
-                            }}
-                            className={`w-full py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider ${themeStyles.buttonPrimary}`}
-                          >
-                            Registrar →
-                          </button>
-                        </div>
-                      );
-                    })()}
+                      const todayDay = generatedMenu?.days?.find((d: any) => d.day?.toLowerCase() === todayName);
+                      const nextMealType = currentHour < 10 ? 'desayuno' : currentHour < 12 ? 'almuerzo' : currentHour < 17 ? 'merienda' : 'cena';
+                      const plannedMeal = profile.menuEnabled && todayDay?.meals?.length
+                        ? (todayDay.meals.find((m: any) => m.type?.toLowerCase().includes(nextMealType) && m.description !== 'COMIDA LIBRE') ?? todayDay.meals.find((m: any) => m.description !== 'COMIDA LIBRE'))
+                        : null;
+                      const hasMealCard = !!plannedMeal;
 
-                    {/* ── ENTRENAMIENTO DE HOY ── */}
-                    {profile.gymEnabled && workoutPlan && (() => {
-                      // Parse day headers only (lightweight)
-                      const dayHeaders = [...workoutPlan.matchAll(/^# DÍA (\d+)\s*[—–-]\s*([^\n]+)/gim)].map(m => ({
-                        label: `Día ${m[1]}`,
-                        focus: m[2].trim(),
-                      }));
-                      if (dayHeaders.length === 0) return null;
+                      const dayHeaders = [...(workoutPlan || '').matchAll(/^# DÍA (\d+)\s*[—–-]\s*([^\n]+)/gim)].map(m => ({ label: `Día ${m[1]}`, focus: m[2].trim() }));
+                      const todayGymEntry = profile.gymEnabled && workoutPlan && dayHeaders.length > 0
+                        ? (dayHeaders.find(d => gymRoutineDates[d.label] === todayStr) ?? dayHeaders.find(d => d.label === gymDay) ?? dayHeaders[0])
+                        : null;
+                      const workoutDoneToday = todayGymEntry
+                        ? (gymDayDone[todayGymEntry.label] || habits[todayStr]?.workoutDone || (habits[todayStr]?.workoutCalories ?? 0) > 0 || (habits[todayStr]?.manualWorkout?.caloriesBurned ?? 0) > 0)
+                        : false;
+                      const hasGymCard = !!todayGymEntry;
 
-                      // Find which day is assigned to today, fall back to selected gymDay
-                      const todayEntry = dayHeaders.find(d => gymRoutineDates[d.label] === todayStr)
-                        ?? dayHeaders.find(d => d.label === gymDay)
-                        ?? dayHeaders[0];
+                      if (!hasMealCard && !hasGymCard) return null;
 
-                      const isDone = gymDayDone[todayEntry.label];
+                      const mealLabel = nextMealType.charAt(0).toUpperCase() + nextMealType.slice(1);
+                      const allDone = (!hasGymCard || workoutDoneToday) && !hasMealCard;
+                      let summaryText = '';
+                      if (allDone) {
+                        summaryText = '✓ Todo completado hoy 🎯';
+                      } else if (hasGymCard && hasMealCard) {
+                        summaryText = workoutDoneToday
+                          ? `✓ Entreno completado · ${mealLabel} pendiente`
+                          : `${mealLabel} pendiente · Entreno pendiente`;
+                      } else if (hasGymCard) {
+                        summaryText = workoutDoneToday ? '✓ Entreno completado' : 'Entreno pendiente';
+                      } else {
+                        summaryText = `${mealLabel} pendiente`;
+                      }
 
                       return (
-                        <button
-                          onClick={() => { setActiveSection('gym'); setGymSubTab('plan'); setPlanSubTab('ejercicios'); setGymDay(todayEntry.label); }}
-                          className={`w-full text-left rounded-2xl border p-4 transition-all ${isDone
-                            ? `${profile.theme === 'light' ? 'bg-emerald-500/8 border-emerald-500/25' : 'bg-lime-400/6 border-lime-400/20'}`
-                            : `${themeStyles.bento}`
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isDone ? themeStyles.accentMuted : themeStyles.iconBg} border ${isDone ? themeStyles.accentBorder : themeStyles.border}`}>
-                              {isDone
-                                ? <CheckCircle2 className={`w-4 h-4 ${themeStyles.accent}`} />
-                                : <Dumbbell className={`w-4 h-4 ${themeStyles.textMuted}`} />}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${isDone ? themeStyles.accent : themeStyles.textMuted} mb-0.5`}>
-                                {isDone ? 'Entrenamiento completado' : 'Entrenamiento de hoy'}
-                              </p>
-                              <p className={`text-sm font-bold ${themeStyles.textMain} truncate`}>{todayEntry.focus}</p>
-                              <p className={`text-xs ${themeStyles.textMuted}`}>{todayEntry.label}</p>
-                            </div>
-                            <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} shrink-0 -rotate-90`} />
+                        <div className={`${themeStyles.bento} overflow-hidden`}>
+                          {/* Header */}
+                          <div className="flex items-center gap-2 px-4 py-3">
+                            <button
+                              onClick={() => { const next = !miDiaExpanded; setMiDiaExpanded(next); localStorage.setItem('kilokalo_mi_dia_expanded', String(next)); }}
+                              className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                            >
+                              <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} shrink-0 transition-transform duration-200 ${miDiaExpanded ? 'rotate-180' : ''}`} />
+                              <span className={`text-xs font-black uppercase tracking-[0.2em] ${themeStyles.textMain} shrink-0`}>Mi día</span>
+                              {!miDiaExpanded && (
+                                <span className={`text-xs ${themeStyles.textMuted} truncate ml-1`}>{summaryText}</span>
+                              )}
+                            </button>
+                            {profile.menuEnabled && (
+                              <button onClick={() => setActiveSection('menu')} className={`shrink-0 text-xs font-bold ${themeStyles.accent} hover:underline`}>
+                                ver todo →
+                              </button>
+                            )}
                           </div>
-                        </button>
-                      );
-                    })()}
 
-                    {/* Meal List */}
-                    <section>
-                      <div className="flex items-center justify-between mb-6 px-2">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 ${themeStyles.accentMuted} rounded-xl border ${themeStyles.accentBorder}`}>
-                            <Utensils className={`w-5 h-5 ${themeStyles.accent}`} />
-                          </div>
-                          <h2 className={`text-lg font-display font-bold ${themeStyles.textMain} tracking-tight uppercase`}>Registros de hoy</h2>
-                        </div>
-                        <span className={`text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} px-3 py-1 rounded-full shadow-lg uppercase tracking-widest`}>
-                          {todaysMeals.length} ítems
-                        </span>
-                      </div>
+                          {/* Collapsed summary strip */}
+                          {!miDiaExpanded && (
+                            <div className={`px-4 pb-3 -mt-1`}>
+                              <p className={`text-[10px] ${themeStyles.textMuted} pl-6`}>{summaryText}</p>
+                            </div>
+                          )}
 
-                      <div className="space-y-4">
-                        <AnimatePresence mode="popLayout">
-                          {todaysMeals.length === 0 ? (
-                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`text-center py-16 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border} border-dashed`}>
-                              <Utensils className={`w-8 h-8 ${themeStyles.textMuted} mx-auto mb-3 opacity-20`} />
-                              <p className={`${themeStyles.textMuted} font-bold uppercase tracking-widest text-xs`}>No hay registros hoy</p>
-                              <p className={`${themeStyles.textMuted} text-xs mt-1 opacity-60`}>Usa el buscador o la cámara para empezar</p>
-                            </motion.div>
-                          ) : (
-                            todaysMeals.map((meal, index) => (
+                          {/* Expandable content */}
+                          <AnimatePresence initial={false}>
+                            {miDiaExpanded && (
                               <motion.div
-                                key={meal.id} layout
-                                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
-                                transition={{ duration: 0.2, delay: index * 0.05 }}
-                                className={`${themeStyles.card} rounded-2xl p-4 flex gap-4 group transition-all`}
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.22, ease: 'easeInOut' }}
+                                className="overflow-hidden"
                               >
+                                <div className="px-4 pb-4 space-y-3">
+                                  {/* Card 1: Menú de hoy */}
+                                  {hasMealCard && (
+                                    <div className={`rounded-2xl border p-4 ${profile.theme === 'light' ? 'bg-emerald-500/8 border-emerald-500/25' : 'bg-lime-400/6 border-lime-400/20'}`}>
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <UtensilsCrossed className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
+                                        <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${themeStyles.accent}`}>Sugerencia del Menú</p>
+                                      </div>
+                                      <div className="mb-3">
+                                        <p className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest mb-0.5`}>{plannedMeal!.type}</p>
+                                        <p className={`text-sm font-semibold ${themeStyles.textMain} leading-snug`}>{plannedMeal!.description}</p>
+                                        <p className={`text-xs ${themeStyles.textMuted} mt-0.5`}>{plannedMeal!.calories ?? '—'} kcal</p>
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          const menuMeal = {
+                                            id: Date.now().toString(),
+                                            foodName: plannedMeal!.description ?? 'Comida del menú',
+                                            calories: plannedMeal!.calories ?? 0,
+                                            protein: plannedMeal!.proteinas ?? 0,
+                                            carbs: plannedMeal!.carbohidratos ?? 0,
+                                            fat: plannedMeal!.grasas ?? 0,
+                                            timestamp: Date.now(),
+                                            imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(plannedMeal!.description ?? 'Comida')}&background=27272a&color=a3e635&size=200`,
+                                          };
+                                          setMealEditMode('create');
+                                          setPortionMultiplier(1);
+                                          setOriginalAnalyzedName(menuMeal.foodName);
+                                          setMacrosManuallyEdited(false);
+                                          setMacrosJustUpdated(false);
+                                          setEditingMeal(menuMeal);
+                                        }}
+                                        className={`w-full py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider ${themeStyles.buttonPrimary}`}
+                                      >
+                                        Registrar →
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  {/* Card 2: Entrenamiento de hoy */}
+                                  {hasGymCard && (
+                                    <button
+                                      onClick={() => { setActiveSection('gym'); setGymSubTab('plan'); setPlanSubTab('ejercicios'); setGymDay(todayGymEntry!.label); }}
+                                      className={`w-full text-left rounded-2xl border p-4 transition-all ${workoutDoneToday
+                                        ? `${profile.theme === 'light' ? 'bg-emerald-500/8 border-emerald-500/25' : 'bg-lime-400/6 border-lime-400/20'}`
+                                        : `${themeStyles.iconBg} ${themeStyles.border}`
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${workoutDoneToday ? `${themeStyles.accentMuted} ${themeStyles.accentBorder}` : `${themeStyles.iconBg} ${themeStyles.border}`}`}>
+                                          {workoutDoneToday
+                                            ? <CheckCircle2 className={`w-4 h-4 ${themeStyles.accent}`} />
+                                            : <Dumbbell className={`w-4 h-4 ${themeStyles.textMuted}`} />}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${workoutDoneToday ? themeStyles.accent : themeStyles.textMuted} mb-0.5`}>
+                                            {workoutDoneToday ? 'Entrenamiento completado' : 'Entrenamiento de hoy'}
+                                          </p>
+                                          <p className={`text-sm font-bold ${themeStyles.textMain} truncate`}>{todayGymEntry!.focus}</p>
+                                          <p className={`text-xs ${themeStyles.textMuted}`}>{todayGymEntry!.label}</p>
+                                        </div>
+                                        <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} shrink-0 -rotate-90`} />
+                                      </div>
+                                    </button>
+                                  )}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })()}
+
+                    {/* ── BLOQUE 5: REGISTROS DE HOY (collapsible) ── */}
+                    <div className={`${themeStyles.bento} overflow-hidden`}>
+                      {/* Header */}
+                      <button
+                        onClick={() => setRegistrosExpanded(v => !v)}
+                        className="w-full flex items-center gap-2 px-4 py-3"
+                      >
+                        <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} shrink-0 transition-transform duration-200 ${registrosExpanded ? 'rotate-180' : ''}`} />
+                        <span className={`text-xs font-black uppercase tracking-[0.2em] ${themeStyles.textMain} flex-1 text-left`}>Registros de hoy</span>
+                        {registrosExpanded ? (
+                          <span className={`text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} px-2.5 py-0.5 rounded-full`}>
+                            {todaysMeals.length}
+                          </span>
+                        ) : (
+                          <span className={`text-xs font-bold ${themeStyles.textMuted}`}>
+                            {todaysMeals.length > 0
+                              ? `${todaysMeals.length} registros · ${Math.round(totals.calories).toLocaleString('es-ES')} kcal`
+                              : 'Sin registros'}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Expandable list */}
+                      <AnimatePresence initial={false}>
+                        {registrosExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.22, ease: 'easeInOut' }}
+                            className="overflow-hidden"
+                          >
+                            <div className="px-4 pb-4 space-y-3">
+                              {todaysMeals.length === 0 ? (
+                                <div className={`text-center py-10 ${themeStyles.iconBg} rounded-2xl border ${themeStyles.border} border-dashed`}>
+                                  <Utensils className={`w-7 h-7 ${themeStyles.textMuted} mx-auto mb-2 opacity-20`} />
+                                  <p className={`${themeStyles.textMuted} font-bold uppercase tracking-widest text-xs`}>No hay registros hoy</p>
+                                  <p className={`${themeStyles.textMuted} text-xs mt-1 opacity-60`}>Usa el buscador o la cámara para empezar</p>
+                                </div>
+                              ) : (
+                                <AnimatePresence mode="popLayout">
+                                  {todaysMeals.map((meal, index) => (
+                                    <motion.div
+                                      key={meal.id} layout
+                                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
+                                      transition={{ duration: 0.2, delay: index * 0.05 }}
+                                      className={`${themeStyles.card} rounded-2xl p-4 flex gap-4 group transition-all`}
+                                    >
                                 <div className={`w-16 h-16 rounded-2xl overflow-hidden ${themeStyles.iconBg} shrink-0 shadow-xl border ${themeStyles.border}`}>
                                   <img src={meal.imageUrl} alt={meal.foodName} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                 </div>
@@ -2759,12 +2843,15 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                     )}
                                   </div>
                                 </div>
-                              </motion.div>
-                            ))
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </section>
+                                    </motion.div>
+                                  ))}
+                                </AnimatePresence>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                     </div>
                 </div>
               )} {/* end profile-complete else */}
