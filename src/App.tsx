@@ -3647,36 +3647,25 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           />
                         )}
 
-                        {/* Premium Gym Header */}
-                        <div className={`${themeStyles.bento} p-5 relative overflow-hidden`}>
-                          <div className={`absolute top-0 right-0 w-64 h-64 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-3xl`}></div>
-                          
-                          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6 text-left">
-                            <div className="space-y-4">
-                              <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-xl ${themeStyles.accentMuted} flex items-center justify-center border ${themeStyles.accentBorder}`}>
-                                  <Dumbbell className={`w-5 h-5 ${themeStyles.accent}`} />
-                                </div>
-                                <div>
-                                  <h2 className={`text-xl font-display font-black ${themeStyles.textMain} uppercase tracking-tight leading-tight`}>Tu Rutina</h2>
-                                  <p className={`${themeStyles.textMuted} text-xs font-bold uppercase tracking-widest mt-1`}>
-                                    {profile.trainingDaysPerWeek} Días • {translateGymGoal(profile.gymGoal)}
-                                  </p>
-                                </div>
-                              </div>
-                              <p className={`${themeStyles.textMuted} text-xs max-w-sm leading-relaxed`}>
-                                Rutina profesional para <span className={`${themeStyles.textMain} font-bold`}>{profile.age} años</span> y objetivo de <span className={`${themeStyles.accent} font-bold`}>{translateGymGoal(profile.gymGoal).toLowerCase()}</span>. Esta rutina está diseñada para realizarse <span className={`${themeStyles.textMain} font-bold`}>{profile.workoutType === 'home' ? 'en casa' : 'en el gimnasio'}</span>.
-                              </p>
-                            </div>
-                            <button
-                              onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
-                              disabled={isAIGenerating || isGeneratingWorkout || workoutCooldown.isActive}
-                              className={`shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl border text-xs font-bold uppercase tracking-widest transition-all ${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent} disabled:opacity-40`}
-                            >
-                              <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingWorkout ? 'animate-spin' : ''}`} />
-                              {workoutCooldown.isActive ? `${workoutCooldown.remaining}s` : 'Regenerar'}
-                            </button>
+                        {/* Compact Gym Header */}
+                        <div className={`${themeStyles.bento} px-4 py-3 flex items-center gap-3`}>
+                          <div className={`w-8 h-8 rounded-xl ${themeStyles.accentMuted} flex items-center justify-center border ${themeStyles.accentBorder} shrink-0`}>
+                            <Dumbbell className={`w-4 h-4 ${themeStyles.accent}`} />
                           </div>
+                          <div className="flex-1 min-w-0">
+                            <span className={`text-sm font-display font-black ${themeStyles.textMain} uppercase tracking-tight`}>Tu Rutina</span>
+                            <span className={`${themeStyles.textMuted} text-xs font-bold ml-2`}>
+                              {profile.trainingDaysPerWeek}d · {translateGymGoal(profile.gymGoal)}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
+                            disabled={isAIGenerating || isGeneratingWorkout || workoutCooldown.isActive}
+                            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold uppercase tracking-widest transition-all ${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} disabled:opacity-40`}
+                          >
+                            <RefreshCw className={`w-3 h-3 ${isGeneratingWorkout ? 'animate-spin' : ''}`} />
+                            {workoutCooldown.isActive ? `${workoutCooldown.remaining}s` : 'Regenerar'}
+                          </button>
                         </div>
 
                         {/* Subtabs for Plan */}
@@ -3765,21 +3754,23 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                           return (
                             <div className="space-y-6">
-                              {/* Daily Tabs Selector */}
-                              <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar px-1 scroll-smooth">
+                              {/* Daily Tabs Selector — sticky below nav */}
+                              <div className={`sticky top-[62px] z-10 -mx-6 px-6 pt-2 pb-3 ${profile.theme === 'light' ? 'bg-slate-50/95' : 'bg-zinc-950/95'} backdrop-blur-xl border-b ${themeStyles.border}`}>
+                              <div className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth max-w-md mx-auto">
                                 {parsedDays.map((d) => (
                                   <button
                                     key={d.dayNumber}
                                     onClick={() => setGymDay(`Día ${d.dayNumber}`)}
-                                    className={`px-6 py-3 rounded-xl border text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap min-w-[100px] border-solid ${
+                                    className={`px-4 py-2 rounded-xl border text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap min-w-[80px] border-solid ${
                                       gymDay === `Día ${d.dayNumber}`
                                         ? `${themeStyles.buttonPrimary} scale-105`
-                                        : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.textMain}`
+                                        : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted}`
                                     }`}
                                   >
                                     {`Día ${d.dayNumber}`}
                                   </button>
                                 ))}
+                              </div>
                               </div>
 
                               {/* Day Detail Content */}
@@ -3864,16 +3855,37 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                                         const isTableCompleted = habits[currentDayDate]?.completedExercises?.includes(tableId);
 
-                                        return (
-                                          <div className="my-8 relative group">
-                                            <div className="flex items-center gap-3 px-2 mb-4">
-                                              <div className={`w-1 h-5 ${isTableCompleted || gymDayDone[dayLabel] ? themeStyles.accentBg : 'bg-zinc-500'} rounded-full`} />
-                                              <h5 className={`text-xs font-bold uppercase tracking-widest ${isTableCompleted || gymDayDone[dayLabel] ? themeStyles.accent : themeStyles.textMain}`}>{sectionTitle}</h5>
-                                            </div>
+                                        const isOpen = expandedExSection === sectionTitle;
+                                        const isDone = isTableCompleted || gymDayDone[dayLabel];
 
-                                            <div className={`overflow-x-auto rounded-2xl border ${themeStyles.border} ${profile.theme === 'light' ? 'bg-slate-50 shadow-inner' : 'bg-zinc-950/30'} shadow-sm ${gymDayDone[dayLabel] ? 'opacity-60 grayscale-[0.5]' : ''}`}>
-                                              <table {...props} className="w-full text-left border-collapse" />
-                                            </div>
+                                        return (
+                                          <div className="my-4 relative">
+                                            {/* Accordion header */}
+                                            <button
+                                              onClick={() => setExpandedExSection(isOpen ? null : sectionTitle)}
+                                              className={`w-full flex items-center gap-3 px-2 py-2 rounded-xl transition-colors ${isOpen ? '' : `hover:${themeStyles.iconBg}`}`}
+                                            >
+                                              <div className={`w-1 h-5 ${isDone ? themeStyles.accentBg : 'bg-zinc-500'} rounded-full shrink-0`} />
+                                              <h5 className={`flex-1 text-xs font-bold uppercase tracking-widest text-left ${isDone ? themeStyles.accent : themeStyles.textMain}`}>{sectionTitle}</h5>
+                                              <ChevronDown className={`w-3.5 h-3.5 ${themeStyles.textMuted} shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                                            </button>
+
+                                            {/* Accordion body */}
+                                            <AnimatePresence initial={false}>
+                                              {isOpen && (
+                                                <motion.div
+                                                  initial={{ height: 0, opacity: 0 }}
+                                                  animate={{ height: 'auto', opacity: 1 }}
+                                                  exit={{ height: 0, opacity: 0 }}
+                                                  transition={{ duration: 0.2, ease: 'easeInOut' }}
+                                                  className="overflow-hidden"
+                                                >
+                                                  <div className={`overflow-x-auto rounded-2xl border ${themeStyles.border} ${profile.theme === 'light' ? 'bg-slate-50 shadow-inner' : 'bg-zinc-950/30'} shadow-sm mt-2 ${gymDayDone[dayLabel] ? 'opacity-60 grayscale-[0.5]' : ''}`}>
+                                                    <table {...props} className="w-full text-left border-collapse" />
+                                                  </div>
+                                                </motion.div>
+                                              )}
+                                            </AnimatePresence>
                                           </div>
                                         );
                                       },
