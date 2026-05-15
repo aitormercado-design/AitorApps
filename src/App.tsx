@@ -378,6 +378,8 @@ export default function App() {
   const [profileModalTab, setProfileModalTab] = useState<'datos' | 'dieta' | 'entrenamiento'>('datos');
   const [dismissedSuggestions, setDismissedSuggestions] = useState<string[]>([]);
   const [dismissedPrompts, setDismissedPrompts] = useState<string[]>([]);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => localStorage.getItem('notificationsEnabled') === 'true');
+  const [notificationPermAsked, setNotificationPermAsked] = useState(() => localStorage.getItem('notificationPermAsked') === 'true');
   const [optionalBannerRemindAfter, setOptionalBannerRemindAfter] = useState<number>(0);
   const [dietGymBannerRemindAfter, setDietGymBannerRemindAfter] = useState<number>(0);
 
@@ -835,6 +837,53 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [appError]);
 
+  // Scheduled notifications: 9h, 14h, 21h — fires while app is open
+  useEffect(() => {
+    if (!notificationsEnabled || !isDataLoaded || !('Notification' in window) || Notification.permission !== 'granted') return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const now = new Date();
+
+    const showNotif = async (body: string) => {
+      const opts: NotificationOptions = { body, icon: '/favicon.png' };
+      // iOS Safari (16.4+ PWA) requires showNotification via SW; desktop/Android accept both
+      if ('serviceWorker' in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          reg.showNotification('KiloKalo', opts);
+          return;
+        } catch {
+          // fall through to Notification constructor
+        }
+      }
+      new Notification('KiloKalo', opts);
+    };
+
+    const schedule = (hour: number, buildMsg: () => { body: string } | null) => {
+      const target = new Date(now);
+      target.setHours(hour, 0, 0, 0);
+      const ms = target.getTime() - now.getTime();
+      if (ms < 0) return; // already past today
+      timers.push(setTimeout(() => {
+        const notif = buildMsg();
+        if (notif) showNotif(notif.body);
+      }, ms));
+    };
+
+    const mealsCount = todaysMeals.length;
+    const consumed = Math.round(todaysMeals.reduce((s, m) => s + m.calories, 0));
+    const remaining = Math.max(0, Math.round(goals.calories) - consumed);
+
+    schedule(9, () => mealsCount === 0 ? { body: 'Buenos días — recuerda registrar el desayuno para empezar bien el día' } : null);
+    schedule(14, () => mealsCount < 2 ? { body: '¿Ya registraste el almuerzo?' } : null);
+    schedule(21, () => ({
+      body: remaining > 0
+        ? `Llevas ${consumed} kcal hoy. Te quedan ${remaining} kcal`
+        : `Llevas ${consumed} kcal hoy. Objetivo cumplido 🎯`,
+    }));
+
+    return () => timers.forEach(clearTimeout);
+  }, [notificationsEnabled, isDataLoaded, todayStr]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!workoutPlan) return;
     // Only fill in keys that don't exist yet (handleGenerateWorkout sets them eagerly;
@@ -941,6 +990,29 @@ export default function App() {
 
   const streak = useMemo(() => calculateStreak(meals, habits), [meals, habits]);
 
+  // Monday summary data — compute previous week stats (only on Mondays)
+  const mondayData = useMemo(() => {
+    if (!isDataLoaded || new Date().getDay() !== 1) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayOfWeek = today.getDay();
+    const thisMonday = new Date(today);
+    thisMonday.setDate(today.getDate() + (dayOfWeek === 0 ? -6 : 1 - dayOfWeek));
+    let daysOnTarget = 0;
+    let workouts = 0;
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(thisMonday);
+      day.setDate(thisMonday.getDate() - 7 + i);
+      const dateStr = getLocalDateStr(day);
+      const dayMeals = meals.filter(m => getLocalDateStr(new Date(m.timestamp)) === dateStr);
+      const cal = dayMeals.reduce((s, m) => s + m.calories, 0);
+      const pct = goals.calories > 0 ? cal / goals.calories : 0;
+      if (cal > 0 && pct >= 0.85 && pct <= 1.1) daysOnTarget++;
+      if (habits[dateStr]?.workoutDone) workouts++;
+    }
+    return { daysOnTarget, workouts };
+  }, [isDataLoaded, meals, habits, goals.calories]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const { proactiveMessage, clearMessage } = useProactiveCoach({
     meals: todaysMeals,
     habits,
@@ -952,6 +1024,7 @@ export default function App() {
     workoutPlan,
     isDataLoaded,
     streak,
+    mondayData,
   });
 
   useEffect(() => {
@@ -1017,6 +1090,22 @@ export default function App() {
     if (user?.uid) {
       localStorage.setItem(`kilokalo_dismissed_prompts_${user.uid}`, JSON.stringify(updated));
     }
+  };
+
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window) || Notification.permission === 'denied') return;
+    localStorage.setItem('notificationPermAsked', 'true');
+    setNotificationPermAsked(true);
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') {
+      setNotificationsEnabled(true);
+      localStorage.setItem('notificationsEnabled', 'true');
+    }
+  };
+
+  const disableNotifications = () => {
+    setNotificationsEnabled(false);
+    localStorage.removeItem('notificationsEnabled');
   };
 
   // Calculate weekly totals
@@ -2287,6 +2376,30 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           </motion.div>
         )}
 
+          {/* Notification permission banner */}
+          {activeSection === 'hoy' && !!profile.name && profile.age > 0 &&
+            'Notification' in window && Notification.permission !== 'denied' &&
+            !notificationsEnabled && !notificationPermAsked &&
+            !dismissedPrompts.includes('notifications_ask') && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+              <AppBanner
+                variant="info"
+                theme={profile.theme}
+                icon={<span className="text-sm">🔔</span>}
+                message="¿Activar recordatorios? KiloKalo te avisará para registrar tus comidas y entrenamientos."
+                actions={
+                  <button
+                    onClick={requestNotificationPermission}
+                    className={`shrink-0 text-xs font-bold ${themeStyles.accent} hover:underline`}
+                  >
+                    Activar
+                  </button>
+                }
+                onDismiss={() => dismissPrompt('notifications_ask')}
+              />
+            </motion.div>
+          )}
+
           <AnimatePresence mode="wait">
           {activeSection === 'hoy' && (
             <motion.div key="hoy" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 pb-24">
@@ -2613,6 +2726,85 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               exit={{ opacity: 0, x: -20 }}
               className="space-y-6 pb-24"
             >
+              {/* ── COMPARATIVA VS SEMANA ANTERIOR ── */}
+              {weekOffset === 0 && (() => {
+                // Compute previous week stats
+                const prevStats = (weekDays as any[]).map(day => {
+                  const prevDate = new Date(day.date + 'T12:00:00');
+                  prevDate.setDate(prevDate.getDate() - 7);
+                  const dateStr = getLocalDateStr(prevDate);
+                  const dayMeals = meals.filter((m: any) => getLocalDateStr(new Date(m.timestamp)) === dateStr);
+                  const cal = dayMeals.reduce((s: number, m: any) => s + m.calories, 0);
+                  const pct = goals.calories > 0 ? cal / goals.calories : 0;
+                  const dayHabits = habits[dateStr];
+                  const workoutDone = dayHabits?.workoutDone ?? false;
+                  const hasData = cal > 0 || workoutDone;
+                  const onTarget = hasData && pct >= 0.85 && pct <= 1.1;
+                  return { cal, onTarget, workoutDone, hasData };
+                });
+
+                const prevDaysWithData = prevStats.filter((d: any) => d.hasData).length;
+                if (prevDaysWithData < 2) {
+                  return (
+                    <div className={`${themeStyles.bento} p-4`}>
+                      <p className={`text-xs font-bold ${themeStyles.accent} uppercase tracking-[0.2em] mb-1`}>VS semana anterior</p>
+                      <p className={`text-xs ${themeStyles.textMuted}`}>Primera semana — ¡buen comienzo!</p>
+                    </div>
+                  );
+                }
+
+                const currentDays = (weekDays as any[]).filter(d => !d.isFuture);
+                const currOnTarget = currentDays.filter(d => d.status === 'green').length;
+                const currTotal = currentDays.length;
+                const currAvgCal = currTotal > 0
+                  ? Math.round(currentDays.filter(d => d.caloriesConsumed > 0).reduce((s: number, d: any) => s + d.caloriesConsumed, 0) / Math.max(1, currentDays.filter(d => d.caloriesConsumed > 0).length))
+                  : 0;
+                const currWorkouts = currentDays.filter(d => d.workoutDone).length;
+
+                const prevOnTarget = prevStats.filter((d: any) => d.onTarget).length;
+                const prevAvgCal = Math.round(prevStats.filter((d: any) => d.hasData && d.cal > 0).reduce((s: number, d: any) => s + d.cal, 0) / Math.max(1, prevStats.filter((d: any) => d.hasData && d.cal > 0).length));
+                const prevWorkouts = prevStats.filter((d: any) => d.workoutDone).length;
+
+                const onTargetDiff = currOnTarget - prevOnTarget;
+                const calDiff = currAvgCal - prevAvgCal;
+                const workoutDiff = currWorkouts - prevWorkouts;
+
+                const arrow = (diff: number, invert = false) => {
+                  if (diff === 0) return { sym: '=', cls: themeStyles.textMuted };
+                  const improve = invert ? diff < 0 : diff > 0;
+                  return improve
+                    ? { sym: `↑ +${diff > 0 ? diff : -diff}`, cls: profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400' }
+                    : { sym: `↓ ${diff > 0 ? `+${diff}` : diff}`, cls: 'text-red-500' };
+                };
+
+                const targetArrow = arrow(onTargetDiff);
+                const calArrow = arrow(calDiff, true); // less calories = better if losing, neutral otherwise
+                const workoutArrow = arrow(workoutDiff);
+
+                const rows = [
+                  { label: 'Días en objetivo', curr: `${currOnTarget}/${currTotal}`, prev: `${prevOnTarget}/7`, ar: targetArrow },
+                  { label: 'Kcal promedio', curr: currAvgCal > 0 ? currAvgCal.toLocaleString('es-ES') : '—', prev: prevAvgCal > 0 ? prevAvgCal.toLocaleString('es-ES') : '—', ar: { sym: calDiff === 0 ? '=' : (calDiff > 0 ? `+${calDiff}` : `${calDiff}`), cls: calDiff === 0 ? themeStyles.textMuted : themeStyles.textMuted } },
+                  ...(profile.gymEnabled ? [{ label: 'Entrenamientos', curr: `${currWorkouts}`, prev: `${prevWorkouts}`, ar: workoutArrow }] : []),
+                ];
+
+                return (
+                  <div className={`${themeStyles.bento} p-4`}>
+                    <p className={`text-xs font-bold ${themeStyles.accent} uppercase tracking-[0.2em] mb-3`}>VS semana anterior</p>
+                    <div className="space-y-2">
+                      {rows.map(row => (
+                        <div key={row.label} className="flex items-center justify-between">
+                          <span className={`text-xs ${themeStyles.textMuted}`}>{row.label}</span>
+                          <div className="flex items-center gap-3">
+                            <span className={`text-xs font-bold ${themeStyles.textMain}`}>{row.curr}</span>
+                            <span className={`text-xs font-bold ${row.ar.cls}`}>{row.ar.sym}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* ── SEMAPHORE WEEKLY VIEW ── */}
               <div className="space-y-4">
 
@@ -4469,6 +4661,22 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   )}
                 </div>
 
+                {/* Notification preference (tab mode only) */}
+                {!isWizardMode && 'Notification' in window && Notification.permission !== 'denied' && (
+                  <div className={`pt-3 mt-1 border-t ${themeStyles.border} flex items-center justify-between`}>
+                    <span className={`text-xs ${themeStyles.textMuted}`}>🔔 Recordatorios</span>
+                    {notificationsEnabled ? (
+                      <button onClick={disableNotifications} className="text-xs font-bold text-red-400 hover:text-red-500">
+                        Desactivar
+                      </button>
+                    ) : (
+                      <button onClick={requestNotificationPermission} className={`text-xs font-bold ${themeStyles.accent} hover:underline`}>
+                        Activar
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {/* Navigation buttons */}
                 <div className={`pt-4 mt-2 border-t ${themeStyles.border} flex gap-3 shrink-0`}>
                   {!isWizardMode ? (
@@ -4885,6 +5093,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                     <span className={`relative inline-flex rounded-full h-2 w-2 ${profile.theme === 'light' ? 'bg-emerald-500' : 'bg-lime-400'}`} />
                   </span>
+                )}
+                {!showBadge && id === 'menu' && menuNeedsRegeneration && (
+                  <span className="absolute top-2 right-1/4 w-2 h-2 rounded-full bg-amber-500" />
+                )}
+                {!showBadge && id === 'gym' && workoutNeedsRegeneration && (
+                  <span className="absolute top-2 right-1/4 w-2 h-2 rounded-full bg-amber-500" />
                 )}
                 {id === 'perfil' && !profile.name && (
                   <span className="absolute top-2 right-1/4 w-2 h-2 rounded-full bg-red-500" />
