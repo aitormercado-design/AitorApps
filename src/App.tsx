@@ -2547,7 +2547,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     {/* ── DAILY MEAL ENTRY & LIST (HOY section) ── */}
                     <div className="space-y-8">
                     {/* Contextual time hint */}
-                    <p className={`text-xs ${themeStyles.textMuted} px-1`}>{mealTimeHint}</p>
+                    <AppBanner
+                      variant="info"
+                      theme={profile.theme}
+                      icon={<Clock className="w-4 h-4" />}
+                      message={mealTimeHint}
+                    />
                     {/* Primary Food Entry */}
                     <div className={`${themeStyles.bento} p-4 relative overflow-hidden`}>
                       <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-2xl`}></div>
