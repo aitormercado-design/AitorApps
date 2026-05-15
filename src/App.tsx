@@ -2656,6 +2656,49 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       );
                     })()}
 
+                    {/* ── ENTRENAMIENTO DE HOY ── */}
+                    {profile.gymEnabled && workoutPlan && (() => {
+                      // Parse day headers only (lightweight)
+                      const dayHeaders = [...workoutPlan.matchAll(/^# DÍA (\d+)\s*[—–-]\s*([^\n]+)/gim)].map(m => ({
+                        label: `Día ${m[1]}`,
+                        focus: m[2].trim(),
+                      }));
+                      if (dayHeaders.length === 0) return null;
+
+                      // Find which day is assigned to today, fall back to selected gymDay
+                      const todayEntry = dayHeaders.find(d => gymRoutineDates[d.label] === todayStr)
+                        ?? dayHeaders.find(d => d.label === gymDay)
+                        ?? dayHeaders[0];
+
+                      const isDone = gymDayDone[todayEntry.label];
+
+                      return (
+                        <button
+                          onClick={() => { setActiveSection('gym'); setGymSubTab('plan'); setPlanSubTab('ejercicios'); setGymDay(todayEntry.label); }}
+                          className={`w-full text-left rounded-2xl border p-4 transition-all ${isDone
+                            ? `${profile.theme === 'light' ? 'bg-emerald-500/8 border-emerald-500/25' : 'bg-lime-400/6 border-lime-400/20'}`
+                            : `${themeStyles.bento}`
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isDone ? themeStyles.accentMuted : themeStyles.iconBg} border ${isDone ? themeStyles.accentBorder : themeStyles.border}`}>
+                              {isDone
+                                ? <CheckCircle2 className={`w-4 h-4 ${themeStyles.accent}`} />
+                                : <Dumbbell className={`w-4 h-4 ${themeStyles.textMuted}`} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${isDone ? themeStyles.accent : themeStyles.textMuted} mb-0.5`}>
+                                {isDone ? 'Entrenamiento completado' : 'Entrenamiento de hoy'}
+                              </p>
+                              <p className={`text-sm font-bold ${themeStyles.textMain} truncate`}>{todayEntry.focus}</p>
+                              <p className={`text-xs ${themeStyles.textMuted}`}>{todayEntry.label}</p>
+                            </div>
+                            <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} shrink-0 -rotate-90`} />
+                          </div>
+                        </button>
+                      );
+                    })()}
+
                     {/* Meal List */}
                     <section>
                       <div className="flex items-center justify-between mb-6 px-2">
