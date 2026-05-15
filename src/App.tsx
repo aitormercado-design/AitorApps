@@ -334,6 +334,8 @@ export default function App() {
   const [evolutionPeriod, setEvolutionPeriod] = useState<'today' | 'weekly' | 'monthly' | 'quarterly' | 'semiannually' | 'annually'>('today');
   const [gymSubTab, setGymSubTab] = useState<'manual' | 'plan'>('plan');
   const [planSubTab, setPlanSubTab] = useState<'info' | 'ejercicios' | 'tips'>('ejercicios');
+  const [macrosExpanded, setMacrosExpanded] = useState(false);
+  const [expandedExSection, setExpandedExSection] = useState<string | null>('Parte Principal');
   const [manualWorkoutActivity, setManualWorkoutActivity] = useState<string>('Correr');
   const [manualWorkoutIntensidad, setManualWorkoutIntensidad] = useState<'suave'|'moderada'|'intensa'>('moderada');
   const [manualWorkoutMinutes, setManualWorkoutMinutes] = useState('45');
@@ -2302,19 +2304,38 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           )}
         </AnimatePresence>
 
-        {/* Menu + gym setup banner — one single banner for both features */}
-        {activeSection === 'hoy' && !!profile.name && profile.height > 0 &&
-          (!profile.menuEnabled || !profile.gymEnabled) &&
-          !dismissedPrompts.includes('setup_features_v2') &&
-          Date.now() > dietGymBannerRemindAfter && (() => {
-            const openProfile = (step: 1 | 2 | 3 = 1) => {
-              setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' });
-              setEditWeight(profile.weight > 0 ? profile.weight.toString() : '');
-              setDismissedSuggestions([]);
-              setProfileModalTab(step === 2 ? 'dieta' : step === 3 ? 'entrenamiento' : 'datos');
-              setProfileWizardStep(step);
-              setIsGoalModalOpen(true);
-            };
+        {/* Priority banner — only the highest-priority active banner is shown */}
+        {activeSection === 'hoy' && !!profile.name && (() => {
+          const openProfile = (step: 1 | 2 | 3 = 1) => {
+            setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' });
+            setEditWeight(profile.weight > 0 ? profile.weight.toString() : '');
+            setDismissedSuggestions([]);
+            setProfileModalTab(step === 2 ? 'dieta' : step === 3 ? 'entrenamiento' : 'datos');
+            setProfileWizardStep(step);
+            setIsGoalModalOpen(true);
+          };
+
+          // P1: height missing
+          if (profile.height === 0 && !dismissedPrompts.includes('add_height')) {
+            return (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+                <AppBanner
+                  variant="info"
+                  theme={profile.theme}
+                  icon={<Info className="w-4 h-4" />}
+                  message="Añade tu altura para que tus objetivos de calorías sean precisos"
+                  actions={
+                    <button onClick={() => openProfile(1)} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Añadir datos</button>
+                  }
+                  onDismiss={() => dismissPrompt('add_height')}
+                />
+              </motion.div>
+            );
+          }
+
+          // P2: features not configured
+          if (profile.height > 0 && (!profile.menuEnabled || !profile.gymEnabled) &&
+              !dismissedPrompts.includes('setup_features_v2') && Date.now() > dietGymBannerRemindAfter) {
             return (
               <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
                 <AppBanner
@@ -2327,88 +2348,47 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <>
                       <div className="flex flex-wrap gap-2 mb-2.5">
                         {!profile.menuEnabled && (
-                          <button
-                            onClick={() => openProfile(2)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} transition-all`}
-                          >
-                            Menú semanal
-                          </button>
+                          <button onClick={() => openProfile(2)} className={`px-3 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} transition-all`}>Menú semanal</button>
                         )}
                         {!profile.gymEnabled && (
-                          <button
-                            onClick={() => openProfile(3)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} transition-all`}
-                          >
-                            Entrenamiento
-                          </button>
+                          <button onClick={() => openProfile(3)} className={`px-3 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} transition-all`}>Entrenamiento</button>
                         )}
                       </div>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => {
-                            const after = Date.now() + 24 * 60 * 60 * 1000;
-                            setDietGymBannerRemindAfter(after);
-                            if (user?.uid) {
-                              localStorage.setItem(`kilokalo_diet_gym_banner_remind_${user.uid}`, String(after));
-                            }
-                          }}
+                          onClick={() => { const after = Date.now() + 24 * 60 * 60 * 1000; setDietGymBannerRemindAfter(after); if (user?.uid) { localStorage.setItem(`kilokalo_diet_gym_banner_remind_${user.uid}`, String(after)); } }}
                           className={`flex-1 py-1.5 rounded-xl text-xs font-bold border ${themeStyles.border} ${themeStyles.textMuted}`}
-                        >
-                          Recordar mañana
-                        </button>
-                        <button
-                          onClick={() => dismissPrompt('setup_features_v2')}
-                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`}
-                        >
-                          No avisar más
-                        </button>
+                        >Recordar mañana</button>
+                        <button onClick={() => dismissPrompt('setup_features_v2')} className={`flex-1 py-1.5 rounded-xl text-xs font-bold ${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'}`}>No avisar más</button>
                       </div>
                     </>
                   }
                 />
               </motion.div>
             );
-          })()}
+          }
 
-        {/* Height missing prompt */}
-        {activeSection === 'hoy' && profile.height === 0 && !!profile.name && !dismissedPrompts.includes('add_height') && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
-            <AppBanner
-              variant="info"
-              theme={profile.theme}
-              icon={<Info className="w-4 h-4" />}
-              message="Añade tu altura para que tus objetivos de calorías sean precisos"
-              actions={
-                <button onClick={() => { setEditProfile({ ...profile, allergies: Array.isArray(profile.allergies) ? profile.allergies : [], dislikedFoods: profile.dislikedFoods || '' }); setEditWeight(profile.weight > 0 ? profile.weight.toString() : ''); setDismissedSuggestions([]); setProfileWizardStep(1); setProfileModalTab('datos'); setIsGoalModalOpen(true); }} className={`text-xs font-bold ${themeStyles.accent} shrink-0 hover:underline`}>Añadir datos</button>
-              }
-              onDismiss={() => dismissPrompt('add_height')}
-            />
-          </motion.div>
-        )}
+          // P3: notification permission
+          if (profile.age > 0 && 'Notification' in window && Notification.permission !== 'denied' &&
+              !notificationsEnabled && !notificationPermAsked && !dismissedPrompts.includes('notifications_ask')) {
+            return (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+                <AppBanner
+                  variant="info"
+                  theme={profile.theme}
+                  icon={<span className="text-sm">🔔</span>}
+                  message="¿Activar recordatorios? KiloKalo te avisará para registrar tus comidas y entrenamientos."
+                  actions={
+                    <button onClick={requestNotificationPermission} className={`shrink-0 text-xs font-bold ${themeStyles.accent} hover:underline`}>Activar</button>
+                  }
+                  onDismiss={() => dismissPrompt('notifications_ask')}
+                />
+              </motion.div>
+            );
+          }
 
-          {/* Notification permission banner */}
-          {activeSection === 'hoy' && !!profile.name && profile.age > 0 &&
-            'Notification' in window && Notification.permission !== 'denied' &&
-            !notificationsEnabled && !notificationPermAsked &&
-            !dismissedPrompts.includes('notifications_ask') && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
-              <AppBanner
-                variant="info"
-                theme={profile.theme}
-                icon={<span className="text-sm">🔔</span>}
-                message="¿Activar recordatorios? KiloKalo te avisará para registrar tus comidas y entrenamientos."
-                actions={
-                  <button
-                    onClick={requestNotificationPermission}
-                    className={`shrink-0 text-xs font-bold ${themeStyles.accent} hover:underline`}
-                  >
-                    Activar
-                  </button>
-                }
-                onDismiss={() => dismissPrompt('notifications_ask')}
-              />
-            </motion.div>
-          )}
+          return null;
+        })()}
 
           <AnimatePresence mode="wait">
           {activeSection === 'hoy' && (
@@ -2507,37 +2487,60 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             { name: 'Grasas', consumed: Math.round(totals.fat), target: goals.fat },
                           ];
                           return (
-                            <div className={`${themeStyles.bento} p-4 space-y-5 relative overflow-hidden`}>
-                              <div className="flex items-center justify-between">
-                                <h4 className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-widest`}>Distribución de Macros</h4>
-                                <PieChart className={`w-4 h-4 ${themeStyles.textMuted}`} />
-                              </div>
-                              <div className="space-y-4">
-                                {macros.map(({ name, consumed, target }) => {
-                                  const pct = target > 0 ? consumed / target : 0;
-                                  const barClass = getMacroBar(consumed, target);
-                                  const labelClass = getMacroLabel(consumed, target);
-                                  return (
-                                    <div key={name} className="space-y-1.5 text-xs font-bold">
-                                      <div className="flex justify-between items-baseline">
-                                        <span className={labelClass}>{name}</span>
-                                        <div className="flex items-baseline gap-1">
-                                          <span className={`text-sm font-black ${labelClass}`}>{consumed}g</span>
-                                          <span className={`${themeStyles.textMuted} opacity-60`}>/ {target}g</span>
-                                          {pct >= 1.0 && <span className="text-red-500 font-black text-xs ml-1">+{consumed - target}g</span>}
-                                        </div>
-                                      </div>
-                                      <div className={`h-3 ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-900'} rounded-full border ${themeStyles.border} overflow-hidden shadow-inner`}>
-                                        <motion.div
-                                          initial={{ width: 0 }}
-                                          animate={{ width: `${Math.min(100, pct * 100)}%` }}
-                                          className={`h-full ${barClass} rounded-full`}
-                                        />
-                                      </div>
+                            <div className={`${themeStyles.bento} overflow-hidden`}>
+                              <button
+                                onClick={() => setMacrosExpanded(v => !v)}
+                                className="w-full flex items-center justify-between gap-2 p-4"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <PieChart className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
+                                  <span className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-widest`}>Macros</span>
+                                </div>
+                                {!macrosExpanded && (
+                                  <span className={`text-xs font-bold ${themeStyles.textMuted} flex-1 text-right pr-2`}>
+                                    P {Math.round(totals.protein)}g · H {Math.round(totals.carbs)}g · G {Math.round(totals.fat)}g
+                                  </span>
+                                )}
+                                <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} shrink-0 transition-transform duration-200 ${macrosExpanded ? 'rotate-180' : ''}`} />
+                              </button>
+                              <AnimatePresence initial={false}>
+                                {macrosExpanded && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="px-4 pb-4 space-y-4">
+                                      {macros.map(({ name, consumed, target }) => {
+                                        const pct = target > 0 ? consumed / target : 0;
+                                        const barClass = getMacroBar(consumed, target);
+                                        const labelClass = getMacroLabel(consumed, target);
+                                        return (
+                                          <div key={name} className="space-y-1.5 text-xs font-bold">
+                                            <div className="flex justify-between items-baseline">
+                                              <span className={labelClass}>{name}</span>
+                                              <div className="flex items-baseline gap-1">
+                                                <span className={`text-sm font-black ${labelClass}`}>{consumed}g</span>
+                                                <span className={`${themeStyles.textMuted} opacity-60`}>/ {target}g</span>
+                                                {pct >= 1.0 && <span className="text-red-500 font-black text-xs ml-1">+{consumed - target}g</span>}
+                                              </div>
+                                            </div>
+                                            <div className={`h-3 ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-900'} rounded-full border ${themeStyles.border} overflow-hidden shadow-inner`}>
+                                              <motion.div
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${Math.min(100, pct * 100)}%` }}
+                                                className={`h-full ${barClass} rounded-full`}
+                                              />
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
-                                  );
-                                })}
-                              </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
                             </div>
                           );
                         })()}
@@ -2546,67 +2549,59 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                     {/* ── DAILY MEAL ENTRY & LIST (HOY section) ── */}
                     <div className="space-y-8">
-                    {/* Contextual time hint */}
-                    <AppBanner
-                      variant="info"
-                      theme={profile.theme}
-                      icon={<Clock className="w-4 h-4" />}
-                      message={mealTimeHint}
-                    />
-                    {/* Primary Food Entry */}
-                    <div className={`${themeStyles.bento} p-4 relative overflow-hidden`}>
-                      <div className={`absolute top-0 right-0 w-32 h-32 ${profile.theme === 'light' ? 'bg-emerald-500/5' : '${themeStyles.accentMuted}'} rounded-full blur-2xl`}></div>
-                      <h3 className={`text-lg font-display font-bold ${themeStyles.textMain} tracking-tight uppercase mb-4 relative z-10 flex items-center gap-2`}>
-                        <Plus className={`w-5 h-5 ${themeStyles.accent}`} />
-                        Añadir Comida
-                      </h3>
-                      <div className="relative mb-4 z-10">
-                        <input
-                          type="text"
-                          placeholder="Ej: He comido arroz con pollo..."
-                          className={`w-full ${themeStyles.input} rounded-2xl pl-5 pr-14 py-5 transition-all text-base shadow-inner`}
-                          onFocus={() => setAppError(null)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !textFoodCooldown.isActive) {
-                              textFoodCooldown.start();
-                              handleTextFoodSubmit(e.currentTarget.value);
-                              e.currentTarget.value = '';
-                            }
-                          }}
-                        />
+                    {/* Compact food entry row */}
+                    <div className={`${themeStyles.bento} p-3`}>
+                      <div className="flex items-center gap-2">
+                        {/* Camera button */}
                         <button
-                          disabled={textFoodCooldown.isActive}
-                          className={`absolute right-2.5 top-2.5 bottom-2.5 ${themeStyles.buttonPrimary} px-5 rounded-xl transition-colors flex items-center justify-center shadow-lg disabled:opacity-50`}
+                          disabled={imageFoodCooldown.isActive}
                           onClick={() => {
-                            if (textFoodCooldown.isActive) return;
-                            const input = document.querySelector('input[placeholder="Ej: He comido arroz con pollo..."]') as HTMLInputElement;
-                            if (input && input.value) {
-                              textFoodCooldown.start();
-                              handleTextFoodSubmit(input.value);
-                              input.value = '';
-                            }
+                            if (imageFoodCooldown.isActive) return;
+                            imageFoodCooldown.start();
+                            setAppError(null);
+                            fileInputRef.current?.click();
                           }}
+                          className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${themeStyles.iconBg} border ${themeStyles.border} transition-all disabled:opacity-50`}
+                          title="Escanear comida"
                         >
-                          {textFoodCooldown.isActive
-                            ? <span className="text-xs font-mono font-bold">{textFoodCooldown.remaining}s</span>
-                            : <Send className="w-5 h-5" />}
+                          {imageFoodCooldown.isActive
+                            ? <span className="text-xs font-mono font-bold">{imageFoodCooldown.remaining}s</span>
+                            : <Camera className={`w-5 h-5 ${themeStyles.accent}`} />}
                         </button>
+                        {/* Text input with send button */}
+                        <div className="flex-1 relative">
+                          <input
+                            type="text"
+                            placeholder={mealTimeHint}
+                            className={`w-full ${themeStyles.input} rounded-xl pl-4 pr-12 py-3 text-sm transition-all`}
+                            onFocus={() => setAppError(null)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !textFoodCooldown.isActive) {
+                                textFoodCooldown.start();
+                                handleTextFoodSubmit(e.currentTarget.value);
+                                e.currentTarget.value = '';
+                              }
+                            }}
+                          />
+                          <button
+                            disabled={textFoodCooldown.isActive}
+                            className={`absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 ${themeStyles.buttonPrimary} rounded-lg flex items-center justify-center transition-colors disabled:opacity-50`}
+                            onClick={() => {
+                              if (textFoodCooldown.isActive) return;
+                              const input = document.querySelector(`input[placeholder="${mealTimeHint}"]`) as HTMLInputElement;
+                              if (input && input.value) {
+                                textFoodCooldown.start();
+                                handleTextFoodSubmit(input.value);
+                                input.value = '';
+                              }
+                            }}
+                          >
+                            {textFoodCooldown.isActive
+                              ? <span className="text-[10px] font-mono font-bold">{textFoodCooldown.remaining}s</span>
+                              : <Send className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        disabled={imageFoodCooldown.isActive}
-                        onClick={() => {
-                          if (imageFoodCooldown.isActive) return;
-                          imageFoodCooldown.start();
-                          setAppError(null);
-                          fileInputRef.current?.click();
-                        }}
-                        className={`w-full flex items-center justify-center gap-3 ${themeStyles.buttonSecondary} p-5 rounded-2xl transition-all border group relative z-10 disabled:opacity-50`}
-                      >
-                        <Camera className={`w-5 h-5 ${themeStyles.accent} group-hover:scale-110 transition-transform`} />
-                        <span className="text-sm font-bold uppercase tracking-widest">
-                          {imageFoodCooldown.isActive ? `Espera ${imageFoodCooldown.remaining}s` : 'Escanear comida'}
-                        </span>
-                      </button>
                     </div>
 
                     {/* ── MENÚ DE HOY ── */}
@@ -2624,38 +2619,39 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       ) ?? todayDay.meals.find((m: any) => m.description !== 'COMIDA LIBRE');
                       if (!plannedMeal) return null;
                       return (
-                        <div className={`${themeStyles.bento} p-4`}>
-                          <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${themeStyles.accent} mb-3`}>📋 Menú de hoy</p>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest mb-0.5`}>{plannedMeal.type}</p>
-                              <p className={`text-sm font-semibold ${themeStyles.textMain} leading-snug truncate`}>{plannedMeal.description}</p>
-                              <p className={`text-xs ${themeStyles.textMuted} mt-0.5`}>{plannedMeal.calories ?? '—'} kcal</p>
-                            </div>
-                            <button
-                              onClick={() => {
-                                const menuMeal = {
-                                  id: Date.now().toString(),
-                                  foodName: plannedMeal.description ?? 'Comida del menú',
-                                  calories: plannedMeal.calories ?? 0,
-                                  protein: plannedMeal.proteinas ?? 0,
-                                  carbs: plannedMeal.carbohidratos ?? 0,
-                                  fat: plannedMeal.grasas ?? 0,
-                                  timestamp: Date.now(),
-                                  imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(plannedMeal.description ?? 'Comida')}&background=27272a&color=a3e635&size=200`,
-                                };
-                                setMealEditMode('create');
-                                setPortionMultiplier(1);
-                                setOriginalAnalyzedName(menuMeal.foodName);
-                                setMacrosManuallyEdited(false);
-                                setMacrosJustUpdated(false);
-                                setEditingMeal(menuMeal);
-                              }}
-                              className={`shrink-0 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider ${themeStyles.buttonPrimary}`}
-                            >
-                              Registrar →
-                            </button>
+                        <div className={`rounded-2xl border p-4 ${profile.theme === 'light' ? 'bg-emerald-500/8 border-emerald-500/25' : 'bg-lime-400/6 border-lime-400/20'}`}>
+                          <div className="flex items-center gap-2 mb-3">
+                            <UtensilsCrossed className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
+                            <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${themeStyles.accent}`}>Sugerencia del Menú</p>
                           </div>
+                          <div className="mb-3">
+                            <p className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest mb-0.5`}>{plannedMeal.type}</p>
+                            <p className={`text-sm font-semibold ${themeStyles.textMain} leading-snug`}>{plannedMeal.description}</p>
+                            <p className={`text-xs ${themeStyles.textMuted} mt-0.5`}>{plannedMeal.calories ?? '—'} kcal</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const menuMeal = {
+                                id: Date.now().toString(),
+                                foodName: plannedMeal.description ?? 'Comida del menú',
+                                calories: plannedMeal.calories ?? 0,
+                                protein: plannedMeal.proteinas ?? 0,
+                                carbs: plannedMeal.carbohidratos ?? 0,
+                                fat: plannedMeal.grasas ?? 0,
+                                timestamp: Date.now(),
+                                imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(plannedMeal.description ?? 'Comida')}&background=27272a&color=a3e635&size=200`,
+                              };
+                              setMealEditMode('create');
+                              setPortionMultiplier(1);
+                              setOriginalAnalyzedName(menuMeal.foodName);
+                              setMacrosManuallyEdited(false);
+                              setMacrosJustUpdated(false);
+                              setEditingMeal(menuMeal);
+                            }}
+                            className={`w-full py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider ${themeStyles.buttonPrimary}`}
+                          >
+                            Registrar →
+                          </button>
                         </div>
                       );
                     })()}
