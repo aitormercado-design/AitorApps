@@ -80,7 +80,7 @@ const goalLabels: Record<string, string> = {
 
 
 export interface ProactiveEvent {
-  type: 'meal_added' | 'workout_done' | 'workout_exercise' | 'free_workout' | 'weight_updated' | 'day_start' | 'goal_90pct' | 'goal_exceeded' | 'streak_milestone';
+  type: 'meal_added' | 'workout_done' | 'workout_exercise' | 'free_workout' | 'weight_updated' | 'day_start' | 'goal_90pct' | 'goal_exceeded' | 'streak_milestone' | 'monday_summary';
   data: Record<string, any>;
 }
 
@@ -125,6 +125,7 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
     goal_90pct: `El usuario está al 90% de su objetivo calórico. Le quedan ${Math.round(event.data.remaining ?? 0)}kcal. Avísale y sugiere qué puede comer con lo que le queda.`,
     goal_exceeded: `El usuario ha superado su objetivo calórico en ${Math.round(event.data.excess ?? 0)}kcal. Mensaje tranquilizador, sin dramatizar, con consejo práctico para el resto del día.`,
     streak_milestone: `El usuario lleva ${event.data.streak} días consecutivos registrando. Felicítale en una frase corta.`,
+    monday_summary: `Es lunes. La semana pasada el usuario tuvo ${event.data.daysOnTarget ?? 0}/7 días en objetivo calórico y completó ${event.data.workouts ?? 0} entrenamientos. Haz un resumen motivador en 2 frases máximo y da un objetivo concreto para esta semana.`,
   };
 
   const activeConditions = profile.medicalConditions

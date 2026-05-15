@@ -941,6 +941,29 @@ export default function App() {
 
   const streak = useMemo(() => calculateStreak(meals, habits), [meals, habits]);
 
+  // Monday summary data — compute previous week stats (only on Mondays)
+  const mondayData = useMemo(() => {
+    if (!isDataLoaded || new Date().getDay() !== 1) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dayOfWeek = today.getDay();
+    const thisMonday = new Date(today);
+    thisMonday.setDate(today.getDate() + (dayOfWeek === 0 ? -6 : 1 - dayOfWeek));
+    let daysOnTarget = 0;
+    let workouts = 0;
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(thisMonday);
+      day.setDate(thisMonday.getDate() - 7 + i);
+      const dateStr = getLocalDateStr(day);
+      const dayMeals = meals.filter(m => getLocalDateStr(new Date(m.timestamp)) === dateStr);
+      const cal = dayMeals.reduce((s, m) => s + m.calories, 0);
+      const pct = goals.calories > 0 ? cal / goals.calories : 0;
+      if (cal > 0 && pct >= 0.85 && pct <= 1.1) daysOnTarget++;
+      if (habits[dateStr]?.workoutDone) workouts++;
+    }
+    return { daysOnTarget, workouts };
+  }, [isDataLoaded, meals, habits, goals.calories]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const { proactiveMessage, clearMessage } = useProactiveCoach({
     meals: todaysMeals,
     habits,
@@ -952,6 +975,7 @@ export default function App() {
     workoutPlan,
     isDataLoaded,
     streak,
+    mondayData,
   });
 
   useEffect(() => {

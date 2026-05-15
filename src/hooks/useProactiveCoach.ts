@@ -12,6 +12,7 @@ interface UseProactiveCoachProps {
   workoutPlan?: string | null;
   isDataLoaded: boolean;
   streak?: number;
+  mondayData?: { daysOnTarget: number; workouts: number } | null;
 }
 
 const COOLDOWN_MS = 30_000;
@@ -27,6 +28,7 @@ export function useProactiveCoach({
   workoutPlan,
   isDataLoaded,
   streak = 0,
+  mondayData,
 }: UseProactiveCoachProps) {
   const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
   const lastEventRef = useRef<number>(0);
@@ -167,6 +169,22 @@ export function useProactiveCoach({
         data: { todayStr, goalCalories: goals.calories },
       });
     }, 2500);
+    return () => clearTimeout(timer);
+  }, [isDataLoaded, todayStr]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Event: Monday summary — fires once every Monday when data is loaded
+  const MONDAY_KEY = 'kilokalo_coach_monday';
+  useEffect(() => {
+    if (!isDataLoaded || !mondayData) return;
+    if (new Date().getDay() !== 1) return;
+    if (localStorage.getItem(MONDAY_KEY) === todayStr) return;
+    localStorage.setItem(MONDAY_KEY, todayStr);
+    const timer = setTimeout(() => {
+      triggerMessage({
+        type: 'monday_summary',
+        data: mondayData,
+      });
+    }, 5000); // after day_start fires at 2500ms
     return () => clearTimeout(timer);
   }, [isDataLoaded, todayStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
