@@ -843,6 +843,21 @@ export default function App() {
     const timers: ReturnType<typeof setTimeout>[] = [];
     const now = new Date();
 
+    const showNotif = async (body: string) => {
+      const opts: NotificationOptions = { body, icon: '/favicon.png' };
+      // iOS Safari (16.4+ PWA) requires showNotification via SW; desktop/Android accept both
+      if ('serviceWorker' in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          reg.showNotification('KiloKalo', opts);
+          return;
+        } catch {
+          // fall through to Notification constructor
+        }
+      }
+      new Notification('KiloKalo', opts);
+    };
+
     const schedule = (hour: number, buildMsg: () => { body: string } | null) => {
       const target = new Date(now);
       target.setHours(hour, 0, 0, 0);
@@ -850,7 +865,7 @@ export default function App() {
       if (ms < 0) return; // already past today
       timers.push(setTimeout(() => {
         const notif = buildMsg();
-        if (notif) new Notification('KiloKalo', { body: notif.body, icon: '/favicon.png' });
+        if (notif) showNotif(notif.body);
       }, ms));
     };
 
