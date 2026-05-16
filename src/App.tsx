@@ -3476,7 +3476,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                 {selDay.day}
                               </p>
                               <p className={`text-xs ${themeStyles.textMuted} font-bold`}>
-                                {typeof dispKcal === 'number' ? dispKcal.toLocaleString('es-ES') : dispKcal} kcal · P:{dispProt}g · H:{dispCarbs}g · G:{dispFat}g
+                                {typeof dispKcal === 'number' ? dispKcal.toLocaleString('es-ES') : dispKcal} kcal · Proteína:{dispProt}g · Hidratos:{dispCarbs}g · Grasas:{dispFat}g
                               </p>
                             </div>
 
@@ -3516,10 +3516,12 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                               <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>{meal.ingredientes}</p>
                                             )}
                                             {(meal.proteinas != null || meal.carbohidratos != null || meal.grasas != null) && (
-                                              <div className="flex gap-4 pt-1">
-                                                <span className={`text-xs font-bold ${themeStyles.accent}`}>P:{meal.proteinas ?? '—'}g</span>
-                                                <span className={`text-xs font-bold ${themeStyles.accent}`}>C:{meal.carbohidratos ?? '—'}g</span>
-                                                <span className={`text-xs font-bold ${themeStyles.accent}`}>G:{meal.grasas ?? '—'}g</span>
+                                              <div className="flex gap-3 pt-1 flex-wrap">
+                                                <span className={`text-xs font-bold ${themeStyles.accent}`}>Proteína {meal.proteinas ?? '—'}g</span>
+                                                <span className={`text-xs ${themeStyles.textMuted}`}>·</span>
+                                                <span className={`text-xs font-bold ${themeStyles.accent}`}>Hidratos {meal.carbohidratos ?? '—'}g</span>
+                                                <span className={`text-xs ${themeStyles.textMuted}`}>·</span>
+                                                <span className={`text-xs font-bold ${themeStyles.accent}`}>Grasas {meal.grasas ?? '—'}g</span>
                                               </div>
                                             )}
                                           </div>

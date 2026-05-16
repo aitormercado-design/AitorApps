@@ -382,7 +382,7 @@ VARIEDAD OBLIGATORIA:
 Estructura del JSON — usa EXACTAMENTE estas claves abreviadas:
 - "d": array de 7 días
 - Cada día: "n" (nombre), "k" (kcal), "p" (proteína g), "c" (carbs g), "g" (grasa g), "m" (array de comidas)
-- Cada comida: "t" (tipo), "n" (nombre plato), "k" (kcal), "p" (proteína g), "c" (carbs g), "g" (grasa g), "i" (máx 4 ingredientes separados por coma, sin cantidades)${medicalRestrictionsBlock}`;
+- Cada comida: "t" (tipo), "n" (nombre plato), "k" (kcal), "p" (proteína g), "c" (carbs g), "g" (grasa g), "i" (máx 4 ingredientes CON cantidad en gramos o unidades comerciales, separados por coma. Formato: 'ingrediente Xg' o 'ingrediente Xud'. Ejemplo: 'avena 80g, whey 30g, leche 200ml, plátano 1ud')${medicalRestrictionsBlock}`;
 
   try {
     const completion = await Promise.race([
