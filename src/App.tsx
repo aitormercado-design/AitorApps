@@ -349,6 +349,9 @@ export default function App() {
   const [manualWorkoutMinutes, setManualWorkoutMinutes] = useState('45');
   const [manualWorkoutCaloriesOverride, setManualWorkoutCaloriesOverride] = useState<string>('');
   const [editingWorkoutId, setEditingWorkoutId] = useState<string | null>(null);
+  const [manualFormExpanded, setManualFormExpanded] = useState(true);
+  const [manualListExpanded, setManualListExpanded] = useState(true);
+  const manualFormInitialized = useRef(false);
   const [todayStr, setTodayStr] = useState(() => getLocalDateStr());
   const [manualWorkoutDate, setManualWorkoutDate] = useState(todayStr);
   const [gymDay, setGymDay] = useState<string>('Día 1');
@@ -952,6 +955,29 @@ export default function App() {
     }
   }, [isDataLoaded, todaysMeals.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Collapse manual form on first data load if workouts already exist
+  useEffect(() => {
+    if (isDataLoaded && !manualFormInitialized.current) {
+      manualFormInitialized.current = true;
+      const todayData = habits[todayStr];
+      const existingWorkouts: ManualWorkoutEntry[] = todayData?.manualWorkouts?.length
+        ? todayData.manualWorkouts
+        : todayData?.manualWorkout ? [todayData.manualWorkout as ManualWorkoutEntry] : [];
+      if (existingWorkouts.length > 0) setManualFormExpanded(false);
+    }
+  }, [isDataLoaded, habits, todayStr]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Set expandedMeal to next meal by current hour when day changes or menu loads
+  useEffect(() => {
+    const h = new Date().getHours();
+    const nextMealIdx =
+      h < 10 ? 0 : // desayuno
+      h < 14 ? 1 : // almuerzo
+      h < 18 ? 2 : // merienda
+      3;           // cena
+    setExpandedMeal(nextMealIdx);
+  }, [menuSelectedDay]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const totals = todaysMeals.reduce(
     (acc, meal) => ({
       calories: acc.calories + meal.calories,
@@ -1109,6 +1135,15 @@ export default function App() {
     currentHour < 18 ? 'Hora pico de rendimiento — aprovéchala.' :
     currentHour < 21 ? 'Entreno vespertino — termina antes de las 21h para dormir bien.' :
     'Tarde para entreno intenso — mejor movilidad o estiramientos.';
+
+  const menuTimeHint =
+    currentHour < 6 ? 'Planifica tu desayuno de hoy' :
+    currentHour < 10 ? 'Planifica tu desayuno de hoy' :
+    currentHour < 12 ? '¿Sigues el menú de esta mañana?' :
+    currentHour < 14 ? 'Hora del almuerzo — aquí tienes tu menú' :
+    currentHour < 17 ? 'Merienda según tu plan' :
+    currentHour < 21 ? 'Revisa la cena de hoy' :
+    'Mañana empieza con buen pie';
 
   const dismissPrompt = (id: string) => {
     const updated = [...dismissedPrompts, id];
@@ -3376,20 +3411,29 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       </div>
                     ) : generatedMenu ? (
                       <div className="space-y-4">
-                        {/* Compact header — single line */}
-                        <div className="flex items-center gap-2">
-                          <Utensils className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
-                          <span className={`text-xs font-black ${themeStyles.textMain} uppercase tracking-widest flex-1 min-w-0 truncate`}>
-                            Menú Semanal · {generatedMenu.days?.length || 0} días · {profile.goal === 'lose' ? 'Perder grasa' : profile.goal === 'gain' ? 'Ganar músculo' : 'Mantenimiento'}
-                          </span>
-                          <button
-                            disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
-                            onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, profile.weight > 0 ? profile.weight : 70); }}
-                            className={`shrink-0 p-1.5 rounded-lg ${themeStyles.iconBg} border ${themeStyles.border} ${themeStyles.textMuted} transition-all disabled:opacity-50`}
-                            title={menuCooldown.isActive ? `Espera ${menuCooldown.remaining}s` : 'Regenerar menú'}
-                          >
-                            <RefreshCw className={`w-3.5 h-3.5 ${menuCooldown.isActive ? 'animate-spin' : ''}`} />
-                          </button>
+                        {/* Compact header */}
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Utensils className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
+                            <span className={`text-xs font-black ${themeStyles.textMain} uppercase tracking-widest flex-1 min-w-0 truncate`}>
+                              Menú Semanal · {generatedMenu.days?.length || 0} días
+                            </span>
+                            <button
+                              disabled={isAIGenerating || menuCooldown.isActive || isGeneratingMenu}
+                              onClick={() => { menuCooldown.start(); handleGenerateMenu(profile, goals, profile.weight > 0 ? profile.weight : 70); }}
+                              className={`shrink-0 p-1.5 rounded-lg ${themeStyles.iconBg} border ${themeStyles.border} ${themeStyles.textMuted} transition-all disabled:opacity-50`}
+                              title={menuCooldown.isActive ? `Espera ${menuCooldown.remaining}s` : 'Regenerar menú'}
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${menuCooldown.isActive ? 'animate-spin' : ''}`} />
+                            </button>
+                          </div>
+                          <p className={`text-xs ${themeStyles.textMuted} font-semibold pl-6`}>
+                            {profile.goal === 'lose' ? 'Perder grasa' : profile.goal === 'gain' ? 'Ganar músculo' : 'Mantenimiento'}
+                          </p>
+                          <p className={`text-xs ${themeStyles.textMuted} flex items-center gap-1.5 pl-6`}>
+                            <Clock className="w-3.5 h-3.5 shrink-0" />
+                            {menuTimeHint}
+                          </p>
                         </div>
 
                         {/* Day tabs */}
@@ -4013,183 +4057,231 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                       </div>
                     ) : gymSubTab === 'manual' ? (
-                      <div className={`${themeStyles.card} rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border} space-y-6`}>
-                        <div className="space-y-1 mb-2">
-                          <h2 className={`text-2xl font-display font-black ${themeStyles.textMain} uppercase tracking-tighter`}>Entrenamiento Libre</h2>
-                          <p className={`${themeStyles.textMuted} text-xs font-medium`}>Añade uno o más entrenamientos. Las calorías se estiman por MET pero puedes editarlas.</p>
+                      <div className="space-y-3">
+                        {/* Compact header */}
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-black ${themeStyles.textMain} uppercase tracking-widest flex-1 min-w-0`}>
+                            💪 Entrenamiento Libre
+                          </span>
+                          {!manualFormExpanded && (
+                            <button
+                              onClick={() => { setManualFormExpanded(true); setEditingWorkoutId(null); setManualWorkoutMinutes('45'); setManualWorkoutCaloriesOverride(''); }}
+                              className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg ${themeStyles.iconBg} border ${themeStyles.border} text-xs font-bold ${themeStyles.accent} uppercase tracking-widest transition-all`}
+                            >
+                              <Plus className="w-3 h-3" /> Añadir
+                            </button>
+                          )}
                         </div>
 
-                        {/* Form */}
-                        {(() => {
-                          const weightKg = profile.weight > 0 ? profile.weight : 70;
-                          const mins = parseFloat(manualWorkoutMinutes) || 0;
-                          const metKcal = mins > 0 ? calculateMETCalories(manualWorkoutActivity, manualWorkoutIntensidad, mins, weightKg) : 0;
-                          const finalKcal = manualWorkoutCaloriesOverride !== '' ? (parseInt(manualWorkoutCaloriesOverride) || 0) : metKcal;
+                        {/* Form — collapsible */}
+                        <AnimatePresence initial={false}>
+                          {manualFormExpanded && (() => {
+                            const weightKg = profile.weight > 0 ? profile.weight : 70;
+                            const mins = parseFloat(manualWorkoutMinutes) || 0;
+                            const metKcal = mins > 0 ? calculateMETCalories(manualWorkoutActivity, manualWorkoutIntensidad, mins, weightKg) : 0;
+                            const finalKcal = manualWorkoutCaloriesOverride !== '' ? (parseInt(manualWorkoutCaloriesOverride) || 0) : metKcal;
 
-                          const handleSave = (e: React.FormEvent) => {
-                            e.preventDefault();
-                            if (mins <= 0) return;
-                            const entry: ManualWorkoutEntry = {
-                              id: editingWorkoutId ?? String(Date.now()),
-                              activity: manualWorkoutActivity,
-                              intensidad: manualWorkoutIntensidad,
-                              durationMinutes: mins,
-                              caloriesBurned: finalKcal,
+                            const handleSave = (e: React.FormEvent) => {
+                              e.preventDefault();
+                              if (mins <= 0) return;
+                              const entry: ManualWorkoutEntry = {
+                                id: editingWorkoutId ?? String(Date.now()),
+                                activity: manualWorkoutActivity,
+                                intensidad: manualWorkoutIntensidad,
+                                durationMinutes: mins,
+                                caloriesBurned: finalKcal,
+                              };
+                              const prevDay = habits[manualWorkoutDate] || { water: 0, sleep: 0 };
+                              const prevList: ManualWorkoutEntry[] = prevDay.manualWorkouts
+                                ? [...prevDay.manualWorkouts]
+                                : prevDay.manualWorkout ? [prevDay.manualWorkout as ManualWorkoutEntry] : [];
+                              const updatedList = editingWorkoutId
+                                ? prevList.map(w => w.id === editingWorkoutId ? entry : w)
+                                : [...prevList, entry];
+                              const updatedDay = { ...prevDay, manualWorkouts: updatedList };
+                              delete (updatedDay as any).manualWorkout;
+                              const newHabits = { ...habits, [manualWorkoutDate]: updatedDay };
+                              setHabits(newHabits);
+                              if (user) setDoc(doc(db, 'users', user.uid, 'habits', manualWorkoutDate), updatedDay).catch(console.error);
+                              setManualWorkoutMinutes('45');
+                              setManualWorkoutCaloriesOverride('');
+                              setEditingWorkoutId(null);
+                              setManualFormExpanded(false);
+                              showSuccess(`${manualWorkoutActivity} guardado — ${finalKcal} kcal`);
                             };
-                            const prevDay = habits[manualWorkoutDate] || { water: 0, sleep: 0 };
-                            const prevList: ManualWorkoutEntry[] = prevDay.manualWorkouts
-                              ? [...prevDay.manualWorkouts]
-                              : prevDay.manualWorkout ? [prevDay.manualWorkout as ManualWorkoutEntry] : [];
-                            const updatedList = editingWorkoutId
-                              ? prevList.map(w => w.id === editingWorkoutId ? entry : w)
-                              : [...prevList, entry];
-                            const updatedDay = { ...prevDay, manualWorkouts: updatedList };
-                            delete (updatedDay as any).manualWorkout;
-                            const newHabits = { ...habits, [manualWorkoutDate]: updatedDay };
-                            setHabits(newHabits);
-                            if (user) setDoc(doc(db, 'users', user.uid, 'habits', manualWorkoutDate), updatedDay).catch(console.error);
-                            setManualWorkoutMinutes('45');
-                            setManualWorkoutCaloriesOverride('');
-                            setEditingWorkoutId(null);
-                            showSuccess(`${manualWorkoutActivity} guardado — ${finalKcal} kcal`);
-                          };
 
-                          return (
-                            <form onSubmit={handleSave} className="space-y-5">
-                              {/* Fecha */}
-                              <div className="space-y-2">
-                                <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Fecha</label>
-                                <input type="date" value={manualWorkoutDate} onChange={e => setManualWorkoutDate(e.target.value)}
-                                  className={`w-full ${themeStyles.iconBg} rounded-xl px-4 py-3 text-sm focus:outline-none border ${themeStyles.border}`} required />
-                              </div>
-                              {/* Actividad */}
-                              <div className="space-y-2">
-                                <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Tipo de actividad</label>
-                                <select value={manualWorkoutActivity} onChange={e => { setManualWorkoutActivity(e.target.value); setManualWorkoutCaloriesOverride(''); }}
-                                  className={`w-full ${themeStyles.iconBg} rounded-xl px-4 py-3 text-sm focus:outline-none border ${themeStyles.border} cursor-pointer`}>
-                                  {ACTIVITY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                </select>
-                              </div>
-                              {/* Duración */}
-                              <div className="space-y-2">
-                                <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Duración</label>
-                                <div className="relative">
-                                  <input type="number" placeholder="45" min="5" max="300" value={manualWorkoutMinutes}
-                                    onChange={e => { setManualWorkoutMinutes(e.target.value); setManualWorkoutCaloriesOverride(''); }}
-                                    className={`w-full ${themeStyles.iconBg} rounded-xl px-4 py-3 pr-14 text-sm focus:outline-none border ${themeStyles.border}`} required />
-                                  <span className={`absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold ${themeStyles.textMuted} uppercase tracking-tighter pointer-events-none`}>min</span>
-                                </div>
-                              </div>
-                              {/* Intensidad */}
-                              <div className="space-y-2">
-                                <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Intensidad</label>
-                                <div className={`grid grid-cols-3 gap-2 ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border}`}>
-                                  {(['suave', 'moderada', 'intensa'] as const).map(level => (
-                                    <button key={level} type="button"
-                                      onClick={() => { setManualWorkoutIntensidad(level); setManualWorkoutCaloriesOverride(''); }}
-                                      className={`py-2.5 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${manualWorkoutIntensidad === level ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}>
-                                      {level}
+                            return (
+                              <motion.div
+                                key="manual-form"
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
+                              >
+                                <form onSubmit={handleSave} className={`${themeStyles.bento} space-y-4`}>
+                                  {/* Fecha */}
+                                  <div className="space-y-1.5">
+                                    <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Fecha</label>
+                                    <input type="date" value={manualWorkoutDate} onChange={e => setManualWorkoutDate(e.target.value)}
+                                      className={`w-full ${themeStyles.iconBg} rounded-xl px-4 py-2.5 text-sm focus:outline-none border ${themeStyles.border}`} required />
+                                  </div>
+                                  {/* Actividad | Duración — 2-col grid */}
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                      <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Actividad</label>
+                                      <select value={manualWorkoutActivity} onChange={e => { setManualWorkoutActivity(e.target.value); setManualWorkoutCaloriesOverride(''); }}
+                                        className={`w-full ${themeStyles.iconBg} rounded-xl px-3 py-2.5 text-xs focus:outline-none border ${themeStyles.border} cursor-pointer`}>
+                                        {ACTIVITY_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                      </select>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Duración (min)</label>
+                                      <div className="relative">
+                                        <input type="number" placeholder="45" min="5" max="300" value={manualWorkoutMinutes}
+                                          onChange={e => { setManualWorkoutMinutes(e.target.value); setManualWorkoutCaloriesOverride(''); }}
+                                          className={`w-full ${themeStyles.iconBg} rounded-xl px-3 py-2.5 pr-10 text-xs focus:outline-none border ${themeStyles.border}`} required />
+                                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold ${themeStyles.textMuted} pointer-events-none`}>min</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {/* Intensidad */}
+                                  <div className="space-y-1.5">
+                                    <label className={`block text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-widest pl-1`}>Intensidad</label>
+                                    <div className={`grid grid-cols-3 gap-2 ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border}`}>
+                                      {(['suave', 'moderada', 'intensa'] as const).map(level => (
+                                        <button key={level} type="button"
+                                          onClick={() => { setManualWorkoutIntensidad(level); setManualWorkoutCaloriesOverride(''); }}
+                                          className={`py-2 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${manualWorkoutIntensidad === level ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}>
+                                          {level}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  {/* Calorías */}
+                                  {mins > 0 && (
+                                    <div className={`${themeStyles.iconBg} border ${themeStyles.accentBorder} rounded-2xl p-4 space-y-2`}>
+                                      <div className="flex items-center justify-between">
+                                        <p className={`text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-[0.2em]`}>Calorías</p>
+                                        {manualWorkoutCaloriesOverride !== '' && (
+                                          <button type="button" onClick={() => setManualWorkoutCaloriesOverride('')}
+                                            className={`text-xs ${themeStyles.textMuted} underline`}>Restaurar estimación</button>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                        <input
+                                          type="number" min="0" max="3000"
+                                          value={manualWorkoutCaloriesOverride !== '' ? manualWorkoutCaloriesOverride : metKcal}
+                                          onChange={e => setManualWorkoutCaloriesOverride(e.target.value)}
+                                          className={`flex-1 bg-transparent text-3xl font-display font-black ${themeStyles.accent} focus:outline-none w-0 text-right`}
+                                        />
+                                        <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider`}>kcal</span>
+                                      </div>
+                                      <p className={`text-xs ${themeStyles.textMuted} opacity-60`}>
+                                        {manualWorkoutCaloriesOverride !== '' ? 'Valor editado manualmente' : `Estimación MET · ${weightKg} kg`}
+                                      </p>
+                                    </div>
+                                  )}
+                                  <div className="flex gap-2">
+                                    <button type="submit" disabled={!manualWorkoutMinutes || mins <= 0}
+                                      className={`${themeStyles.buttonPrimary} flex-1 py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}>
+                                      <Plus className="w-3.5 h-3.5" />
+                                      {editingWorkoutId ? 'Actualizar' : 'Guardar'}
                                     </button>
-                                  ))}
-                                </div>
-                              </div>
-                              {/* Calorías (editable) */}
-                              {mins > 0 && (
-                                <div className={`${themeStyles.iconBg} border ${themeStyles.accentBorder} rounded-2xl p-4 space-y-3`}>
-                                  <div className="flex items-center justify-between">
-                                    <p className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-[0.2em]`}>Calorías</p>
-                                    {manualWorkoutCaloriesOverride !== '' && (
-                                      <button type="button" onClick={() => setManualWorkoutCaloriesOverride('')}
-                                        className={`text-xs ${themeStyles.textMuted} underline`}>Restaurar estimación</button>
-                                    )}
+                                    <button type="button"
+                                      onClick={() => { setManualFormExpanded(false); setEditingWorkoutId(null); setManualWorkoutMinutes('45'); setManualWorkoutCaloriesOverride(''); }}
+                                      className={`py-2.5 px-4 rounded-xl text-xs font-bold ${themeStyles.textMuted} border ${themeStyles.border} uppercase tracking-widest transition-all`}>
+                                      Cancelar
+                                    </button>
                                   </div>
-                                  <div className="flex items-center gap-3">
-                                    <input
-                                      type="number" min="0" max="3000"
-                                      value={manualWorkoutCaloriesOverride !== '' ? manualWorkoutCaloriesOverride : metKcal}
-                                      onChange={e => setManualWorkoutCaloriesOverride(e.target.value)}
-                                      className={`flex-1 bg-transparent text-3xl font-display font-black ${themeStyles.accent} focus:outline-none w-0 text-right`}
-                                    />
-                                    <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider`}>kcal</span>
-                                  </div>
-                                  <p className={`text-xs ${themeStyles.textMuted} opacity-60`}>
-                                    {manualWorkoutCaloriesOverride !== '' ? 'Valor editado manualmente' : `Estimación MET · ${weightKg} kg`}
-                                  </p>
-                                </div>
-                              )}
-                              <button type="submit" disabled={!manualWorkoutMinutes || mins <= 0}
-                                className={`${themeStyles.buttonPrimary} w-full py-3 px-6 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed`}>
-                                <Plus className="w-4 h-4" />
-                                {editingWorkoutId ? 'Actualizar Entrenamiento' : 'Añadir Entrenamiento'}
-                              </button>
-                              {editingWorkoutId && (
-                                <button type="button" onClick={() => { setEditingWorkoutId(null); setManualWorkoutMinutes('45'); setManualWorkoutCaloriesOverride(''); }}
-                                  className={`w-full py-2 rounded-xl text-xs font-bold ${themeStyles.textMuted} border ${themeStyles.border} uppercase tracking-widest`}>
-                                  Cancelar edición
-                                </button>
-                              )}
-                            </form>
-                          );
-                        })()}
+                                </form>
+                              </motion.div>
+                            );
+                          })()}
+                        </AnimatePresence>
 
-                        {/* Workout list for today */}
+                        {/* Workout list — collapsible */}
                         {(() => {
                           const todayData = habits[todayStr];
                           const list: ManualWorkoutEntry[] = todayData?.manualWorkouts?.length
                             ? todayData.manualWorkouts
                             : todayData?.manualWorkout ? [todayData.manualWorkout as ManualWorkoutEntry] : [];
                           if (!list.length) return null;
+                          const totalKcal = list.reduce((s, w) => s + (w.caloriesBurned ?? 0), 0);
                           return (
-                            <div className="space-y-3 mt-2">
-                              <p className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>
-                                Hoy · {list.length} {list.length === 1 ? 'entrenamiento' : 'entrenamientos'} · +{list.reduce((s, w) => s + (w.caloriesBurned ?? 0), 0)} kcal
-                              </p>
-                              {list.map((w, idx) => (
-                                <div key={w.id ?? idx} className={`${themeStyles.card} rounded-2xl p-4 border ${themeStyles.border} shadow-sm`}>
-                                  <div className="flex items-center justify-between mb-3">
-                                    <div className="flex items-center gap-3">
-                                      <div className={`p-2 ${themeStyles.accentMuted} rounded-xl border ${themeStyles.accentBorder}`}>
-                                        <Activity className={`w-4 h-4 ${themeStyles.accent}`} />
-                                      </div>
-                                      <div>
-                                        <p className={`text-sm font-bold ${themeStyles.textMain}`}>{w.activity}</p>
-                                        <p className={`text-xs ${themeStyles.textMuted}`}>{w.durationMinutes ?? '?'} min · {w.intensidad ?? ''}</p>
-                                      </div>
+                            <div className={`${themeStyles.bento} overflow-hidden`}>
+                              <button
+                                onClick={() => setManualListExpanded(v => !v)}
+                                className="w-full flex items-center gap-2 px-4 py-3 text-left"
+                              >
+                                <ChevronDown className={`w-3.5 h-3.5 ${themeStyles.textMuted} transition-transform duration-200 shrink-0 ${manualListExpanded ? 'rotate-0' : '-rotate-90'}`} />
+                                <span className={`text-xs font-bold ${themeStyles.textMain} uppercase tracking-widest flex-1`}>
+                                  Hoy · {list.length} {list.length === 1 ? 'entrenamiento' : 'entrenamientos'} · +{totalKcal} kcal
+                                </span>
+                              </button>
+                              <AnimatePresence initial={false}>
+                                {manualListExpanded && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className={`px-4 pb-4 space-y-2 border-t ${themeStyles.border}`}>
+                                      {list.map((w, idx) => (
+                                        <div key={w.id ?? idx} className={`flex items-center gap-2 py-2.5 border-b ${themeStyles.border} last:border-b-0`}>
+                                          <span className={`text-xs font-bold ${themeStyles.textMain} flex-1 min-w-0 truncate`}>
+                                            {w.activity} · {w.durationMinutes ?? '?'} min · {w.intensidad ?? ''}
+                                          </span>
+                                          <span className={`text-xs font-bold ${themeStyles.accent} shrink-0`}>+{w.caloriesBurned ?? 0} kcal</span>
+                                          <button
+                                            onClick={() => {
+                                              setEditingWorkoutId(w.id ?? null);
+                                              setManualWorkoutActivity(w.activity);
+                                              setManualWorkoutIntensidad(w.intensidad ?? 'moderada');
+                                              setManualWorkoutMinutes(String(w.durationMinutes ?? 45));
+                                              setManualWorkoutCaloriesOverride(String(w.caloriesBurned ?? ''));
+                                              setManualWorkoutDate(todayStr);
+                                              setManualFormExpanded(true);
+                                            }}
+                                            className={`shrink-0 p-1.5 rounded-lg ${themeStyles.iconBg} border ${themeStyles.border} ${themeStyles.textMuted} transition-all`}
+                                            title="Editar"
+                                          >
+                                            <Edit2 className="w-3 h-3" />
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              const prevDay = habits[todayStr] || { water: 0, sleep: 0 };
+                                              const prevList: ManualWorkoutEntry[] = prevDay.manualWorkouts
+                                                ? [...prevDay.manualWorkouts]
+                                                : prevDay.manualWorkout ? [prevDay.manualWorkout as ManualWorkoutEntry] : [];
+                                              const updatedList = prevList.filter((_, i) => i !== idx);
+                                              const updatedDay = { ...prevDay, manualWorkouts: updatedList };
+                                              delete (updatedDay as any).manualWorkout;
+                                              const newHabits = { ...habits, [todayStr]: updatedDay };
+                                              setHabits(newHabits);
+                                              if (user) setDoc(doc(db, 'users', user.uid, 'habits', todayStr), updatedDay).catch(console.error);
+                                            }}
+                                            className={`shrink-0 p-1.5 rounded-lg ${themeStyles.iconBg} border ${themeStyles.border} ${themeStyles.textMuted} hover:text-rose-500 transition-all`}
+                                            title="Eliminar"
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                      {!manualFormExpanded && (
+                                        <button
+                                          onClick={() => { setManualFormExpanded(true); setEditingWorkoutId(null); setManualWorkoutMinutes('45'); setManualWorkoutCaloriesOverride(''); }}
+                                          className={`w-full mt-1 py-2 rounded-xl text-xs font-bold ${themeStyles.accent} border ${themeStyles.accentBorder} uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all`}
+                                        >
+                                          <Plus className="w-3 h-3" /> Añadir otro
+                                        </button>
+                                      )}
                                     </div>
-                                    <span className={`text-xl font-display font-black ${themeStyles.accent}`}>+{w.caloriesBurned ?? 0} <span className={`text-xs font-bold ${themeStyles.textMuted}`}>kcal</span></span>
-                                  </div>
-                                  <div className={`flex gap-2 pt-3 border-t border-dashed ${profile.theme === 'light' ? 'border-slate-200' : 'border-zinc-700'}`}>
-                                    <button
-                                      onClick={() => {
-                                        setEditingWorkoutId(w.id ?? null);
-                                        setManualWorkoutActivity(w.activity);
-                                        setManualWorkoutIntensidad(w.intensidad ?? 'moderada');
-                                        setManualWorkoutMinutes(String(w.durationMinutes ?? 45));
-                                        setManualWorkoutCaloriesOverride(String(w.caloriesBurned ?? ''));
-                                        setManualWorkoutDate(todayStr);
-                                      }}
-                                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border ${themeStyles.border} text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted} transition-all`}>
-                                      <Edit2 className="w-3.5 h-3.5" /> Editar
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        const prevDay = habits[todayStr] || { water: 0, sleep: 0 };
-                                        const prevList: ManualWorkoutEntry[] = prevDay.manualWorkouts
-                                          ? [...prevDay.manualWorkouts]
-                                          : prevDay.manualWorkout ? [prevDay.manualWorkout as ManualWorkoutEntry] : [];
-                                        const updatedList = prevList.filter((_, i) => i !== idx);
-                                        const updatedDay = { ...prevDay, manualWorkouts: updatedList };
-                                        delete (updatedDay as any).manualWorkout;
-                                        const newHabits = { ...habits, [todayStr]: updatedDay };
-                                        setHabits(newHabits);
-                                        if (user) setDoc(doc(db, 'users', user.uid, 'habits', todayStr), updatedDay).catch(console.error);
-                                      }}
-                                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border ${themeStyles.border} text-xs font-bold uppercase tracking-widest ${themeStyles.textMuted} hover:text-rose-500 transition-all`}>
-                                      <Trash2 className="w-3.5 h-3.5" /> Eliminar
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
                             </div>
                           );
                         })()}
