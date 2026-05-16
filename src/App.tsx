@@ -3654,13 +3654,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               exit={{ opacity: 0, x: -20 }}
               className="space-y-8 pb-24"
             >
-              {/* Time-of-day gym hint */}
-              <AppBanner
-                variant="info"
-                theme={profile.theme}
-                icon={<Clock className="w-4 h-4" />}
-                message={gymTimeHint}
-              />
+              {/* Time-of-day gym hint — plain text, no card */}
+              <p className={`text-xs ${themeStyles.textMuted} flex items-center gap-1.5`}>
+                <Clock className="w-3.5 h-3.5 shrink-0" />
+                {gymTimeHint}
+              </p>
 
               {/* Workout Content */}
               <div className="space-y-6">
@@ -3750,74 +3748,46 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           />
                         )}
 
-                        {/* Compact Gym Header */}
-                        <div className={`${themeStyles.bento} px-4 py-3 flex items-center gap-3`}>
-                          <div className={`w-8 h-8 rounded-xl ${themeStyles.accentMuted} flex items-center justify-center border ${themeStyles.accentBorder} shrink-0`}>
-                            <Dumbbell className={`w-4 h-4 ${themeStyles.accent}`} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className={`text-sm font-display font-black ${themeStyles.textMain} uppercase tracking-tight`}>Tu Rutina</span>
-                            <span className={`${themeStyles.textMuted} text-xs font-bold ml-2`}>
-                              {profile.trainingDaysPerWeek}d · {translateGymGoal(profile.gymGoal)}
-                            </span>
-                          </div>
+                        {/* Compact Gym Header — single line */}
+                        <div className="flex items-center gap-2">
+                          <Dumbbell className={`w-4 h-4 ${themeStyles.accent} shrink-0`} />
+                          <span className={`text-xs font-black ${themeStyles.textMain} uppercase tracking-widest flex-1 min-w-0 truncate`}>
+                            Tu Rutina · {profile.trainingDaysPerWeek}d · {translateGymGoal(profile.gymGoal)}
+                          </span>
                           <button
                             onClick={() => { workoutCooldown.start(); handleGenerateWorkout(); }}
                             disabled={isAIGenerating || isGeneratingWorkout || workoutCooldown.isActive}
-                            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold uppercase tracking-widest transition-all ${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} disabled:opacity-40`}
+                            className={`shrink-0 p-1.5 rounded-lg ${themeStyles.iconBg} border ${themeStyles.border} ${themeStyles.textMuted} transition-all disabled:opacity-40`}
+                            title={workoutCooldown.isActive ? `${workoutCooldown.remaining}s` : 'Regenerar'}
                           >
-                            <RefreshCw className={`w-3 h-3 ${isGeneratingWorkout ? 'animate-spin' : ''}`} />
-                            {workoutCooldown.isActive ? `${workoutCooldown.remaining}s` : 'Regenerar'}
+                            <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingWorkout || workoutCooldown.isActive ? 'animate-spin' : ''}`} />
                           </button>
                         </div>
 
-                        {/* Subtabs for Plan */}
-                        <div className={`grid grid-flow-col auto-cols-fr ${themeStyles.iconBg} p-1 rounded-2xl border ${themeStyles.border} shadow-lg mb-6`}>
-                          <button
-                            onClick={() => setPlanSubTab('info')}
-                            className={`py-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${planSubTab === 'info' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
-                          >
-                            <Info className="w-3.5 h-3.5" />
-                            Info
-                          </button>
-                          <button
-                            onClick={() => setPlanSubTab('ejercicios')}
-                            className={`py-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${planSubTab === 'ejercicios' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
-                          >
-                            <Dumbbell className="w-3.5 h-3.5" />
-                            Ejercicios
-                          </button>
-                          <button
-                            onClick={() => setPlanSubTab('tips')}
-                            className={`py-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest rounded-xl transition-all ${planSubTab === 'tips' ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md` : `${themeStyles.textMuted} hover:text-current`}`}
-                          >
-                            <Zap className="w-3.5 h-3.5" />
-                            Tips
-                          </button>
-                        </div>
-
-                        {/* Info / Intro Section */}
-                        {planSubTab === 'info' && (
-                        <motion.div initial={{opacity:0}} animate={{opacity:1}} layout className="space-y-6">
-                          <div className={`${themeStyles.card} rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border}`}>
-                            <div className={`prose max-w-none ${profile.theme === 'light' ? 'prose-slate prose-h2:text-emerald-500 prose-h3:text-emerald-600 prose-strong:text-orange-600' : 'prose-invert prose-zinc prose-h2:text-lime-400 prose-h3:text-lime-300 prose-strong:text-orange-400'}
-                              prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
-                              prose-h2:text-2xl prose-h2:border-b prose-h2:pb-4 prose-h2:mb-6
-                              prose-h3:text-base prose-h3:border-b prose-h3:pb-2 prose-h3:mb-3
-                              prose-strong:font-black
-                              prose-p:leading-relaxed prose-p:text-sm prose-p:font-medium
-                              prose-li:my-1 prose-li:text-sm prose-li:font-medium
-                            `}>
-                              <Markdown remarkPlugins={[remarkGfm]}>
-                                {getWorkoutSection(workoutPlan, 'info')}
-                              </Markdown>
-                            </div>
+                        {/* Info del programa — collapsible */}
+                        {getWorkoutSection(workoutPlan, 'info').trim() && (
+                          <div className={`${themeStyles.bento} overflow-hidden`}>
+                            <button
+                              onClick={() => setGymInfoExpanded(v => !v)}
+                              className="w-full flex items-center gap-2 px-4 py-3 text-left"
+                            >
+                              <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} shrink-0 transition-transform duration-200 ${gymInfoExpanded ? 'rotate-180' : ''}`} />
+                              <span className={`text-xs font-black uppercase tracking-[0.2em] ${themeStyles.textMain} flex-1`}>Info del programa</span>
+                            </button>
+                            <AnimatePresence initial={false}>
+                              {gymInfoExpanded && (
+                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                                  <div className={`px-4 pb-4 prose max-w-none text-left ${profile.theme === 'light' ? 'prose-slate prose-h2:text-emerald-500 prose-h3:text-emerald-600' : 'prose-invert prose-zinc prose-h2:text-lime-400 prose-h3:text-lime-300'} prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter prose-h2:text-xl prose-h3:text-sm prose-strong:font-black prose-p:text-sm prose-p:leading-relaxed prose-li:text-sm`}>
+                                    <Markdown remarkPlugins={[remarkGfm]}>{getWorkoutSection(workoutPlan, 'info')}</Markdown>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
                           </div>
-                        </motion.div>
                         )}
 
-                        {/* Daily routines logic */}
-                        {planSubTab === 'ejercicios' && (() => {
+                        {/* Daily routines logic — always shown */}
+                        {(() => {
                           const ejerciciosContent = getWorkoutSection(workoutPlan, 'exercises');
                           const parsedDays = ejerciciosContent
                             .split(/\n(?=# DÍA \d+)/i)
@@ -4009,42 +3979,36 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                   );
                                 })()}
 
-                                {/* Summary Technical legend */}
-                                <div className={`pt-6 flex flex-wrap gap-3 justify-center border-t ${themeStyles.border}`}>
-                                  {[
-                                    { lab: 'RPE', desc: 'Esfuerzo' },
-                                    { lab: 'Series', desc: 'Bloques' },
-                                    { lab: 'Descanso', desc: 'Tiempo' }
-                                  ].map((item, idx) => (
-                                    <div key={idx} className={`flex items-center gap-1.5 px-3 py-1.5 ${themeStyles.iconBg} rounded-xl border ${themeStyles.border} shadow-sm`}>
-                                      <span className={`text-xs font-bold ${themeStyles.accent} uppercase`}>{item.lab}:</span>
-                                      <span className={`text-xs ${themeStyles.textMuted} font-bold uppercase tracking-tighter`}>{item.desc}</span>
-                                    </div>
-                                  ))}
-                                </div>
+                                {/* RPE inline note */}
+                                <p className={`pt-4 text-[10px] ${themeStyles.textMuted} text-center border-t ${themeStyles.border}`}>
+                                  RPE = escala de esfuerzo del 1 al 10
+                                </p>
                               </motion.div>
                             </div>
+
                           );
                         })()}
 
-                        {/* Safety / Tips Section */}
-                        {planSubTab === 'tips' && (
-                        <motion.div initial={{opacity:0}} animate={{opacity:1}} layout className="space-y-6">
-                          <div className={`${themeStyles.card} rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden text-left border ${themeStyles.border}`}>
-                            <div className={`prose max-w-none ${profile.theme === 'light' ? 'prose-slate prose-h2:text-emerald-500 prose-h3:text-emerald-600 prose-strong:text-orange-600' : 'prose-invert prose-zinc prose-h2:text-lime-400 prose-h3:text-lime-300 prose-strong:text-orange-400'}
-                              prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter
-                              prose-h2:text-2xl prose-h2:border-b prose-h2:pb-4 prose-h2:mb-6
-                              prose-h3:text-base prose-h3:border-b prose-h3:pb-2 prose-h3:mb-3
-                              prose-strong:font-black
-                              prose-p:leading-relaxed prose-p:text-sm prose-p:font-medium
-                              prose-li:my-1 prose-li:text-sm prose-li:font-medium
-                            `}>
-                              <Markdown remarkPlugins={[remarkGfm]}>
-                                {getWorkoutSection(workoutPlan, 'safety')}
-                              </Markdown>
-                            </div>
+                        {/* Tips del día — collapsible, outside day IIFE */}
+                        {workoutPlan && getWorkoutSection(workoutPlan, 'safety').trim() && (
+                          <div className={`${themeStyles.bento} overflow-hidden`}>
+                            <button
+                              onClick={() => setGymTipsExpanded(v => !v)}
+                              className="w-full flex items-center gap-2 px-4 py-3 text-left"
+                            >
+                              <ChevronDown className={`w-4 h-4 ${themeStyles.textMuted} shrink-0 transition-transform duration-200 ${gymTipsExpanded ? 'rotate-180' : ''}`} />
+                              <span className={`text-xs font-black uppercase tracking-[0.2em] ${themeStyles.textMain} flex-1`}>💡 Tips del día</span>
+                            </button>
+                            <AnimatePresence initial={false}>
+                              {gymTipsExpanded && (
+                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
+                                  <div className={`px-4 pb-4 prose max-w-none text-left ${profile.theme === 'light' ? 'prose-slate prose-h2:text-emerald-500 prose-h3:text-emerald-600' : 'prose-invert prose-zinc prose-h2:text-lime-400 prose-h3:text-lime-300'} prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter prose-h2:text-xl prose-h3:text-sm prose-strong:font-black prose-p:text-sm prose-p:leading-relaxed prose-li:text-sm`}>
+                                    <Markdown remarkPlugins={[remarkGfm]}>{getWorkoutSection(workoutPlan, 'safety')}</Markdown>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
                           </div>
-                        </motion.div>
                         )}
 
                       </div>
