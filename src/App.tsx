@@ -1503,7 +1503,7 @@ export default function App() {
       const remainingFat = goals.fat - totals.fat;
       const contextStr = `Usuario: ${profile.name || 'Usuario'}. Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas para cumplir el objetivo del día. Dieta: ${profile.dietType}.`;
 
-      const info = await analyzeFoodImage(base64Data, mimeType, contextStr);
+      const info = await analyzeFoodImage(base64Data, mimeType, contextStr, profile.medicalConditions);
 
       const newMeal: Meal = {
         id: Date.now().toString(),

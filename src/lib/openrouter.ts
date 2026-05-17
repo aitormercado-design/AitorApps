@@ -167,10 +167,27 @@ async function callOpenRouterVision(model: string, base64Image: string, mimeType
 
 type Provider = { label: string; fn: () => Promise<NutritionalInfo> };
 
-export async function analyzeFoodImage(base64Image: string, mimeType: string, contextStr?: string): Promise<NutritionalInfo> {
+type MedicalConditions = {
+  diabetes?: boolean;
+  highCholesterol?: boolean;
+  hypertension?: boolean;
+  hypothyroidism?: boolean;
+  insulinResistance?: boolean;
+};
+
+export async function analyzeFoodImage(base64Image: string, mimeType: string, contextStr?: string, medicalConditions?: MedicalConditions): Promise<NutritionalInfo> {
+  const medicalNotes: string[] = [];
+  if (medicalConditions?.diabetes)          medicalNotes.push('El usuario tiene diabetes tipo 2. Incluye en "notes" observación breve sobre carga glucémica.');
+  if (medicalConditions?.highCholesterol)   medicalNotes.push('El usuario tiene colesterol alto. Incluye en "notes" observación breve sobre grasas saturadas del plato.');
+  if (medicalConditions?.hypertension)      medicalNotes.push('El usuario tiene hipertensión. Incluye en "notes" observación breve sobre contenido de sodio estimado.');
+  if (medicalConditions?.hypothyroidism)    medicalNotes.push('El usuario tiene hipotiroidismo. Incluye en "notes" observación breve sobre alimentos bociógenos si los hay (brócoli, soja, col) y yodo.');
+  if (medicalConditions?.insulinResistance) medicalNotes.push('El usuario tiene resistencia a la insulina. Incluye en "notes" observación breve sobre índice glucémico y carga de carbohidratos del plato.');
+
+  const medicalStr = medicalNotes.length > 0 ? ' ' + medicalNotes.join(' ') : '';
+
   const userPrompt = contextStr
-    ? `Analiza esta imagen de comida. Contexto del usuario: "${contextStr}".`
-    : 'Analiza esta imagen de comida.';
+    ? `Analiza esta imagen de comida. Contexto del usuario: "${contextStr}".${medicalStr}`
+    : `Analiza esta imagen de comida.${medicalStr}`;
 
   const providers: Provider[] = [
     { label: 'OR:gemini-2.0-flash', fn: () => callOpenRouterVision('google/gemini-2.0-flash', base64Image, mimeType, userPrompt) },
