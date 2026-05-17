@@ -10,14 +10,14 @@ const groqVision = new Groq({
   dangerouslyAllowBrowser: true,
 });
 
-const SYSTEM_PROMPT = `Eres un sistema de análisis visual de comida.
+const SYSTEM_PROMPT = `Eres un sistema de análisis visual de alimentos.
 
-Tu única tarea: identificar alimentos visibles y estimar sus macros.
+TAREA: Identificar alimentos visibles y estimar cantidades.
 
 REGLAS:
 - No inventes alimentos no visibles
-- Considera aceite/salsas ocultos si la comida está cocinada (asume 5-15g)
-- Si hay duda sobre un alimento, inclúyelo con confidence baja
+- Considera aceite/salsas ocultos si la comida está cocinada (5-15g)
+- Sin consejos, sin recomendaciones, solo estimación
 
 REFERENCIAS DE PORCIONES:
 - Arroz/pasta cocidos: 150-250g plato normal
@@ -44,6 +44,8 @@ SALIDA: JSON estricto, sin texto adicional:
   "notes": string
 }`;
 
+type UserGoal = 'lose' | 'maintain' | 'gain';
+
 type VisionResponse = {
   foods: { name: string; grams: number; calories: number; protein: number; carbs: number; fat: number; confidence: 'alta' | 'media' | 'baja' }[];
   totalCalories: number;
@@ -52,15 +54,40 @@ type VisionResponse = {
   notes: string;
 };
 
-function calculateNutriScore(calories: number, protein: number, fat: number): NutritionalInfo['nutriScore'] {
-  if (calories < 200 && protein > 15 && fat < 10) return 'A';
-  if (calories < 400 && protein > 10) return 'B';
-  if (calories < 600) return 'C';
-  if (calories < 800) return 'D';
-  return 'E';
+type MedicalConditions = {
+  diabetes?: boolean;
+  highCholesterol?: boolean;
+  hypertension?: boolean;
+  hypothyroidism?: boolean;
+  insulinResistance?: boolean;
+};
+
+function calculateSemaforo(calories: number, protein: number, goal: UserGoal): { semaforo: 'verde' | 'amarillo' | 'rojo'; semaforoLabel: string } {
+  const umbrales = {
+    lose:     { verde: 450, amarillo: 650 },
+    maintain: { verde: 600, amarillo: 800 },
+    gain:     { verde: 750, amarillo: 950 },
+  };
+  const { verde, amarillo } = umbrales[goal] ?? umbrales.maintain;
+
+  let semaforo: 'verde' | 'amarillo' | 'rojo';
+  if (calories <= verde) semaforo = 'verde';
+  else if (calories <= amarillo) semaforo = 'amarillo';
+  else semaforo = 'rojo';
+
+  if (protein >= 20 && semaforo === 'rojo')    semaforo = 'amarillo';
+  if (protein >= 20 && semaforo === 'amarillo') semaforo = 'verde';
+
+  const labels = {
+    verde:    'Comida equilibrada para tu objetivo',
+    amarillo: 'Dentro del rango, vigila el total del día',
+    rojo:     'Alto para tu objetivo, compensa en la siguiente comida',
+  };
+
+  return { semaforo, semaforoLabel: labels[semaforo] };
 }
 
-function parseJsonFromText(text: string): NutritionalInfo {
+function parseJsonFromText(text: string, goal: UserGoal): NutritionalInfo {
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('JSON no encontrado en respuesta');
   const raw = JSON.parse(match[0]) as VisionResponse;
@@ -68,14 +95,15 @@ function parseJsonFromText(text: string): NutritionalInfo {
   const foods = raw.foods ?? [];
   const totalWeight = foods.reduce((s, f) => s + (f.grams ?? 0), 0);
   const protein = foods.reduce((s, f) => s + (f.protein ?? 0), 0);
-  const carbs = foods.reduce((s, f) => s + (f.carbs ?? 0), 0);
-  const fat = foods.reduce((s, f) => s + (f.fat ?? 0), 0);
-  const foodName = foods.map(f => f.name).join(', ') || 'Comida';
+  const carbs   = foods.reduce((s, f) => s + (f.carbs   ?? 0), 0);
+  const fat     = foods.reduce((s, f) => s + (f.fat     ?? 0), 0);
+  const calories = raw.totalCalories ?? Math.round(protein * 4 + carbs * 4 + fat * 9);
+  const { semaforo, semaforoLabel } = calculateSemaforo(calories, Math.round(protein), goal);
 
   return {
-    foodName,
+    foodName: foods.map(f => f.name).join(', ') || 'Comida',
     totalWeight: Math.round(totalWeight),
-    calories: raw.totalCalories ?? Math.round(protein * 4 + carbs * 4 + fat * 9),
+    calories,
     protein: Math.round(protein),
     carbs: Math.round(carbs),
     fat: Math.round(fat),
@@ -83,11 +111,8 @@ function parseJsonFromText(text: string): NutritionalInfo {
     confidence: raw.globalConfidence ?? 'media',
     confidenceMessage: raw.confidenceMessage ?? '',
     interpretation: raw.notes ?? '',
-    nutriScore: calculateNutriScore(
-      raw.totalCalories ?? Math.round(protein * 4 + carbs * 4 + fat * 9),
-      Math.round(protein),
-      Math.round(fat),
-    ),
+    semaforo,
+    semaforoLabel,
   };
 }
 
@@ -100,17 +125,14 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
-async function callGroqVision(model: string, base64Image: string, mimeType: string, userPrompt: string): Promise<NutritionalInfo> {
+async function callGroqVision(model: string, base64Image: string, mimeType: string, userPrompt: string, goal: UserGoal): Promise<NutritionalInfo> {
   const response = await groqVision.chat.completions.create({
     model,
     messages: [
       {
         role: 'user',
         content: [
-          {
-            type: 'image_url',
-            image_url: { url: `data:${mimeType};base64,${base64Image}` },
-          },
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Image}` } },
           { type: 'text', text: `${SYSTEM_PROMPT}\n\n${userPrompt}` },
         ] as any,
       },
@@ -121,10 +143,10 @@ async function callGroqVision(model: string, base64Image: string, mimeType: stri
 
   const text = response.choices[0]?.message?.content ?? '';
   if (!text) throw new Error('Sin respuesta del modelo de visión');
-  return parseJsonFromText(text);
+  return parseJsonFromText(text, goal);
 }
 
-async function callOpenRouterVision(model: string, base64Image: string, mimeType: string, userPrompt: string): Promise<NutritionalInfo> {
+async function callOpenRouterVision(model: string, base64Image: string, mimeType: string, userPrompt: string, goal: UserGoal): Promise<NutritionalInfo> {
   const response = await fetch(OPENROUTER_URL, {
     method: 'POST',
     headers: {
@@ -150,39 +172,22 @@ async function callOpenRouterVision(model: string, base64Image: string, mimeType
   });
 
   let data: any;
-  try {
-    data = await response.json();
-  } catch {
-    throw new Error(`HTTP ${response.status}`);
-  }
-
-  if (!response.ok) {
-    throw new Error(data?.error?.message ?? `HTTP ${response.status}`);
-  }
-
+  try { data = await response.json(); } catch { throw new Error(`HTTP ${response.status}`); }
+  if (!response.ok) throw new Error(data?.error?.message ?? `HTTP ${response.status}`);
   const text: string = data.choices?.[0]?.message?.content ?? '';
   if (!text) throw new Error('Sin respuesta del modelo de visión');
-  return parseJsonFromText(text);
+  return parseJsonFromText(text, goal);
 }
 
 type Provider = { label: string; fn: () => Promise<NutritionalInfo> };
 
-type MedicalConditions = {
-  diabetes?: boolean;
-  highCholesterol?: boolean;
-  hypertension?: boolean;
-  hypothyroidism?: boolean;
-  insulinResistance?: boolean;
-};
-
-export async function analyzeFoodImage(base64Image: string, mimeType: string, contextStr?: string, medicalConditions?: MedicalConditions): Promise<NutritionalInfo> {
+export async function analyzeFoodImage(base64Image: string, mimeType: string, contextStr?: string, medicalConditions?: MedicalConditions, goal: UserGoal = 'maintain'): Promise<NutritionalInfo> {
   const medicalNotes: string[] = [];
   if (medicalConditions?.diabetes)          medicalNotes.push('El usuario tiene diabetes tipo 2. Incluye en "notes" observación breve sobre carga glucémica.');
   if (medicalConditions?.highCholesterol)   medicalNotes.push('El usuario tiene colesterol alto. Incluye en "notes" observación breve sobre grasas saturadas del plato.');
   if (medicalConditions?.hypertension)      medicalNotes.push('El usuario tiene hipertensión. Incluye en "notes" observación breve sobre contenido de sodio estimado.');
   if (medicalConditions?.hypothyroidism)    medicalNotes.push('El usuario tiene hipotiroidismo. Incluye en "notes" observación breve sobre alimentos bociógenos si los hay (brócoli, soja, col) y yodo.');
   if (medicalConditions?.insulinResistance) medicalNotes.push('El usuario tiene resistencia a la insulina. Incluye en "notes" observación breve sobre índice glucémico y carga de carbohidratos del plato.');
-
   const medicalStr = medicalNotes.length > 0 ? ' ' + medicalNotes.join(' ') : '';
 
   const userPrompt = contextStr
@@ -190,14 +195,13 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
     : `Analiza esta imagen de comida.${medicalStr}`;
 
   const providers: Provider[] = [
-    { label: 'OR:gemini-2.0-flash', fn: () => callOpenRouterVision('google/gemini-2.0-flash', base64Image, mimeType, userPrompt) },
-    { label: 'OR:gemini-flash-1.5', fn: () => callOpenRouterVision('google/gemini-flash-1.5', base64Image, mimeType, userPrompt) },
-    { label: 'Groq:llama-4-maverick', fn: () => callGroqVision('meta-llama/llama-4-maverick-17b-128e-instruct', base64Image, mimeType, userPrompt) },
-    { label: 'Groq:llama-4-scout', fn: () => callGroqVision('meta-llama/llama-4-scout-17b-16e-instruct', base64Image, mimeType, userPrompt) },
+    { label: 'OR:gemini-2.0-flash', fn: () => callOpenRouterVision('google/gemini-2.0-flash', base64Image, mimeType, userPrompt, goal) },
+    { label: 'OR:gemini-flash-1.5', fn: () => callOpenRouterVision('google/gemini-flash-1.5', base64Image, mimeType, userPrompt, goal) },
+    { label: 'Groq:llama-4-maverick', fn: () => callGroqVision('meta-llama/llama-4-maverick-17b-128e-instruct', base64Image, mimeType, userPrompt, goal) },
+    { label: 'Groq:llama-4-scout', fn: () => callGroqVision('meta-llama/llama-4-scout-17b-16e-instruct', base64Image, mimeType, userPrompt, goal) },
   ];
 
   const errors: string[] = [];
-
   for (const { label, fn } of providers) {
     try {
       return await withTimeout(fn(), 30000);
@@ -205,13 +209,8 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
       const msg: string = error?.message ?? '';
       console.error(`[vision][${label}] ${msg}`);
       errors.push(`${label}: ${msg}`);
-
-      if (msg.includes('timeout')) {
-        throw new Error('El análisis está tardando demasiado. Comprueba tu conexión e inténtalo de nuevo.');
-      }
-      if (msg.includes('429') || msg.includes('rate_limit') || msg.includes('Rate limit')) {
-        throw new Error('Límite de análisis alcanzado. Espera un momento e inténtalo de nuevo.');
-      }
+      if (msg.includes('timeout')) throw new Error('El análisis está tardando demasiado. Comprueba tu conexión e inténtalo de nuevo.');
+      if (msg.includes('429') || msg.includes('rate_limit') || msg.includes('Rate limit')) throw new Error('Límite de análisis alcanzado. Espera un momento e inténtalo de nuevo.');
     }
   }
 

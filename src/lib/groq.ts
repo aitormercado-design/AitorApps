@@ -165,6 +165,8 @@ CRÍTICO: Máximo 2 frases cortas. Sin saludos como "Excelente trabajo" o "Enhor
   }
 }
 
+type UserGoal = 'lose' | 'maintain' | 'gain';
+
 type MedicalConditions = {
   diabetes?: boolean;
   highCholesterol?: boolean;
@@ -181,21 +183,38 @@ type FoodTextResponse = {
   notes: string;
 };
 
-function calculateNutriScore(calories: number, protein: number, fat: number): NutritionalInfo['nutriScore'] {
-  if (calories < 200 && protein > 15 && fat < 10) return 'A';
-  if (calories < 400 && protein > 10) return 'B';
-  if (calories < 600) return 'C';
-  if (calories < 800) return 'D';
-  return 'E';
+function calculateSemaforo(calories: number, protein: number, goal: UserGoal): { semaforo: 'verde' | 'amarillo' | 'rojo'; semaforoLabel: string } {
+  const umbrales = {
+    lose:     { verde: 450, amarillo: 650 },
+    maintain: { verde: 600, amarillo: 800 },
+    gain:     { verde: 750, amarillo: 950 },
+  };
+  const { verde, amarillo } = umbrales[goal] ?? umbrales.maintain;
+
+  let semaforo: 'verde' | 'amarillo' | 'rojo';
+  if (calories <= verde) semaforo = 'verde';
+  else if (calories <= amarillo) semaforo = 'amarillo';
+  else semaforo = 'rojo';
+
+  if (protein >= 20 && semaforo === 'rojo')    semaforo = 'amarillo';
+  if (protein >= 20 && semaforo === 'amarillo') semaforo = 'verde';
+
+  const labels = {
+    verde:    'Comida equilibrada para tu objetivo',
+    amarillo: 'Dentro del rango, vigila el total del día',
+    rojo:     'Alto para tu objetivo, compensa en la siguiente comida',
+  };
+  return { semaforo, semaforoLabel: labels[semaforo] };
 }
 
-function parseFoodTextResponse(raw: FoodTextResponse): NutritionalInfo {
+function parseFoodTextResponse(raw: FoodTextResponse, goal: UserGoal): NutritionalInfo {
   const foods = raw.foods ?? [];
   const protein = foods.reduce((s, f) => s + (f.protein ?? 0), 0);
   const carbs   = foods.reduce((s, f) => s + (f.carbs   ?? 0), 0);
   const fat     = foods.reduce((s, f) => s + (f.fat     ?? 0), 0);
   const totalWeight = foods.reduce((s, f) => s + (f.grams ?? 0), 0);
   const calories = raw.totalCalories ?? Math.round(protein * 4 + carbs * 4 + fat * 9);
+  const { semaforo, semaforoLabel } = calculateSemaforo(calories, Math.round(protein), goal);
   return {
     foodName: foods.map(f => f.name).join(', ') || 'Comida',
     totalWeight: Math.round(totalWeight),
@@ -207,18 +226,19 @@ function parseFoodTextResponse(raw: FoodTextResponse): NutritionalInfo {
     confidence: raw.globalConfidence ?? 'media',
     confidenceMessage: raw.confidenceMessage ?? '',
     interpretation: raw.notes ?? '',
-    nutriScore: calculateNutriScore(calories, Math.round(protein), Math.round(fat)),
+    semaforo,
+    semaforoLabel,
   };
 }
 
-const TEXT_SYSTEM_PROMPT = `Eres un sistema de estimación nutricional.
+const TEXT_SYSTEM_PROMPT = `Eres un sistema de análisis visual de alimentos.
 
-Tu única tarea: estimar macros del alimento descrito.
+TAREA: Identificar alimentos visibles y estimar cantidades.
 
 REGLAS:
-- Basa la estimación en el texto del usuario
-- Si no especifica cantidad, usa porción estándar
-- Si hay ambigüedad, usa confidence baja y explícalo
+- No inventes alimentos no visibles
+- Considera aceite/salsas ocultos si la comida está cocinada (5-15g)
+- Sin consejos, sin recomendaciones, solo estimación
 
 REFERENCIAS DE PORCIONES:
 - Arroz/pasta cocidos: 150-250g plato normal
@@ -238,11 +258,11 @@ SALIDA: JSON estricto, sin texto adicional:
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const OPENROUTER_API_KEY = (import.meta.env.VITE_OPENROUTER_API_KEY as string) || '';
 
-async function callGroqText(model: string, systemPrompt: string, userPrompt: string): Promise<NutritionalInfo> {
+async function callGroqText(model: string, userPrompt: string, goal: UserGoal): Promise<NutritionalInfo> {
   const completion = await groq.chat.completions.create({
     model,
     messages: [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: TEXT_SYSTEM_PROMPT },
       { role: 'user', content: userPrompt },
     ],
     temperature: 0.3,
@@ -251,10 +271,10 @@ async function callGroqText(model: string, systemPrompt: string, userPrompt: str
   });
   const text = completion.choices[0].message.content;
   if (!text) throw new Error('Sin respuesta del modelo.');
-  return parseFoodTextResponse(JSON.parse(text) as FoodTextResponse);
+  return parseFoodTextResponse(JSON.parse(text) as FoodTextResponse, goal);
 }
 
-async function callOpenRouterText(model: string, systemPrompt: string, userPrompt: string): Promise<NutritionalInfo> {
+async function callOpenRouterText(model: string, userPrompt: string, goal: UserGoal): Promise<NutritionalInfo> {
   const response = await fetch(OPENROUTER_URL, {
     method: 'POST',
     headers: {
@@ -266,7 +286,7 @@ async function callOpenRouterText(model: string, systemPrompt: string, userPromp
     body: JSON.stringify({
       model,
       messages: [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: TEXT_SYSTEM_PROMPT },
         { role: 'user', content: userPrompt },
       ],
       max_tokens: 1024,
@@ -278,10 +298,10 @@ async function callOpenRouterText(model: string, systemPrompt: string, userPromp
   if (!response.ok) throw new Error(data?.error?.message ?? `HTTP ${response.status}`);
   const text: string = data.choices?.[0]?.message?.content ?? '';
   if (!text) throw new Error('Sin respuesta del modelo.');
-  return parseFoodTextResponse(JSON.parse(text) as FoodTextResponse);
+  return parseFoodTextResponse(JSON.parse(text) as FoodTextResponse, goal);
 }
 
-export async function analyzeFoodText(foodDescription: string, contextStr?: string, medicalConditions?: MedicalConditions): Promise<NutritionalInfo> {
+export async function analyzeFoodText(foodDescription: string, contextStr?: string, medicalConditions?: MedicalConditions, goal: UserGoal = 'maintain'): Promise<NutritionalInfo> {
   const medicalNotes: string[] = [];
   if (medicalConditions?.diabetes)          medicalNotes.push('El usuario tiene diabetes tipo 2. Incluye en "notes" observación breve sobre carga glucémica.');
   if (medicalConditions?.highCholesterol)   medicalNotes.push('El usuario tiene colesterol alto. Incluye en "notes" observación breve sobre grasas saturadas del plato.');
@@ -295,10 +315,10 @@ export async function analyzeFoodText(foodDescription: string, contextStr?: stri
     : `Alimento: "${foodDescription}".${medicalStr}`;
 
   const providers = [
-    { label: 'Groq:llama-3.3-70b', fn: () => callGroqText(MODEL, TEXT_SYSTEM_PROMPT, userPrompt) },
-    { label: 'Groq:llama-3.1-8b',  fn: () => callGroqText(FAST_MODEL, TEXT_SYSTEM_PROMPT, userPrompt) },
-    { label: 'OR:gemini-2.0-flash', fn: () => callOpenRouterText('google/gemini-2.0-flash', TEXT_SYSTEM_PROMPT, userPrompt) },
-    { label: 'OR:gemini-flash-1.5', fn: () => callOpenRouterText('google/gemini-flash-1.5', TEXT_SYSTEM_PROMPT, userPrompt) },
+    { label: 'Groq:llama-3.3-70b', fn: () => callGroqText(MODEL,       userPrompt, goal) },
+    { label: 'Groq:llama-3.1-8b',  fn: () => callGroqText(FAST_MODEL,  userPrompt, goal) },
+    { label: 'OR:gemini-2.0-flash', fn: () => callOpenRouterText('google/gemini-2.0-flash', userPrompt, goal) },
+    { label: 'OR:gemini-flash-1.5', fn: () => callOpenRouterText('google/gemini-flash-1.5', userPrompt, goal) },
   ];
 
   const errors: string[] = [];
@@ -309,10 +329,6 @@ export async function analyzeFoodText(foodDescription: string, contextStr?: stri
       const msg: string = error?.message ?? '';
       console.error(`[food-text][${label}] ${msg}`);
       errors.push(`${label}: ${msg}`);
-      if (msg.includes('429') || msg.includes('rate_limit') || msg.includes('Rate limit')) {
-        // rate limited — try next provider
-        continue;
-      }
     }
   }
 

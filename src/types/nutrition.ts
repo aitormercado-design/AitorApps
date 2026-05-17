@@ -12,7 +12,8 @@ export type NutritionalInfo = {
   isHealthy?: boolean;
   healthAnalysis?: string;
   recommendations?: string;
-  nutriScore?: "A" | "B" | "C" | "D" | "E";
+  semaforo?: "verde" | "amarillo" | "rojo";
+  semaforoLabel?: string;
   densityAnalysis?: string;
   interpretation?: string;
   coachMessage?: string;

@@ -226,18 +226,18 @@ const DEFAULT_PROFILE: UserProfile = {
   weight: 0,
 };
 
-const NutriScoreBadge = ({ score }: { score?: "A" | "B" | "C" | "D" | "E" }) => {
-  if (!score) return null;
-  const colors = {
-    A: "bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]",
-    B: "bg-lime-500 text-white shadow-[0_0_15px_rgba(132,204,22,0.4)]",
-    C: "bg-yellow-500 text-white shadow-[0_0_15px_rgba(234,179,8,0.4)]",
-    D: "bg-orange-500 text-white shadow-[0_0_15px_rgba(249,115,22,0.4)]",
-    E: "bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)]",
+const SemaforoBadge = ({ semaforo, label }: { semaforo?: "verde" | "amarillo" | "rojo"; label?: string }) => {
+  if (!semaforo) return null;
+  const styles = {
+    verde:    { dot: "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]",  text: "text-emerald-500" },
+    amarillo: { dot: "bg-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.5)]",   text: "text-yellow-400" },
+    rojo:     { dot: "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]",      text: "text-red-500" },
   };
+  const { dot, text } = styles[semaforo];
   return (
-    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-lg ${colors[score]}`}>
-      {score}
+    <div className="flex items-center gap-1.5">
+      <div className={`w-3 h-3 rounded-full shrink-0 ${dot}`} />
+      {label && <span className={`text-[10px] font-bold uppercase tracking-wider ${text}`}>{label}</span>}
     </div>
   );
 };
@@ -1455,7 +1455,7 @@ export default function App() {
       const remainingFat = goals.fat - totals.fat;
       const contextStr = `Usuario: ${profile.name || 'Usuario'}. Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas para cumplir el objetivo del día. Dieta: ${profile.dietType}.`;
 
-      const info = await analyzeFoodText(text, contextStr, profile.medicalConditions);
+      const info = await analyzeFoodText(text, contextStr, profile.medicalConditions, profile.goal);
       
       const newMeal: Meal = {
         id: Date.now().toString(),
@@ -1503,7 +1503,7 @@ export default function App() {
       const remainingFat = goals.fat - totals.fat;
       const contextStr = `Usuario: ${profile.name || 'Usuario'}. Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas para cumplir el objetivo del día. Dieta: ${profile.dietType}.`;
 
-      const info = await analyzeFoodImage(base64Data, mimeType, contextStr, profile.medicalConditions);
+      const info = await analyzeFoodImage(base64Data, mimeType, contextStr, profile.medicalConditions, profile.goal);
 
       const newMeal: Meal = {
         id: Date.now().toString(),
@@ -1540,7 +1540,7 @@ export default function App() {
       const remainingCalories = goals.calories - totals.calories;
       const remainingProtein = goals.protein - totals.protein;
       const contextStr = `Usuario: ${profile.name || 'Usuario'}. Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína. Dieta: ${profile.dietType}.`;
-      const info = await analyzeFoodText(name.trim(), contextStr, profile.medicalConditions);
+      const info = await analyzeFoodText(name.trim(), contextStr, profile.medicalConditions, profile.goal);
       setEditingMeal({
         ...meal,
         foodName: name,
@@ -1551,7 +1551,8 @@ export default function App() {
         totalWeight: info.totalWeight,
         interpretation: info.interpretation,
         coachMessage: info.coachMessage,
-        nutriScore: info.nutriScore,
+        semaforo: info.semaforo,
+        semaforoLabel: info.semaforoLabel,
       });
       setMacrosJustUpdated(true);
       setTimeout(() => setMacrosJustUpdated(false), 2500);
@@ -2736,7 +2737,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                           </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                          <NutriScoreBadge score={meal.nutriScore} />
+                                          <SemaforoBadge semaforo={meal.semaforo} label={meal.semaforoLabel} />
                                           {meal.isHealthy && (
                                             <span className={`px-2 py-0.5 rounded-full ${themeStyles.accentMuted} ${themeStyles.accent} text-xs font-bold uppercase tracking-widest border ${themeStyles.accentBorder}`}>Saludable</span>
                                           )}
@@ -5095,25 +5096,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   </div>
                 </div>
 
-                {/* NutriScore & Density Analysis */}
-                {editingMeal.nutriScore && (
-                  <div className={`${themeStyles.iconBg} rounded-2xl p-4 border ${themeStyles.border} space-y-3`}>
+                {/* Semáforo */}
+                {editingMeal.semaforo && (
+                  <div className={`${themeStyles.iconBg} rounded-2xl p-4 border ${themeStyles.border} space-y-2`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Calidad Nutricional</span>
-                      <div className="flex items-center gap-3">
-                        {editingMeal.totalWeight && (
-                          <span className="text-xs font-bold text-zinc-400 bg-zinc-900 px-2 py-1 rounded border border-white/5">
-                            {editingMeal.totalWeight}g ESTIMADOS
-                          </span>
-                        )}
-                        <NutriScoreBadge score={editingMeal.nutriScore} />
-                      </div>
+                      <SemaforoBadge semaforo={editingMeal.semaforo} label={editingMeal.semaforoLabel} />
+                      {editingMeal.totalWeight != null && editingMeal.totalWeight > 0 && (
+                        <span className={`text-xs font-bold ${themeStyles.textMuted} ${themeStyles.iconBg} px-2 py-1 rounded border ${themeStyles.border}`}>
+                          {editingMeal.totalWeight}g estimados
+                        </span>
+                      )}
                     </div>
-                    {editingMeal.densityAnalysis && (
-                      <p className="text-xs text-zinc-400 leading-relaxed italic">
-                        "{editingMeal.densityAnalysis}"
-                      </p>
-                    )}
                   </div>
                 )}
 
