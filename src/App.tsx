@@ -1455,7 +1455,7 @@ export default function App() {
       const remainingFat = goals.fat - totals.fat;
       const contextStr = `Usuario: ${profile.name || 'Usuario'}. Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína, ${Math.round(remainingCarbs)}g carbohidratos, ${Math.round(remainingFat)}g grasas para cumplir el objetivo del día. Dieta: ${profile.dietType}.`;
 
-      const info = await analyzeFoodText(text, contextStr);
+      const info = await analyzeFoodText(text, contextStr, profile.medicalConditions);
       
       const newMeal: Meal = {
         id: Date.now().toString(),
@@ -1540,7 +1540,7 @@ export default function App() {
       const remainingCalories = goals.calories - totals.calories;
       const remainingProtein = goals.protein - totals.protein;
       const contextStr = `Usuario: ${profile.name || 'Usuario'}. Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína. Dieta: ${profile.dietType}.`;
-      const info = await analyzeFoodText(name.trim(), contextStr);
+      const info = await analyzeFoodText(name.trim(), contextStr, profile.medicalConditions);
       setEditingMeal({
         ...meal,
         foodName: name,

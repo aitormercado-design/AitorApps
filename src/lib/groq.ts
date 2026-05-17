@@ -165,36 +165,158 @@ CRÍTICO: Máximo 2 frases cortas. Sin saludos como "Excelente trabajo" o "Enhor
   }
 }
 
-export async function analyzeFoodText(foodDescription: string, contextStr?: string): Promise<NutritionalInfo> {
-  const systemPrompt = `Eres un experto nutricionista deportivo y coach empático y motivador. Estima con precisión el contenido nutricional del alimento descrito. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él.
+type MedicalConditions = {
+  diabetes?: boolean;
+  highCholesterol?: boolean;
+  hypertension?: boolean;
+  hypothyroidism?: boolean;
+  insulinResistance?: boolean;
+};
 
-Responde ÚNICAMENTE con JSON válido. Sin texto adicional. Sin markdown. El JSON debe seguir exactamente este formato:
-{"foodName":"Arroz con pollo","totalWeight":350,"calories":450,"protein":38,"carbs":52,"fat":12,"ingredients":[{"name":"arroz","amount":"150g"},{"name":"pollo","amount":"150g"},{"name":"aceite","amount":"10g"}],"confidence":"alta","confidenceMessage":"Análisis completado","interpretation":"Plato equilibrado","coachMessage":"Buena elección","actionableRecommendation":"Añade verduras","nutriScore":"B"}`;
+type FoodTextResponse = {
+  foods: { name: string; grams: number; calories: number; protein: number; carbs: number; fat: number; confidence: 'alta' | 'media' | 'baja' }[];
+  totalCalories: number;
+  globalConfidence: 'alta' | 'media' | 'baja';
+  confidenceMessage: string;
+  notes: string;
+};
 
-  const userPrompt = contextStr
-    ? `Alimento: "${foodDescription}". Contexto del usuario: "${contextStr}".`
-    : `Alimento: "${foodDescription}".`;
+function calculateNutriScore(calories: number, protein: number, fat: number): NutritionalInfo['nutriScore'] {
+  if (calories < 200 && protein > 15 && fat < 10) return 'A';
+  if (calories < 400 && protein > 10) return 'B';
+  if (calories < 600) return 'C';
+  if (calories < 800) return 'D';
+  return 'E';
+}
 
-  try {
-    const completion = await groq.chat.completions.create({
-      model: MODEL,
+function parseFoodTextResponse(raw: FoodTextResponse): NutritionalInfo {
+  const foods = raw.foods ?? [];
+  const protein = foods.reduce((s, f) => s + (f.protein ?? 0), 0);
+  const carbs   = foods.reduce((s, f) => s + (f.carbs   ?? 0), 0);
+  const fat     = foods.reduce((s, f) => s + (f.fat     ?? 0), 0);
+  const totalWeight = foods.reduce((s, f) => s + (f.grams ?? 0), 0);
+  const calories = raw.totalCalories ?? Math.round(protein * 4 + carbs * 4 + fat * 9);
+  return {
+    foodName: foods.map(f => f.name).join(', ') || 'Comida',
+    totalWeight: Math.round(totalWeight),
+    calories,
+    protein: Math.round(protein),
+    carbs: Math.round(carbs),
+    fat: Math.round(fat),
+    ingredients: foods.map(f => ({ name: f.name, amount: `${f.grams}g` })),
+    confidence: raw.globalConfidence ?? 'media',
+    confidenceMessage: raw.confidenceMessage ?? '',
+    interpretation: raw.notes ?? '',
+    nutriScore: calculateNutriScore(calories, Math.round(protein), Math.round(fat)),
+  };
+}
+
+const TEXT_SYSTEM_PROMPT = `Eres un sistema de estimación nutricional.
+
+Tu única tarea: estimar macros del alimento descrito.
+
+REGLAS:
+- Basa la estimación en el texto del usuario
+- Si no especifica cantidad, usa porción estándar
+- Si hay ambigüedad, usa confidence baja y explícalo
+
+REFERENCIAS DE PORCIONES:
+- Arroz/pasta cocidos: 150-250g plato normal
+- Carne/pescado: 120-220g por ración
+- Verduras: 100-200g
+- Pan: 40-60g por rebanada
+
+SALIDA: JSON estricto, sin texto adicional:
+{
+  "foods": [{"name": string, "grams": number, "calories": number, "protein": number, "carbs": number, "fat": number, "confidence": "alta"|"media"|"baja"}],
+  "totalCalories": number,
+  "globalConfidence": "alta"|"media"|"baja",
+  "confidenceMessage": string,
+  "notes": string
+}`;
+
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_API_KEY = (import.meta.env.VITE_OPENROUTER_API_KEY as string) || '';
+
+async function callGroqText(model: string, systemPrompt: string, userPrompt: string): Promise<NutritionalInfo> {
+  const completion = await groq.chat.completions.create({
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.3,
+    max_tokens: 1024,
+    response_format: { type: 'json_object' },
+  });
+  const text = completion.choices[0].message.content;
+  if (!text) throw new Error('Sin respuesta del modelo.');
+  return parseFoodTextResponse(JSON.parse(text) as FoodTextResponse);
+}
+
+async function callOpenRouterText(model: string, systemPrompt: string, userPrompt: string): Promise<NutritionalInfo> {
+  const response = await fetch(OPENROUTER_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://aitor-apps.vercel.app',
+      'X-Title': 'KiloKalo',
+    },
+    body: JSON.stringify({
+      model,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.7,
-      max_tokens: 8192,
+      max_tokens: 1024,
       response_format: { type: 'json_object' },
-    });
+    }),
+  });
+  let data: any;
+  try { data = await response.json(); } catch { throw new Error(`HTTP ${response.status}`); }
+  if (!response.ok) throw new Error(data?.error?.message ?? `HTTP ${response.status}`);
+  const text: string = data.choices?.[0]?.message?.content ?? '';
+  if (!text) throw new Error('Sin respuesta del modelo.');
+  return parseFoodTextResponse(JSON.parse(text) as FoodTextResponse);
+}
 
-    const text = completion.choices[0].message.content;
-    if (!text) throw new Error('No se recibió respuesta del modelo.');
+export async function analyzeFoodText(foodDescription: string, contextStr?: string, medicalConditions?: MedicalConditions): Promise<NutritionalInfo> {
+  const medicalNotes: string[] = [];
+  if (medicalConditions?.diabetes)          medicalNotes.push('El usuario tiene diabetes tipo 2. Incluye en "notes" observación breve sobre carga glucémica.');
+  if (medicalConditions?.highCholesterol)   medicalNotes.push('El usuario tiene colesterol alto. Incluye en "notes" observación breve sobre grasas saturadas del plato.');
+  if (medicalConditions?.hypertension)      medicalNotes.push('El usuario tiene hipertensión. Incluye en "notes" observación breve sobre contenido de sodio estimado.');
+  if (medicalConditions?.hypothyroidism)    medicalNotes.push('El usuario tiene hipotiroidismo. Incluye en "notes" observación breve sobre alimentos bociógenos si los hay (brócoli, soja, col) y yodo.');
+  if (medicalConditions?.insulinResistance) medicalNotes.push('El usuario tiene resistencia a la insulina. Incluye en "notes" observación breve sobre índice glucémico y carga de carbohidratos del plato.');
+  const medicalStr = medicalNotes.length > 0 ? ' ' + medicalNotes.join(' ') : '';
 
-    return JSON.parse(text) as NutritionalInfo;
-  } catch (error: any) {
-    console.error('Error analyzing food text:', error);
-    throw friendlyGroqError(error, 'No se pudo analizar el texto. Inténtalo de nuevo.');
+  const userPrompt = contextStr
+    ? `Alimento: "${foodDescription}". Contexto del usuario: "${contextStr}".${medicalStr}`
+    : `Alimento: "${foodDescription}".${medicalStr}`;
+
+  const providers = [
+    { label: 'Groq:llama-3.3-70b', fn: () => callGroqText(MODEL, TEXT_SYSTEM_PROMPT, userPrompt) },
+    { label: 'Groq:llama-3.1-8b',  fn: () => callGroqText(FAST_MODEL, TEXT_SYSTEM_PROMPT, userPrompt) },
+    { label: 'OR:gemini-2.0-flash', fn: () => callOpenRouterText('google/gemini-2.0-flash', TEXT_SYSTEM_PROMPT, userPrompt) },
+    { label: 'OR:gemini-flash-1.5', fn: () => callOpenRouterText('google/gemini-flash-1.5', TEXT_SYSTEM_PROMPT, userPrompt) },
+  ];
+
+  const errors: string[] = [];
+  for (const { label, fn } of providers) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const msg: string = error?.message ?? '';
+      console.error(`[food-text][${label}] ${msg}`);
+      errors.push(`${label}: ${msg}`);
+      if (msg.includes('429') || msg.includes('rate_limit') || msg.includes('Rate limit')) {
+        // rate limited — try next provider
+        continue;
+      }
+    }
   }
+
+  throw new Error(`No se pudo analizar el alimento. [${errors.join(' | ')}]`);
 }
 
 export async function generateShoppingList(ingredients: any[]): Promise<ShoppingList> {
