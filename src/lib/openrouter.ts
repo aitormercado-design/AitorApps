@@ -10,17 +10,72 @@ const groqVision = new Groq({
   dangerouslyAllowBrowser: true,
 });
 
-const SYSTEM_PROMPT = `Eres un experto nutricionista especializado en nutrición deportiva y gestión de la DIABETES. Actúa como un coach empático y motivador.
-Analiza la imagen de comida proporcionada. Estima las cantidades visualmente basándote en el tamaño del plato, utensilios y referencias de escala. Evalúa la calidad nutricional (NutriScore A-E). Si el usuario es diabético, enfócate en la estabilidad de la glucosa. Si el nombre del usuario está en el contexto, úsalo. Desglosa los ingredientes principales con sus gramos estimados.
-Si no puedes identificar el alimento con confianza, devuelve confidence: "baja" y explícalo en confidenceMessage.
+const SYSTEM_PROMPT = `Eres un sistema de análisis visual de comida.
 
-Responde ÚNICAMENTE con JSON válido. Sin texto adicional. Sin markdown. Formato exacto:
-{"foodName":"Arroz con pollo","totalWeight":350,"calories":450,"protein":38,"carbs":52,"fat":12,"ingredients":[{"name":"arroz","amount":"150g"},{"name":"pollo","amount":"150g"},{"name":"aceite","amount":"10g"}],"confidence":"alta","confidenceMessage":"Identificado con claridad","interpretation":"Plato equilibrado","coachMessage":"Buena elección","actionableRecommendation":"Añade verduras","nutriScore":"B"}`;
+Tu única tarea: identificar alimentos visibles y estimar sus macros.
+
+REGLAS:
+- No inventes alimentos no visibles
+- Considera aceite/salsas ocultos si la comida está cocinada (asume 5-15g)
+- Si hay duda sobre un alimento, inclúyelo con confidence baja
+
+REFERENCIAS DE PORCIONES:
+- Arroz/pasta cocidos: 150-250g plato normal
+- Carne/pescado: 120-220g por ración
+- Verduras: 100-200g
+- Pan: 40-60g por rebanada
+
+SALIDA: JSON estricto, sin texto adicional:
+{
+  "foods": [
+    {
+      "name": string,
+      "grams": number,
+      "calories": number,
+      "protein": number,
+      "carbs": number,
+      "fat": number,
+      "confidence": "alta" | "media" | "baja"
+    }
+  ],
+  "totalCalories": number,
+  "globalConfidence": "alta" | "media" | "baja",
+  "confidenceMessage": string,
+  "notes": string
+}`;
+
+type VisionResponse = {
+  foods: { name: string; grams: number; calories: number; protein: number; carbs: number; fat: number; confidence: 'alta' | 'media' | 'baja' }[];
+  totalCalories: number;
+  globalConfidence: 'alta' | 'media' | 'baja';
+  confidenceMessage: string;
+  notes: string;
+};
 
 function parseJsonFromText(text: string): NutritionalInfo {
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('JSON no encontrado en respuesta');
-  return JSON.parse(match[0]) as NutritionalInfo;
+  const raw = JSON.parse(match[0]) as VisionResponse;
+
+  const foods = raw.foods ?? [];
+  const totalWeight = foods.reduce((s, f) => s + (f.grams ?? 0), 0);
+  const protein = foods.reduce((s, f) => s + (f.protein ?? 0), 0);
+  const carbs = foods.reduce((s, f) => s + (f.carbs ?? 0), 0);
+  const fat = foods.reduce((s, f) => s + (f.fat ?? 0), 0);
+  const foodName = foods.map(f => f.name).join(', ') || 'Comida';
+
+  return {
+    foodName,
+    totalWeight: Math.round(totalWeight),
+    calories: raw.totalCalories ?? Math.round(protein * 4 + carbs * 4 + fat * 9),
+    protein: Math.round(protein),
+    carbs: Math.round(carbs),
+    fat: Math.round(fat),
+    ingredients: foods.map(f => ({ name: f.name, amount: `${f.grams}g` })),
+    confidence: raw.globalConfidence ?? 'media',
+    confidenceMessage: raw.confidenceMessage ?? '',
+    interpretation: raw.notes ?? '',
+  };
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -127,11 +182,9 @@ export async function analyzeFoodImage(base64Image: string, mimeType: string, co
       if (msg.includes('429') || msg.includes('rate_limit') || msg.includes('Rate limit')) {
         throw new Error('Límite de análisis alcanzado. Espera un momento e inténtalo de nuevo.');
       }
-      // Any other error (400, 401, 404, 503, model issues) → try next provider
     }
   }
 
-  // All providers failed — surface debug info in dev, generic in prod
   const debugInfo = errors.join(' | ');
   console.error('[vision] All providers failed:', debugInfo);
   throw new Error(`No se pudo analizar la imagen. [${debugInfo}]`);
