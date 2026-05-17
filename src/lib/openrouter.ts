@@ -52,6 +52,14 @@ type VisionResponse = {
   notes: string;
 };
 
+function calculateNutriScore(calories: number, protein: number, fat: number): NutritionalInfo['nutriScore'] {
+  if (calories < 200 && protein > 15 && fat < 10) return 'A';
+  if (calories < 400 && protein > 10) return 'B';
+  if (calories < 600) return 'C';
+  if (calories < 800) return 'D';
+  return 'E';
+}
+
 function parseJsonFromText(text: string): NutritionalInfo {
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('JSON no encontrado en respuesta');
@@ -75,6 +83,11 @@ function parseJsonFromText(text: string): NutritionalInfo {
     confidence: raw.globalConfidence ?? 'media',
     confidenceMessage: raw.confidenceMessage ?? '',
     interpretation: raw.notes ?? '',
+    nutriScore: calculateNutriScore(
+      raw.totalCalories ?? Math.round(protein * 4 + carbs * 4 + fat * 9),
+      Math.round(protein),
+      Math.round(fat),
+    ),
   };
 }
 
