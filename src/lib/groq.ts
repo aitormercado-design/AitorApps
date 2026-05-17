@@ -80,7 +80,7 @@ const goalLabels: Record<string, string> = {
 
 
 export interface ProactiveEvent {
-  type: 'meal_added' | 'workout_done' | 'workout_exercise' | 'free_workout' | 'weight_updated' | 'day_start' | 'goal_90pct' | 'goal_exceeded' | 'streak_milestone';
+  type: 'meal_added' | 'workout_done' | 'workout_exercise' | 'free_workout' | 'weight_updated' | 'day_start' | 'goal_90pct' | 'goal_exceeded' | 'streak_milestone' | 'monday_summary';
   data: Record<string, any>;
 }
 
@@ -99,6 +99,22 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
   const { profile, goals } = context;
   const dayName = new Date().toLocaleDateString('es-ES', { weekday: 'long' });
 
+  const hour = new Date().getHours();
+  const timeOfDay =
+    hour < 10 ? 'mañana_temprano' :
+    hour < 12 ? 'media_mañana' :
+    hour < 15 ? 'mediodia' :
+    hour < 18 ? 'tarde' :
+    hour < 21 ? 'tarde_noche' :
+    'noche';
+
+  const goalLabels: Record<string, string> = {
+    lose: 'perder grasa (déficit calórico, énfasis en proteínas)',
+    maintain: 'mantener peso (equilibrio calórico)',
+    gain: 'ganar músculo (superávit calórico, énfasis en carbohidratos)',
+  };
+  const goalLabel = goalLabels[profile.goal] ?? 'equilibrio calórico';
+
   const eventPrompts: Record<ProactiveEvent['type'], string> = {
     day_start: `Es ${dayName}. Di a ${profile.name || 'usuario'} su objetivo de hoy en una sola frase: ${goals.calories}kcal.`,
     meal_added: `El usuario acaba de registrar: ${event.data.meal?.foodName} (${Math.round(event.data.meal?.calories ?? 0)}kcal). Lleva ${Math.round(event.data.totalCalories)}kcal de ${goals.calories}kcal objetivo. Comenta brevemente y dile qué le queda.`,
@@ -109,6 +125,7 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
     goal_90pct: `El usuario está al 90% de su objetivo calórico. Le quedan ${Math.round(event.data.remaining ?? 0)}kcal. Avísale y sugiere qué puede comer con lo que le queda.`,
     goal_exceeded: `El usuario ha superado su objetivo calórico en ${Math.round(event.data.excess ?? 0)}kcal. Mensaje tranquilizador, sin dramatizar, con consejo práctico para el resto del día.`,
     streak_milestone: `El usuario lleva ${event.data.streak} días consecutivos registrando. Felicítale en una frase corta.`,
+    monday_summary: `Es lunes. La semana pasada el usuario tuvo ${event.data.daysOnTarget ?? 0}/7 días en objetivo calórico y completó ${event.data.workouts ?? 0} entrenamientos. Haz un resumen motivador en 2 frases máximo y da un objetivo concreto para esta semana.`,
   };
 
   const activeConditions = profile.medicalConditions
@@ -123,9 +140,13 @@ export async function generateProactiveMessage(event: ProactiveEvent, context: C
   const isShortEvent = event.type === 'day_start' || event.type === 'streak_milestone';
   const streakNote = context.streak && context.streak > 1 ? `\n- Racha actual: ${context.streak} días consecutivos` : '';
 
+  const timeNote = `\nSon las ${hour}:00h (${timeOfDay}). Ten en cuenta la hora: no sugieras desayuno si son las 15h, no hables de entrenar si son las 22h, no hables de cenar si son las 9h.`;
+  const nameNote = `\nUsa el nombre del usuario (${profile.name || 'amigo'}) de forma ocasional — solo cuando refuerce la personalización, no en cada frase.`;
+  const goalNote = `\nSu objetivo es ${goalLabel}. Alinea todos tus consejos con ese objetivo.`;
+
   const systemPrompt = isShortEvent
-    ? `Eres el coach de ${profile.name || 'usuario'}. Una sola frase. En español. Sin anglicismos. Directo al objetivo.${conditionsNote}${streakNote}`
-    : `Eres el coach personal de ${profile.name || 'usuario'}. Conoces su perfil y su plan de la semana. Responde en máximo 2 frases. Tono directo y motivador. NUNCA uses saludos largos ni despedidas. Solo el mensaje esencial.${conditionsNote}${streakNote}
+    ? `Eres el coach de ${profile.name || 'usuario'}. Una sola frase. En español. Sin anglicismos. Directo al objetivo.${conditionsNote}${streakNote}${timeNote}${goalNote}`
+    : `Eres el coach personal de ${profile.name || 'usuario'}. Conoces su perfil y su plan de la semana. Responde en máximo 2 frases. Tono directo y motivador. NUNCA uses saludos largos ni despedidas. Solo el mensaje esencial.${conditionsNote}${streakNote}${timeNote}${nameNote}${goalNote}
 CRÍTICO: Máximo 2 frases cortas. Sin saludos como "Excelente trabajo" o "Enhorabuena". Empieza directamente con el dato o la acción. Ejemplo correcto: "533kcal quemadas — gran sesión. Toma proteína en la próxima hora para recuperar." Ejemplo incorrecto: "Excelente trabajo Aitor, has quemado 533kcal..."`;
 
   try {
@@ -144,36 +165,174 @@ CRÍTICO: Máximo 2 frases cortas. Sin saludos como "Excelente trabajo" o "Enhor
   }
 }
 
-export async function analyzeFoodText(foodDescription: string, contextStr?: string): Promise<NutritionalInfo> {
-  const systemPrompt = `Eres un experto nutricionista deportivo y coach empático y motivador. Estima con precisión el contenido nutricional del alimento descrito. Si el nombre del usuario está en el contexto, úsalo para dirigirte a él.
+type UserGoal = 'lose' | 'maintain' | 'gain';
 
-Responde ÚNICAMENTE con JSON válido. Sin texto adicional. Sin markdown. El JSON debe seguir exactamente este formato:
-{"foodName":"Arroz con pollo","totalWeight":350,"calories":450,"protein":38,"carbs":52,"fat":12,"ingredients":[{"name":"arroz","amount":"150g"},{"name":"pollo","amount":"150g"},{"name":"aceite","amount":"10g"}],"confidence":"alta","confidenceMessage":"Análisis completado","interpretation":"Plato equilibrado","coachMessage":"Buena elección","actionableRecommendation":"Añade verduras","nutriScore":"B"}`;
+type MedicalConditions = {
+  diabetes?: boolean;
+  highCholesterol?: boolean;
+  hypertension?: boolean;
+  hypothyroidism?: boolean;
+  insulinResistance?: boolean;
+};
 
-  const userPrompt = contextStr
-    ? `Alimento: "${foodDescription}". Contexto del usuario: "${contextStr}".`
-    : `Alimento: "${foodDescription}".`;
+type FoodTextResponse = {
+  foods: { name: string; grams: number; calories: number; protein: number; carbs: number; fat: number; confidence: 'alta' | 'media' | 'baja' }[];
+  totalCalories: number;
+  globalConfidence: 'alta' | 'media' | 'baja';
+  confidenceMessage: string;
+  notes: string;
+};
 
-  try {
-    const completion = await groq.chat.completions.create({
-      model: MODEL,
+function calculateSemaforo(calories: number, protein: number, goal: UserGoal): { semaforo: 'verde' | 'amarillo' | 'rojo'; semaforoLabel: string } {
+  const umbrales = {
+    lose:     { verde: 450, amarillo: 650 },
+    maintain: { verde: 600, amarillo: 800 },
+    gain:     { verde: 750, amarillo: 950 },
+  };
+  const { verde, amarillo } = umbrales[goal] ?? umbrales.maintain;
+
+  let semaforo: 'verde' | 'amarillo' | 'rojo';
+  if (calories <= verde) semaforo = 'verde';
+  else if (calories <= amarillo) semaforo = 'amarillo';
+  else semaforo = 'rojo';
+
+  if (protein >= 20 && semaforo === 'rojo')    semaforo = 'amarillo';
+  if (protein >= 20 && semaforo === 'amarillo') semaforo = 'verde';
+
+  const labels = {
+    verde:    'Comida equilibrada para tu objetivo',
+    amarillo: 'Dentro del rango, vigila el total del día',
+    rojo:     'Alto para tu objetivo, compensa en la siguiente comida',
+  };
+  return { semaforo, semaforoLabel: labels[semaforo] };
+}
+
+function parseFoodTextResponse(raw: FoodTextResponse, goal: UserGoal): NutritionalInfo {
+  const foods = raw.foods ?? [];
+  const protein = foods.reduce((s, f) => s + (f.protein ?? 0), 0);
+  const carbs   = foods.reduce((s, f) => s + (f.carbs   ?? 0), 0);
+  const fat     = foods.reduce((s, f) => s + (f.fat     ?? 0), 0);
+  const totalWeight = foods.reduce((s, f) => s + (f.grams ?? 0), 0);
+  const calories = raw.totalCalories ?? Math.round(protein * 4 + carbs * 4 + fat * 9);
+  const { semaforo, semaforoLabel } = calculateSemaforo(calories, Math.round(protein), goal);
+  return {
+    foodName: foods.map(f => f.name).join(', ') || 'Comida',
+    totalWeight: Math.round(totalWeight),
+    calories,
+    protein: Math.round(protein),
+    carbs: Math.round(carbs),
+    fat: Math.round(fat),
+    ingredients: foods.map(f => ({ name: f.name, amount: `${f.grams}g` })),
+    confidence: raw.globalConfidence ?? 'media',
+    confidenceMessage: raw.confidenceMessage ?? '',
+    interpretation: raw.notes ?? '',
+    semaforo,
+    semaforoLabel,
+  };
+}
+
+const TEXT_SYSTEM_PROMPT = `Eres un sistema de análisis visual de alimentos.
+
+TAREA: Identificar alimentos visibles y estimar cantidades.
+
+REGLAS:
+- No inventes alimentos no visibles
+- Considera aceite/salsas ocultos si la comida está cocinada (5-15g)
+- Sin consejos, sin recomendaciones, solo estimación
+
+REFERENCIAS DE PORCIONES:
+- Arroz/pasta cocidos: 150-250g plato normal
+- Carne/pescado: 120-220g por ración
+- Verduras: 100-200g
+- Pan: 40-60g por rebanada
+
+SALIDA: JSON estricto, sin texto adicional:
+{
+  "foods": [{"name": string, "grams": number, "calories": number, "protein": number, "carbs": number, "fat": number, "confidence": "alta"|"media"|"baja"}],
+  "totalCalories": number,
+  "globalConfidence": "alta"|"media"|"baja",
+  "confidenceMessage": string,
+  "notes": string
+}`;
+
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_API_KEY = (import.meta.env.VITE_OPENROUTER_API_KEY as string) || '';
+
+async function callGroqText(model: string, userPrompt: string, goal: UserGoal): Promise<NutritionalInfo> {
+  const completion = await groq.chat.completions.create({
+    model,
+    messages: [
+      { role: 'system', content: TEXT_SYSTEM_PROMPT },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.3,
+    max_tokens: 1024,
+    response_format: { type: 'json_object' },
+  });
+  const text = completion.choices[0].message.content;
+  if (!text) throw new Error('Sin respuesta del modelo.');
+  return parseFoodTextResponse(JSON.parse(text) as FoodTextResponse, goal);
+}
+
+async function callOpenRouterText(model: string, userPrompt: string, goal: UserGoal): Promise<NutritionalInfo> {
+  const response = await fetch(OPENROUTER_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://aitor-apps.vercel.app',
+      'X-Title': 'KiloKalo',
+    },
+    body: JSON.stringify({
+      model,
       messages: [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: TEXT_SYSTEM_PROMPT },
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.7,
-      max_tokens: 8192,
+      max_tokens: 1024,
       response_format: { type: 'json_object' },
-    });
+    }),
+  });
+  let data: any;
+  try { data = await response.json(); } catch { throw new Error(`HTTP ${response.status}`); }
+  if (!response.ok) throw new Error(data?.error?.message ?? `HTTP ${response.status}`);
+  const text: string = data.choices?.[0]?.message?.content ?? '';
+  if (!text) throw new Error('Sin respuesta del modelo.');
+  return parseFoodTextResponse(JSON.parse(text) as FoodTextResponse, goal);
+}
 
-    const text = completion.choices[0].message.content;
-    if (!text) throw new Error('No se recibió respuesta del modelo.');
+export async function analyzeFoodText(foodDescription: string, contextStr?: string, medicalConditions?: MedicalConditions, goal: UserGoal = 'maintain'): Promise<NutritionalInfo> {
+  const medicalNotes: string[] = [];
+  if (medicalConditions?.diabetes)          medicalNotes.push('El usuario tiene diabetes tipo 2. Incluye en "notes" observación breve sobre carga glucémica.');
+  if (medicalConditions?.highCholesterol)   medicalNotes.push('El usuario tiene colesterol alto. Incluye en "notes" observación breve sobre grasas saturadas del plato.');
+  if (medicalConditions?.hypertension)      medicalNotes.push('El usuario tiene hipertensión. Incluye en "notes" observación breve sobre contenido de sodio estimado.');
+  if (medicalConditions?.hypothyroidism)    medicalNotes.push('El usuario tiene hipotiroidismo. Incluye en "notes" observación breve sobre alimentos bociógenos si los hay (brócoli, soja, col) y yodo.');
+  if (medicalConditions?.insulinResistance) medicalNotes.push('El usuario tiene resistencia a la insulina. Incluye en "notes" observación breve sobre índice glucémico y carga de carbohidratos del plato.');
+  const medicalStr = medicalNotes.length > 0 ? ' ' + medicalNotes.join(' ') : '';
 
-    return JSON.parse(text) as NutritionalInfo;
-  } catch (error: any) {
-    console.error('Error analyzing food text:', error);
-    throw friendlyGroqError(error, 'No se pudo analizar el texto. Inténtalo de nuevo.');
+  const userPrompt = contextStr
+    ? `Alimento: "${foodDescription}". Contexto del usuario: "${contextStr}".${medicalStr}`
+    : `Alimento: "${foodDescription}".${medicalStr}`;
+
+  const providers = [
+    { label: 'Groq:llama-3.3-70b', fn: () => callGroqText(MODEL,       userPrompt, goal) },
+    { label: 'Groq:llama-3.1-8b',  fn: () => callGroqText(FAST_MODEL,  userPrompt, goal) },
+    { label: 'OR:gemini-2.0-flash', fn: () => callOpenRouterText('google/gemini-2.0-flash', userPrompt, goal) },
+    { label: 'OR:gemini-flash-1.5', fn: () => callOpenRouterText('google/gemini-flash-1.5', userPrompt, goal) },
+  ];
+
+  const errors: string[] = [];
+  for (const { label, fn } of providers) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const msg: string = error?.message ?? '';
+      console.error(`[food-text][${label}] ${msg}`);
+      errors.push(`${label}: ${msg}`);
+    }
   }
+
+  throw new Error(`No se pudo analizar el alimento. [${errors.join(' | ')}]`);
 }
 
 export async function generateShoppingList(ingredients: any[]): Promise<ShoppingList> {
@@ -361,7 +520,7 @@ VARIEDAD OBLIGATORIA:
 Estructura del JSON — usa EXACTAMENTE estas claves abreviadas:
 - "d": array de 7 días
 - Cada día: "n" (nombre), "k" (kcal), "p" (proteína g), "c" (carbs g), "g" (grasa g), "m" (array de comidas)
-- Cada comida: "t" (tipo), "n" (nombre plato), "k" (kcal), "p" (proteína g), "c" (carbs g), "g" (grasa g), "i" (máx 4 ingredientes separados por coma, sin cantidades)${medicalRestrictionsBlock}`;
+- Cada comida: "t" (tipo), "n" (nombre plato), "k" (kcal), "p" (proteína g), "c" (carbs g), "g" (grasa g), "i" (máx 4 ingredientes CON cantidad en gramos o unidades comerciales, separados por coma. Formato: 'ingrediente Xg' o 'ingrediente Xud'. Ejemplo: 'avena 80g, whey 30g, leche 200ml, plátano 1ud')${medicalRestrictionsBlock}`;
 
   try {
     const completion = await Promise.race([
