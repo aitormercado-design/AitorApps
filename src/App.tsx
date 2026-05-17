@@ -615,6 +615,8 @@ export default function App() {
             if (data.shoppingList) setShoppingList(data.shoppingList);
             if (data.workoutPlan) setWorkoutPlan(data.workoutPlan);
             if (data.checkedItems) setCheckedItems(data.checkedItems);
+            if (data.gymRoutineDates) setGymRoutineDates(data.gymRoutineDates);
+            if (data.gymDayDone) setGymDayDone(data.gymDayDone);
             
             // Load subcollections — meals via real-time listener ordered server-side
             if (mealsListenerRef.current) mealsListenerRef.current();
@@ -791,6 +793,18 @@ export default function App() {
     }
   }, [workoutPlan, user, isDataLoaded]);
 
+  useEffect(() => {
+    if (isDataLoaded && user && Object.keys(gymRoutineDates).length > 0) {
+      setDoc(doc(db, 'users', user.uid), { gymRoutineDates }, { merge: true }).catch(console.error);
+    }
+  }, [gymRoutineDates, user, isDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (isDataLoaded && user) {
+      setDoc(doc(db, 'users', user.uid), { gymDayDone }, { merge: true }).catch(console.error);
+    }
+  }, [gymDayDone, user, isDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // When Firestore data finishes loading, always recalculate goals from the current user's
   // profile. This prevents stale or missing Firestore goals (e.g. DEFAULT_GOALS = 2500) from
   // showing a different value than what the profile actually dictates.
@@ -897,25 +911,6 @@ export default function App() {
     return () => timers.forEach(clearTimeout);
   }, [notificationsEnabled, isDataLoaded, todayStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (!workoutPlan) return;
-    // Only fill in keys that don't exist yet (handleGenerateWorkout sets them eagerly;
-    // this covers the app-load case when workoutPlan is restored from Firestore)
-    setGymRoutineDates(prev => {
-      const next = { ...prev };
-      const base = new Date(todayStr + 'T12:00:00');
-      for (let i = 1; i <= (profile.trainingDaysPerWeek || 3); i++) {
-        const key = `Día ${i}`;
-        if (!next[key]) {
-          const d = new Date(base);
-          d.setDate(base.getDate() + (i - 1) * 2);
-          next[key] = getLocalDateStr(d);
-        }
-      }
-      return next;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workoutPlan]);
 
   // When generatedMenu loads or changes, set the active tab to today's day
   useEffect(() => {
