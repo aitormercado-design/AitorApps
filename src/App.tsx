@@ -102,6 +102,7 @@ type UserProfile = {
   freeMealType: 'comida' | 'cena';
   menuEnabled: boolean;
   gymEnabled: boolean;
+  gymMode: 'plan' | 'manual' | 'both';
   workoutType: 'gym' | 'home';
   gymGoal: 'muscle' | 'strength' | 'cardio' | 'fat_loss' | 'flexibility' | 'maintenance';
   trainingDaysPerWeek: number;
@@ -217,6 +218,7 @@ const DEFAULT_PROFILE: UserProfile = {
   freeMealType: 'cena',
   menuEnabled: false,
   gymEnabled: false,
+  gymMode: 'plan' as const,
   workoutType: 'gym',
   gymGoal: 'muscle',
   trainingDaysPerWeek: 3,
@@ -312,6 +314,7 @@ export default function App() {
     freeMealType: 'cena',
     menuEnabled: false,
     gymEnabled: false,
+    gymMode: 'plan' as const,
     workoutType: 'gym',
     gymGoal: 'muscle',
     trainingDaysPerWeek: 3,
@@ -416,6 +419,7 @@ export default function App() {
     freeMealType: 'cena',
     menuEnabled: false,
     gymEnabled: false,
+    gymMode: 'plan' as const,
     workoutType: 'gym',
     gymGoal: 'muscle',
     trainingDaysPerWeek: 3,
@@ -601,6 +605,7 @@ export default function App() {
                 freeMealType: data.profile.freeMealType || 'cena',
                 menuEnabled: data.profile.menuEnabled ?? false,
                 gymEnabled: data.profile.gymEnabled || false,
+                gymMode: data.profile.gymMode || 'plan',
                 gymGoal: data.profile.gymGoal || 'muscle',
                 trainingDaysPerWeek: data.profile.trainingDaysPerWeek || 3
               };
@@ -677,6 +682,7 @@ export default function App() {
               freeMealDay: parsed.freeMealDay || 'Sábado',
               freeMealType: parsed.freeMealType || 'cena',
               gymEnabled: parsed.gymEnabled || parsed.fitnessEnabled || false,
+              gymMode: parsed.gymMode || 'plan',
               gymGoal: parsed.gymGoal || parsed.fitnessGoal || 'maintenance',
               trainingDaysPerWeek: parsed.trainingDaysPerWeek || 3,
               theme: parsed.theme || 'dark'
@@ -3703,33 +3709,32 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
               {/* Workout Content */}
               <div className="space-y-6">
-                {workoutPlan && !isGeneratingWorkout && (
-                  <div className="flex flex-col gap-4">
-                    <div className={`grid grid-cols-2 gap-1.5 ${themeStyles.iconBg} p-1 rounded-xl border ${themeStyles.border} w-full`}>
-                      {[
-                        { id: 'manual', label: 'Manual', icon: Plus },
-                        { id: 'plan', label: 'Plan', icon: Activity }
-                      ].map((st) => (
-                        <button
-                          key={st.id}
-                          onClick={() => setGymSubTab(st.id as any)}
-                          className={`py-3 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${
-                            gymSubTab === st.id
-                              ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md`
-                              : `${themeStyles.textMuted} hover:text-current`
-                          }`}
-                        >
-                          <st.icon className="w-4 h-4" />
-                          {st.label}
-                          {st.id === 'plan' && workoutNeedsRegeneration && (
-                            <span className="relative flex h-2.5 w-2.5 shrink-0">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
+                {/* Subtab switcher — only when both modes are active */}
+                {profile.gymMode === 'both' && workoutPlan && !isGeneratingWorkout && (
+                  <div className={`grid grid-cols-2 gap-1.5 ${themeStyles.iconBg} p-1 rounded-xl border ${themeStyles.border} w-full`}>
+                    {[
+                      { id: 'manual', label: 'Manual', icon: Plus },
+                      { id: 'plan', label: 'Plan', icon: Activity }
+                    ].map((st) => (
+                      <button
+                        key={st.id}
+                        onClick={() => setGymSubTab(st.id as any)}
+                        className={`py-3 text-xs font-bold uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${
+                          gymSubTab === st.id
+                            ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white' : 'text-zinc-950'} shadow-md`
+                            : `${themeStyles.textMuted} hover:text-current`
+                        }`}
+                      >
+                        <st.icon className="w-4 h-4" />
+                        {st.label}
+                        {st.id === 'plan' && workoutNeedsRegeneration && (
+                          <span className="relative flex h-2.5 w-2.5 shrink-0">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                          </span>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 )}
 
@@ -3760,7 +3765,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       </AnimatePresence>
                     </div>
                   </div>
-                ) : (workoutPlan && workoutPlan.length > 50) ? (
+                ) : ((workoutPlan && workoutPlan.length > 50) || profile.gymMode === 'manual') ? (
                   <>
                     <motion.div
                       key={gymSubTab}
@@ -3768,7 +3773,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     animate={{ opacity: 1, y: 0 }}
                     className="space-y-6"
                   >
-                    {gymSubTab === 'plan' ? (
+                    {(profile.gymMode === 'plan' || (profile.gymMode === 'both' && gymSubTab === 'plan')) ? (
                       <div className="space-y-6">
                         {/* Invalidation banner */}
                         {workoutNeedsRegeneration && (
@@ -4053,7 +4058,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         )}
 
                       </div>
-                    ) : gymSubTab === 'manual' ? (
+                    ) : (profile.gymMode === 'manual' || (profile.gymMode === 'both' && gymSubTab === 'manual')) ? (
                       <div className="space-y-3">
                         {/* Compact header */}
                         <div className="flex items-center gap-2">
@@ -4743,29 +4748,50 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                       <div className="text-center pt-2 pb-1">
                         <Dumbbell className={`w-10 h-10 ${themeStyles.accent} mx-auto mb-3`} />
-                        <h4 className={`text-base font-bold ${themeStyles.textMain} mb-1`}>¿Quieres registrar tu entrenamiento?</h4>
-                        <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>Ajustaremos tus calorías y generaremos rutinas adaptadas a ti.</p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <button
-                          type="button"
-                          onClick={() => { setWizardGymPicked(true); setEditProfile(p => ({...p, gymEnabled: true})); }}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${(!isWizardMode ? editProfile.gymEnabled : wizardGymPicked === true) ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
-                        >
-                          <span className={`text-2xl ${(!isWizardMode ? editProfile.gymEnabled : wizardGymPicked === true) ? '' : 'opacity-30'}`}>✓</span>
-                          <span className="text-xs font-bold uppercase tracking-widest">Sí, quiero entrenar</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setWizardGymPicked(false); setEditProfile(p => ({...p, gymEnabled: false})); }}
-                          className={`py-5 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-2 ${(!isWizardMode ? !editProfile.gymEnabled : wizardGymPicked === false) ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md` : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`}`}
-                        >
-                          <span className={`text-2xl ${(!isWizardMode ? !editProfile.gymEnabled : wizardGymPicked === false) ? '' : 'opacity-30'}`}>✕</span>
-                          <span className="text-xs font-bold uppercase tracking-widest">No por ahora</span>
-                        </button>
+                        <h4 className={`text-base font-bold ${themeStyles.textMain} mb-1`}>¿Cómo quieres gestionar tu entrenamiento?</h4>
+                        <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>Ajustaremos tus calorías según tu actividad.</p>
                       </div>
 
-                      {(!isWizardMode ? editProfile.gymEnabled : wizardGymPicked === true) && (
+                      {/* 4 options */}
+                      <div className="grid grid-cols-2 gap-2">
+                        {([
+                          { mode: 'plan', label: 'Generar rutina', emoji: '🤖', desc: 'IA crea tu plan' },
+                          { mode: 'manual', label: 'Registro manual', emoji: '📝', desc: 'Tú apuntas lo que haces' },
+                          { mode: 'both', label: 'Ambas', emoji: '⚡', desc: 'Rutina + registro libre' },
+                          { mode: null, label: 'No por ahora', emoji: '✕', desc: '' },
+                        ] as const).map(({ mode, label, emoji, desc }) => {
+                          const isSelected = mode === null
+                            ? (!isWizardMode ? !editProfile.gymEnabled : wizardGymPicked === false)
+                            : (editProfile.gymEnabled && editProfile.gymMode === mode && (isWizardMode ? wizardGymPicked === true : true));
+                          return (
+                            <button
+                              key={label}
+                              type="button"
+                              onClick={() => {
+                                if (mode === null) {
+                                  setWizardGymPicked(false);
+                                  setEditProfile(p => ({ ...p, gymEnabled: false }));
+                                } else {
+                                  setWizardGymPicked(true);
+                                  setEditProfile(p => ({ ...p, gymEnabled: true, gymMode: mode }));
+                                }
+                              }}
+                              className={`py-4 rounded-2xl border-2 text-center transition-all flex flex-col items-center gap-1.5 ${
+                                isSelected
+                                  ? `${themeStyles.accentBg} ${profile.theme === 'light' ? 'text-white border-emerald-500' : 'text-zinc-950 border-lime-400'} font-bold shadow-md`
+                                  : `${themeStyles.iconBg} ${themeStyles.border} ${themeStyles.textMuted} hover:opacity-80`
+                              }`}
+                            >
+                              <span className={`text-xl ${isSelected ? '' : 'opacity-40'}`}>{emoji}</span>
+                              <span className="text-xs font-bold uppercase tracking-widest leading-tight">{label}</span>
+                              {desc && <span className={`text-[10px] ${isSelected ? 'opacity-80' : 'opacity-50'} leading-tight`}>{desc}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Formulario de plan solo si gymMode incluye rutina */}
+                      {(!isWizardMode ? editProfile.gymEnabled && (editProfile.gymMode === 'plan' || editProfile.gymMode === 'both') : wizardGymPicked === true && (editProfile.gymMode === 'plan' || editProfile.gymMode === 'both')) && (
                         <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-4 duration-300">
                           <div className={`w-full h-px ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'}`} />
 
