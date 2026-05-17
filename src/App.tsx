@@ -4790,9 +4790,40 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         })}
                       </div>
 
+                      {/* Frecuencia semanal y TDEE — siempre visible cuando gym está activo */}
+                      {(!isWizardMode ? editProfile.gymEnabled : wizardGymPicked === true) && (
+                        <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-4 duration-300">
+                          <div className={`w-full h-px ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'}`} />
+
+                          <div className="space-y-1.5">
+                            <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Frecuencia Semanal</label>
+                            <div className={`${profile.theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-zinc-950 border-zinc-800'} border rounded-2xl p-4 space-y-3`}>
+                              <div className="flex justify-between items-baseline">
+                                <span className={`text-xl font-black ${themeStyles.accent}`}>{editProfile.trainingDaysPerWeek} <span className={`text-xs ${themeStyles.textMuted} uppercase font-bold`}>días</span></span>
+                              </div>
+                              <input
+                                type="range"
+                                min="1" max="7" step="1"
+                                value={editProfile.trainingDaysPerWeek}
+                                onChange={(e) => setEditProfile({...editProfile, trainingDaysPerWeek: parseInt(e.target.value)})}
+                                className={`w-full ${profile.theme === 'light' ? 'accent-emerald-500' : 'accent-lime-400'} h-2 rounded-lg appearance-none cursor-pointer`}
+                              />
+                              <div className="flex justify-between text-xs font-bold text-zinc-500 uppercase">
+                                <span>1</span><span>7</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className={`flex gap-2 p-3 ${themeStyles.iconBg} border ${themeStyles.border} rounded-xl`}>
+                            <Info className={`w-3.5 h-3.5 ${themeStyles.accent} shrink-0 mt-0.5`} />
+                            <p className={`text-xs ${themeStyles.textMuted} italic leading-relaxed`}>El sistema ajustará tu TDEE según los días de entreno para que la dieta sea más precisa.</p>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Formulario de plan solo si gymMode incluye rutina */}
                       {(!isWizardMode ? editProfile.gymEnabled && (editProfile.gymMode === 'plan' || editProfile.gymMode === 'both') : wizardGymPicked === true && (editProfile.gymMode === 'plan' || editProfile.gymMode === 'both')) && (
-                        <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-4 duration-300">
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
                           <div className={`w-full h-px ${profile.theme === 'light' ? 'bg-slate-200' : 'bg-zinc-800'}`} />
 
                           <div className="space-y-1.5">
@@ -4837,29 +4868,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             </select>
                           </div>
 
-                          <div className="space-y-1.5">
-                            <label className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Frecuencia Semanal</label>
-                            <div className={`${profile.theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-zinc-950 border-zinc-800'} border rounded-2xl p-4 space-y-3`}>
-                              <div className="flex justify-between items-baseline">
-                                <span className={`text-xl font-black ${themeStyles.accent}`}>{editProfile.trainingDaysPerWeek} <span className={`text-xs ${themeStyles.textMuted} uppercase font-bold`}>días</span></span>
-                              </div>
-                              <input
-                                type="range"
-                                min="1" max="7" step="1"
-                                value={editProfile.trainingDaysPerWeek}
-                                onChange={(e) => setEditProfile({...editProfile, trainingDaysPerWeek: parseInt(e.target.value)})}
-                                className={`w-full ${profile.theme === 'light' ? 'accent-emerald-500' : 'accent-lime-400'} h-2 rounded-lg appearance-none cursor-pointer`}
-                              />
-                              <div className="flex justify-between text-xs font-bold text-zinc-500 uppercase">
-                                <span>1</span><span>7</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className={`flex gap-2 p-3 ${themeStyles.iconBg} border ${themeStyles.border} rounded-xl`}>
-                            <Info className={`w-3.5 h-3.5 ${themeStyles.accent} shrink-0 mt-0.5`} />
-                            <p className={`text-xs ${themeStyles.textMuted} italic leading-relaxed`}>El sistema ajustará tu TDEE según los días de entreno para que la dieta sea más precisa.</p>
-                          </div>
                         </div>
                       )}
                     </div>
