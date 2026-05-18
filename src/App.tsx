@@ -851,10 +851,10 @@ export default function App() {
 
   const totals = todaysMeals.reduce(
     (acc, meal) => ({
-      calories: acc.calories + meal.calories,
-      protein: acc.protein + meal.protein,
-      carbs: acc.carbs + meal.carbs,
-      fat: acc.fat + meal.fat,
+      calories: acc.calories + (Number(meal.calories) || 0),
+      protein:  acc.protein  + (Number(meal.protein)  || 0),
+      carbs:    acc.carbs    + (Number(meal.carbs)    || 0),
+      fat:      acc.fat      + (Number(meal.fat)      || 0),
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
@@ -982,10 +982,10 @@ export default function App() {
     // Sum meals
     const totals = weekMeals.reduce(
       (acc, meal) => ({
-        calories: acc.calories + meal.calories,
-        protein: acc.protein + meal.protein,
-        carbs: acc.carbs + meal.carbs,
-        fat: acc.fat + meal.fat,
+        calories: acc.calories + (Number(meal.calories) || 0),
+        protein:  acc.protein  + (Number(meal.protein)  || 0),
+        carbs:    acc.carbs    + (Number(meal.carbs)    || 0),
+        fat:      acc.fat      + (Number(meal.fat)      || 0),
       }),
       { calories: 0, protein: 0, carbs: 0, fat: 0 }
     );
@@ -4676,10 +4676,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   e.preventDefault();
                   const mealToSave: Meal = {
                     ...editingMeal,
-                    calories: Math.round(editingMeal.calories * portionMultiplier),
-                    protein: Math.round(editingMeal.protein * portionMultiplier),
-                    carbs: Math.round(editingMeal.carbs * portionMultiplier),
-                    fat: Math.round(editingMeal.fat * portionMultiplier),
+                    calories: Math.round((Number(editingMeal.calories) || 0) * portionMultiplier),
+                    protein:  Math.round((Number(editingMeal.protein)  || 0) * portionMultiplier),
+                    carbs:    Math.round((Number(editingMeal.carbs)    || 0) * portionMultiplier),
+                    fat:      Math.round((Number(editingMeal.fat)      || 0) * portionMultiplier),
                   };
                   const existingIndex = meals.findIndex(m => m.id === editingMeal.id);
                   if (existingIndex >= 0) {
