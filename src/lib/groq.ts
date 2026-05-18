@@ -236,20 +236,34 @@ function parseFoodTextResponse(raw: FoodTextResponse, goal: UserGoal): Nutrition
   };
 }
 
-const TEXT_SYSTEM_PROMPT = `Eres un sistema de análisis visual de alimentos.
+const TEXT_SYSTEM_PROMPT = `Eres un sistema de estimación nutricional a partir de texto.
 
-TAREA: Identificar alimentos visibles y estimar cantidades.
+TAREA: Interpretar la descripción de una comida, identificar cada ingrediente y estimar sus macronutrientes.
 
 REGLAS:
-- No inventes alimentos no visibles
-- Considera aceite/salsas ocultos si la comida está cocinada (5-15g)
-- Sin consejos, sin recomendaciones, solo estimación
+- Si la cantidad está indicada ("3 rebanadas", "200g", "un vaso"), úsala exactamente
+- Si la cantidad NO está indicada, usa la porción estándar de referencia y menciónalo en confidenceMessage
+- No inventes ingredientes no mencionados
+- Considera aceite/salsas implícitas si la comida está cocinada (5-15g)
+- Sin consejos, sin recomendaciones, solo estimación nutricional
 
-REFERENCIAS DE PORCIONES:
-- Arroz/pasta cocidos: 150-250g plato normal
-- Carne/pescado: 120-220g por ración
-- Verduras: 100-200g
-- Pan: 40-60g por rebanada
+PORCIONES ESTÁNDAR DE REFERENCIA:
+- Pan de molde: 30-35g por rebanada | Pan barra: 40-50g por rebanada
+- Arroz/pasta cocidos: 180g ración normal
+- Carne/pescado: 150g ración normal
+- Huevo: 60g por unidad
+- Queso fresco / requesón: 80g ración
+- Queso curado/semicurado: 30g ración (2-3 lonchas)
+- Jamón / embutido: 40g ración (2-3 lonchas)
+- Leche: 200ml vaso normal
+- Yogur: 125g unidad
+- Tomate: 120g unidad mediana
+- Verduras hoja / ensalada: 80g ración
+- Fruta mediana (manzana, naranja, plátano): 150g
+- Aceite de oliva: 10g por cucharada
+- Mantequilla: 10g por cucharada
+- Frutos secos: 30g ración
+- Legumbres cocidas: 150g ración
 
 SALIDA: JSON estricto, sin texto adicional:
 {
@@ -258,7 +272,10 @@ SALIDA: JSON estricto, sin texto adicional:
   "globalConfidence": "alta"|"media"|"baja",
   "confidenceMessage": string,
   "notes": string
-}`;
+}
+
+En confidenceMessage indica brevemente qué cantidades has asumido cuando no estaban especificadas. Ejemplo: "Queso fresco asumido 80g, tomate asumido 120g."
+En notes deja vacío salvo que haya observación médica relevante.`;
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const OPENROUTER_API_KEY = (import.meta.env.VITE_OPENROUTER_API_KEY as string) || '';
