@@ -97,7 +97,25 @@ function parseJsonFromText(text: string, goal: UserGoal): NutritionalInfo {
   if (!match) throw new Error('JSON no encontrado en respuesta');
   const raw = JSON.parse(match[0]) as VisionResponse;
 
-  const foods = Array.isArray(raw.foods) ? raw.foods : [];
+  let foods = Array.isArray(raw.foods) ? raw.foods : [];
+
+  // Fallback: model returned old flat format — construct a single synthetic food entry
+  if (foods.length === 0) {
+    const r = raw as any;
+    const flatCal = toNum(r.calories ?? r.totalCalories);
+    if (flatCal > 0 || toNum(r.protein) > 0) {
+      foods = [{
+        name: r.foodName || 'Comida',
+        grams: toNum(r.totalWeight ?? r.grams),
+        calories: flatCal,
+        protein: toNum(r.protein),
+        carbs: toNum(r.carbs ?? r.carbohidratos),
+        fat: toNum(r.fat ?? r.grasas),
+        confidence: r.confidence ?? r.globalConfidence ?? 'media',
+      }];
+    }
+  }
+
   const totalWeight = foods.reduce((s, f) => s + toNum(f.grams), 0);
   const protein     = foods.reduce((s, f) => s + toNum(f.protein), 0);
   const carbs       = foods.reduce((s, f) => s + toNum(f.carbs), 0);

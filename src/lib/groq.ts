@@ -213,7 +213,25 @@ function toNum(v: unknown): number {
 }
 
 function parseFoodTextResponse(raw: FoodTextResponse, goal: UserGoal): NutritionalInfo {
-  const foods = Array.isArray(raw.foods) ? raw.foods : [];
+  let foods = Array.isArray(raw.foods) ? raw.foods : [];
+
+  // Fallback: model returned old flat format — construct a single synthetic food entry
+  if (foods.length === 0) {
+    const r = raw as any;
+    const flatCal = toNum(r.calories ?? r.totalCalories);
+    if (flatCal > 0 || toNum(r.protein) > 0) {
+      foods = [{
+        name: r.foodName || 'Comida',
+        grams: toNum(r.totalWeight ?? r.grams),
+        calories: flatCal,
+        protein: toNum(r.protein),
+        carbs: toNum(r.carbs ?? r.carbohidratos),
+        fat: toNum(r.fat ?? r.grasas),
+        confidence: r.confidence ?? r.globalConfidence ?? 'media',
+      }];
+    }
+  }
+
   const protein     = foods.reduce((s, f) => s + toNum(f.protein), 0);
   const carbs       = foods.reduce((s, f) => s + toNum(f.carbs), 0);
   const fat         = foods.reduce((s, f) => s + toNum(f.fat), 0);
