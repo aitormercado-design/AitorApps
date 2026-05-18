@@ -450,6 +450,7 @@ export default function App() {
   const [portionMultiplier, setPortionMultiplier] = useState(1);
   const [ingredientGrams, setIngredientGrams] = useState<number[]>([]);
   const baseIngredientGramsRef = React.useRef<number[]>([]);
+  const cancelRecalcRef = React.useRef(false);
   const [mealEditMode, setMealEditMode] = useState<'create' | 'edit'>('create');
   const [originalAnalyzedName, setOriginalAnalyzedName] = useState<string | null>(null);
   const [isRecalculatingMacros, setIsRecalculatingMacros] = useState(false);
@@ -1588,12 +1589,14 @@ export default function App() {
 
   const handleRecalculateMacros = async (name: string, meal: Meal) => {
     if (isRecalculatingMacros || !name.trim()) return;
+    cancelRecalcRef.current = false;
     setIsRecalculatingMacros(true);
     try {
       const remainingCalories = goals.calories - totals.calories;
       const remainingProtein = goals.protein - totals.protein;
       const contextStr = `Usuario: ${profile.name || 'Usuario'}. Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína. Dieta: ${profile.dietType}.`;
       const info = await analyzeFoodText(name.trim(), contextStr, profile.medicalConditions, profile.goal as 'lose' | 'maintain' | 'gain');
+      if (cancelRecalcRef.current) return;
       setEditingMeal({
         ...meal,
         foodName: name,
@@ -5082,6 +5085,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       : mealToSave;
                     setDoc(doc(db, 'users', user.uid, 'meals', mealToSave.id), payload, { merge: true }).catch(console.error);
                   }
+                  cancelRecalcRef.current = true;
+                  if (recalcTimerRef.current) clearTimeout(recalcTimerRef.current);
                   setEditingMeal(null);
                 }}
                 className="space-y-4 pb-24"
