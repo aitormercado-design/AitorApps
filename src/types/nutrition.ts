@@ -5,7 +5,7 @@ export type NutritionalInfo = {
   protein: number;
   carbs: number;
   fat: number;
-  ingredients: { name: string; amount: string }[];
+  ingredients: { name: string; amount: string; grams?: number; calories?: number; protein?: number; carbs?: number; fat?: number }[];
   confidence: "alta" | "media" | "baja";
   confidenceMessage: string;
   alternatives?: string[];

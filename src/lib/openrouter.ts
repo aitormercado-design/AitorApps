@@ -112,7 +112,7 @@ function parseJsonFromText(text: string, goal: UserGoal): NutritionalInfo {
     protein: Math.round(protein),
     carbs: Math.round(carbs),
     fat: Math.round(fat),
-    ingredients: foods.map(f => ({ name: f.name || 'Ingrediente', amount: `${toNum(f.grams)}g` })),
+    ingredients: foods.map(f => ({ name: f.name || 'Ingrediente', amount: `${toNum(f.grams)}g`, grams: toNum(f.grams), calories: toNum(f.calories), protein: toNum(f.protein), carbs: toNum(f.carbs), fat: toNum(f.fat) })),
     confidence: raw.globalConfidence ?? 'media',
     confidenceMessage: raw.confidenceMessage ?? '',
     interpretation: raw.notes ?? '',

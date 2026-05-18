@@ -448,6 +448,8 @@ export default function App() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
   const [portionMultiplier, setPortionMultiplier] = useState(1);
+  const [ingredientGrams, setIngredientGrams] = useState<number[]>([]);
+  const baseIngredientGramsRef = React.useRef<number[]>([]);
   const [mealEditMode, setMealEditMode] = useState<'create' | 'edit'>('create');
   const [originalAnalyzedName, setOriginalAnalyzedName] = useState<string | null>(null);
   const [isRecalculatingMacros, setIsRecalculatingMacros] = useState(false);
@@ -994,6 +996,25 @@ export default function App() {
     setExpandedMeal(nextMealIdx);
   }, [menuSelectedDay]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Initialise per-ingredient grams when a different meal is opened
+  useEffect(() => {
+    if (editingMeal?.ingredients?.length) {
+      const base = editingMeal.ingredients.map(ing => ing.grams ?? parseInt(ing.amount) ?? 0);
+      baseIngredientGramsRef.current = base;
+      setIngredientGrams(base.map(g => Math.round(g * portionMultiplier)));
+    } else {
+      baseIngredientGramsRef.current = [];
+      setIngredientGrams([]);
+    }
+  }, [editingMeal?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When portion multiplier changes, scale all ingredients from their base
+  useEffect(() => {
+    if (baseIngredientGramsRef.current.length > 0) {
+      setIngredientGrams(baseIngredientGramsRef.current.map(g => Math.round(g * portionMultiplier)));
+    }
+  }, [portionMultiplier]);
+
   const totals = todaysMeals.reduce(
     (acc, meal) => ({
       calories: acc.calories + (Number(meal.calories) || 0),
@@ -1003,6 +1024,23 @@ export default function App() {
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
+
+  // Compute macros live from per-ingredient grams (when model provided per-ingredient data)
+  const ingredientComputedMacros = useMemo(() => {
+    if (!editingMeal?.ingredients?.length || !ingredientGrams.length) return null;
+    const hasData = editingMeal.ingredients.some(ing => (ing.calories ?? 0) > 0);
+    if (!hasData) return null;
+    return editingMeal.ingredients.reduce((acc, ing, i) => {
+      const base = ing.grams ?? 0;
+      const ratio = base > 0 ? (ingredientGrams[i] ?? 0) / base : 0;
+      return {
+        calories: acc.calories + (Number(ing.calories) || 0) * ratio,
+        protein:  acc.protein  + (Number(ing.protein)  || 0) * ratio,
+        carbs:    acc.carbs    + (Number(ing.carbs)     || 0) * ratio,
+        fat:      acc.fat      + (Number(ing.fat)       || 0) * ratio,
+      };
+    }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  }, [editingMeal, ingredientGrams]);
 
   const getAssistantState = () => {
     const todayHabits = habits[todayStr] || { water: 0, sleep: 0 };
@@ -5003,12 +5041,24 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
+                  const baseMacros = ingredientComputedMacros ?? {
+                    calories: (Number(editingMeal.calories) || 0) * portionMultiplier,
+                    protein:  (Number(editingMeal.protein)  || 0) * portionMultiplier,
+                    carbs:    (Number(editingMeal.carbs)    || 0) * portionMultiplier,
+                    fat:      (Number(editingMeal.fat)      || 0) * portionMultiplier,
+                  };
+                  const updatedIngredients = editingMeal.ingredients?.map((ing, i) => ({
+                    ...ing,
+                    grams: ingredientGrams[i] ?? ing.grams ?? parseInt(ing.amount) ?? 0,
+                    amount: `${ingredientGrams[i] ?? ing.grams ?? parseInt(ing.amount) ?? 0}g`,
+                  }));
                   const mealToSave: Meal = {
                     ...editingMeal,
-                    calories: Math.round((Number(editingMeal.calories) || 0) * portionMultiplier),
-                    protein:  Math.round((Number(editingMeal.protein)  || 0) * portionMultiplier),
-                    carbs:    Math.round((Number(editingMeal.carbs)    || 0) * portionMultiplier),
-                    fat:      Math.round((Number(editingMeal.fat)      || 0) * portionMultiplier),
+                    calories: Math.round(baseMacros.calories),
+                    protein:  Math.round(baseMacros.protein),
+                    carbs:    Math.round(baseMacros.carbs),
+                    fat:      Math.round(baseMacros.fat),
+                    ...(updatedIngredients && { ingredients: updatedIngredients }),
                   };
                   const existingIndex = meals.findIndex(m => m.id === editingMeal.id);
                   if (existingIndex >= 0) {
@@ -5113,66 +5163,61 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   </div>
                 </div>
 
-                {/* Semáforo + Confianza */}
-                <div className={`${themeStyles.iconBg} rounded-2xl p-4 border ${themeStyles.border} space-y-2`}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Calidad del análisis</span>
-                    {editingMeal.totalWeight != null && editingMeal.totalWeight > 0 && (
-                      <span className={`text-xs font-bold ${themeStyles.textMuted} ${themeStyles.iconBg} px-2 py-1 rounded border ${themeStyles.border}`}>
-                        {Math.round(editingMeal.totalWeight * portionMultiplier)}g estimados
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between">
+                {/* Valoración calórica */}
+                {editingMeal.semaforo && (
+                  <div className={`${themeStyles.iconBg} rounded-2xl p-3 border ${themeStyles.border} space-y-1.5`}>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Valoración calórica</span>
                     <SemaforoBadge semaforo={editingMeal.semaforo} label={editingMeal.semaforoLabel} />
-                    <ConfidenceBadge confidence={editingMeal.confidence} message={editingMeal.confidenceMessage} />
-                  </div>
-                  <p className={`text-[10px] ${themeStyles.textMuted} pt-0.5`}>
-                    Basado en {Math.round(editingMeal.calories * portionMultiplier)} kcal · {portionMultiplier !== 1 && `(${portionMultiplier}x porción) · `}umbral según tu objetivo
-                  </p>
-                </div>
-
-                {/* Ingredient Breakdown */}
-                {editingMeal.ingredients && editingMeal.ingredients.length > 0 && (
-                  <div className={`${themeStyles.iconBg} rounded-2xl p-4 border ${themeStyles.border}`}>
-                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest block mb-3">Desglose de ingredientes</span>
-                    <div className="space-y-2">
-                      {editingMeal.ingredients.map((ing, i) => {
-                        const baseGrams = parseInt(ing.amount) || 0;
-                        const adjusted = Math.round(baseGrams * portionMultiplier);
-                        return (
-                          <div key={i} className={`flex items-center justify-between py-1 ${i < editingMeal.ingredients!.length - 1 ? `border-b ${themeStyles.border}` : ''}`}>
-                            <span className={`text-sm ${themeStyles.textMain} capitalize`}>{ing.name}</span>
-                            <span className={`text-xs font-bold tabular-nums ${themeStyles.accent}`}>{adjusted}g</span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <p className={`text-[10px] ${themeStyles.textMuted}`}>
+                      {Math.round(ingredientComputedMacros?.calories ?? editingMeal.calories)} kcal · verde = dentro del objetivo, amarillo = límite, rojo = excede
+                    </p>
                   </div>
                 )}
 
-
-
-                {/* Portion Multiplier */}
-                <div className={`${themeStyles.iconBg} rounded-2xl p-4 border ${themeStyles.border}`}>
-                  <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest block mb-3">Tamaño de la porción</span>
-                  <div className="grid grid-cols-4 gap-2">
-                    {([0.5, 1, 1.5, 2] as const).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setPortionMultiplier(m)}
-                        className={`py-2 rounded-xl text-sm font-bold transition-colors border ${
-                          portionMultiplier === m
-                            ? `${themeStyles.accentBg} text-zinc-950 border-transparent`
-                            : 'bg-zinc-900 text-zinc-400 border-white/10 hover:bg-zinc-800'
-                        }`}
-                      >
-                        {m === 0.5 ? '½x' : m === 1.5 ? '1½x' : `${m}x`}
-                      </button>
-                    ))}
+                {/* Precisión del análisis */}
+                {editingMeal.confidence && (
+                  <div className={`${themeStyles.iconBg} rounded-2xl p-3 border ${themeStyles.border} space-y-1.5`}>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Precisión del análisis</span>
+                    <ConfidenceBadge confidence={editingMeal.confidence} message={undefined} />
+                    {editingMeal.confidenceMessage && (
+                      <p className={`text-[10px] ${themeStyles.textMuted} leading-relaxed`}>{editingMeal.confidenceMessage}</p>
+                    )}
                   </div>
-                </div>
+                )}
+
+                {/* Ingredients with per-ingredient controls */}
+                {editingMeal.ingredients && editingMeal.ingredients.length > 0 && (
+                  <div className={`${themeStyles.iconBg} rounded-2xl p-4 border ${themeStyles.border}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Ingredientes</span>
+                      <div className="flex gap-1">
+                        {([0.5, 1, 1.5, 2] as const).map(m => (
+                          <button key={m} type="button" onClick={() => setPortionMultiplier(m)}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-colors ${portionMultiplier === m ? `${themeStyles.accentBg} text-zinc-950 border-transparent` : `${themeStyles.iconBg} ${themeStyles.textMuted} ${themeStyles.border} hover:border-current`}`}>
+                            {m === 0.5 ? '½x' : m === 1.5 ? '1½x' : `${m}x`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      {editingMeal.ingredients.map((ing, i) => (
+                        <div key={i} className={`flex items-center gap-2 py-2 ${i < editingMeal.ingredients!.length - 1 ? `border-b ${themeStyles.border}` : ''}`}>
+                          <span className={`text-sm flex-1 ${themeStyles.textMain} capitalize`}>{ing.name}</span>
+                          <button type="button"
+                            onClick={() => setIngredientGrams(prev => { const n = [...prev]; n[i] = Math.max(0, (n[i] ?? 0) - 5); return n; })}
+                            className={`w-7 h-7 rounded-lg text-base font-bold flex items-center justify-center ${themeStyles.iconBg} border ${themeStyles.border} ${themeStyles.textMuted} hover:text-white transition-colors`}>−</button>
+                          <span className={`w-12 text-center text-sm font-bold tabular-nums ${themeStyles.accent}`}>{ingredientGrams[i] ?? 0}g</span>
+                          <button type="button"
+                            onClick={() => setIngredientGrams(prev => { const n = [...prev]; n[i] = (n[i] ?? 0) + 5; return n; })}
+                            className={`w-7 h-7 rounded-lg text-base font-bold flex items-center justify-center ${themeStyles.iconBg} border ${themeStyles.border} ${themeStyles.textMuted} hover:text-white transition-colors`}>+</button>
+                        </div>
+                      ))}
+                    </div>
+                    {!ingredientComputedMacros && (
+                      <p className={`text-[10px] ${themeStyles.textMuted} mt-2 opacity-60`}>Registra una nueva comida para obtener recálculo automático de macros por ingrediente</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Read-Only Macros */}
                 <div className="relative">
@@ -5184,24 +5229,34 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       </div>
                     </div>
                   )}
-                  <div className={`grid grid-cols-2 gap-3 transition-opacity duration-200 ${isRecalculatingMacros ? 'opacity-30' : 'opacity-100'}`}>
-                    <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
-                      <span className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Calorías</span>
-                      <span className={`text-lg font-display font-bold ${themeStyles.accent}`}>{Math.round(editingMeal.calories * portionMultiplier)} <span className="text-xs text-zinc-500">kcal</span></span>
-                    </div>
-                    <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
-                      <span className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Proteínas</span>
-                      <span className={`text-lg font-display font-bold ${themeStyles.macroProtein}`}>{Math.round(editingMeal.protein * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
-                    </div>
-                    <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
-                      <span className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Carbohidratos</span>
-                      <span className={`text-lg font-display font-bold ${themeStyles.macroCarbs}`}>{Math.round(editingMeal.carbs * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
-                    </div>
-                    <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
-                      <span className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Grasas</span>
-                      <span className={`text-lg font-display font-bold ${themeStyles.macroFat}`}>{Math.round(editingMeal.fat * portionMultiplier)} <span className="text-xs text-zinc-500">g</span></span>
-                    </div>
-                  </div>
+                  {(() => {
+                    const m = ingredientComputedMacros ?? {
+                      calories: editingMeal.calories * portionMultiplier,
+                      protein:  editingMeal.protein  * portionMultiplier,
+                      carbs:    editingMeal.carbs    * portionMultiplier,
+                      fat:      editingMeal.fat      * portionMultiplier,
+                    };
+                    return (
+                      <div className={`grid grid-cols-2 gap-3 transition-opacity duration-200 ${isRecalculatingMacros ? 'opacity-30' : 'opacity-100'}`}>
+                        <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
+                          <span className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Calorías</span>
+                          <span className={`text-lg font-display font-bold ${themeStyles.accent}`}>{Math.round(m.calories)} <span className="text-xs text-zinc-500">kcal</span></span>
+                        </div>
+                        <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
+                          <span className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Proteínas</span>
+                          <span className={`text-lg font-display font-bold ${themeStyles.macroProtein}`}>{Math.round(m.protein)} <span className="text-xs text-zinc-500">g</span></span>
+                        </div>
+                        <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
+                          <span className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Carbohidratos</span>
+                          <span className={`text-lg font-display font-bold ${themeStyles.macroCarbs}`}>{Math.round(m.carbs)} <span className="text-xs text-zinc-500">g</span></span>
+                        </div>
+                        <div className={`${themeStyles.iconBg} p-3 rounded-xl border ${themeStyles.border}`}>
+                          <span className={`block text-xs font-bold ${themeStyles.textMuted} uppercase tracking-wider mb-1`}>Grasas</span>
+                          <span className={`text-lg font-display font-bold ${themeStyles.macroFat}`}>{Math.round(m.fat)} <span className="text-xs text-zinc-500">g</span></span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   <AnimatePresence>
                     {macrosJustUpdated && (
                       <motion.div
