@@ -5119,7 +5119,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Calidad del análisis</span>
                     {editingMeal.totalWeight != null && editingMeal.totalWeight > 0 && (
                       <span className={`text-xs font-bold ${themeStyles.textMuted} ${themeStyles.iconBg} px-2 py-1 rounded border ${themeStyles.border}`}>
-                        {editingMeal.totalWeight}g estimados
+                        {Math.round(editingMeal.totalWeight * portionMultiplier)}g estimados
                       </span>
                     )}
                   </div>
@@ -5127,7 +5127,29 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <SemaforoBadge semaforo={editingMeal.semaforo} label={editingMeal.semaforoLabel} />
                     <ConfidenceBadge confidence={editingMeal.confidence} message={editingMeal.confidenceMessage} />
                   </div>
+                  <p className={`text-[10px] ${themeStyles.textMuted} pt-0.5`}>
+                    Basado en {Math.round(editingMeal.calories * portionMultiplier)} kcal · {portionMultiplier !== 1 && `(${portionMultiplier}x porción) · `}umbral según tu objetivo
+                  </p>
                 </div>
+
+                {/* Ingredient Breakdown */}
+                {editingMeal.ingredients && editingMeal.ingredients.length > 0 && (
+                  <div className={`${themeStyles.iconBg} rounded-2xl p-4 border ${themeStyles.border}`}>
+                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest block mb-3">Desglose de ingredientes</span>
+                    <div className="space-y-2">
+                      {editingMeal.ingredients.map((ing, i) => {
+                        const baseGrams = parseInt(ing.amount) || 0;
+                        const adjusted = Math.round(baseGrams * portionMultiplier);
+                        return (
+                          <div key={i} className={`flex items-center justify-between py-1 ${i < editingMeal.ingredients!.length - 1 ? `border-b ${themeStyles.border}` : ''}`}>
+                            <span className={`text-sm ${themeStyles.textMain} capitalize`}>{ing.name}</span>
+                            <span className={`text-xs font-bold tabular-nums ${themeStyles.accent}`}>{adjusted}g</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
 
 
