@@ -1602,6 +1602,7 @@ export default function App() {
         carbs: info.carbs,
         fat: info.fat,
         totalWeight: info.totalWeight,
+        ingredients: info.ingredients,
         interpretation: info.interpretation,
         coachMessage: info.coachMessage,
         semaforo: info.semaforo,
@@ -1609,6 +1610,11 @@ export default function App() {
         confidence: info.confidence,
         confidenceMessage: info.confidenceMessage,
       });
+      // Reset ingredient gram controls to the new analysis
+      const newBase = info.ingredients.map(ing => ing.grams ?? 0);
+      baseIngredientGramsRef.current = newBase;
+      setPortionMultiplier(1);
+      setIngredientGrams(newBase);
       setMacrosJustUpdated(true);
       setTimeout(() => setMacrosJustUpdated(false), 2500);
     } catch {
