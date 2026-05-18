@@ -242,6 +242,21 @@ const SemaforoBadge = ({ semaforo, label }: { semaforo?: "verde" | "amarillo" | 
   );
 };
 
+const ConfidenceBadge = ({ confidence, message }: { confidence?: "alta" | "media" | "baja"; message?: string }) => {
+  if (!confidence) return null;
+  const cfg = {
+    alta:  { icon: "●●●", color: "text-emerald-500", label: "Análisis preciso" },
+    media: { icon: "●●○", color: "text-yellow-400",  label: "Estimación aproximada" },
+    baja:  { icon: "●○○", color: "text-red-400",     label: "Poca certeza" },
+  };
+  const { icon, color, label } = cfg[confidence];
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`text-[10px] font-mono font-bold tracking-widest ${color}`}>{icon}</span>
+      <span className={`text-[10px] font-bold uppercase tracking-wider ${color}`}>{message || label}</span>
+    </div>
+  );
+};
 
 const NumberInput = ({ value, onChange, label, step = 1, min = 0, max = 300, placeholder, theme }: any) => {
   const unitMatch = label.match(/\(([^)]+)\)/);
@@ -981,10 +996,10 @@ export default function App() {
 
   const totals = todaysMeals.reduce(
     (acc, meal) => ({
-      calories: acc.calories + meal.calories,
-      protein: acc.protein + meal.protein,
-      carbs: acc.carbs + meal.carbs,
-      fat: acc.fat + meal.fat,
+      calories: acc.calories + (Number(meal.calories) || 0),
+      protein:  acc.protein  + (Number(meal.protein)  || 0),
+      carbs:    acc.carbs    + (Number(meal.carbs)    || 0),
+      fat:      acc.fat      + (Number(meal.fat)      || 0),
     }),
     { calories: 0, protein: 0, carbs: 0, fat: 0 }
   );
@@ -1182,10 +1197,10 @@ export default function App() {
     // Sum meals
     const totals = weekMeals.reduce(
       (acc, meal) => ({
-        calories: acc.calories + meal.calories,
-        protein: acc.protein + meal.protein,
-        carbs: acc.carbs + meal.carbs,
-        fat: acc.fat + meal.fat,
+        calories: acc.calories + (Number(meal.calories) || 0),
+        protein:  acc.protein  + (Number(meal.protein)  || 0),
+        carbs:    acc.carbs    + (Number(meal.carbs)    || 0),
+        fat:      acc.fat      + (Number(meal.fat)      || 0),
       }),
       { calories: 0, protein: 0, carbs: 0, fat: 0 }
     );
@@ -1540,7 +1555,7 @@ export default function App() {
       const remainingCalories = goals.calories - totals.calories;
       const remainingProtein = goals.protein - totals.protein;
       const contextStr = `Usuario: ${profile.name || 'Usuario'}. Faltan aprox: ${Math.round(remainingCalories)} kcal, ${Math.round(remainingProtein)}g proteína. Dieta: ${profile.dietType}.`;
-      const info = await analyzeFoodText(name.trim(), contextStr, profile.medicalConditions, profile.goal);
+      const info = await analyzeFoodText(name.trim(), contextStr, profile.medicalConditions, profile.goal as 'lose' | 'maintain' | 'gain');
       setEditingMeal({
         ...meal,
         foodName: name,
@@ -1553,6 +1568,8 @@ export default function App() {
         coachMessage: info.coachMessage,
         semaforo: info.semaforo,
         semaforoLabel: info.semaforoLabel,
+        confidence: info.confidence,
+        confidenceMessage: info.confidenceMessage,
       });
       setMacrosJustUpdated(true);
       setTimeout(() => setMacrosJustUpdated(false), 2500);
@@ -4988,10 +5005,10 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   e.preventDefault();
                   const mealToSave: Meal = {
                     ...editingMeal,
-                    calories: Math.round(editingMeal.calories * portionMultiplier),
-                    protein: Math.round(editingMeal.protein * portionMultiplier),
-                    carbs: Math.round(editingMeal.carbs * portionMultiplier),
-                    fat: Math.round(editingMeal.fat * portionMultiplier),
+                    calories: Math.round((Number(editingMeal.calories) || 0) * portionMultiplier),
+                    protein:  Math.round((Number(editingMeal.protein)  || 0) * portionMultiplier),
+                    carbs:    Math.round((Number(editingMeal.carbs)    || 0) * portionMultiplier),
+                    fat:      Math.round((Number(editingMeal.fat)      || 0) * portionMultiplier),
                   };
                   const existingIndex = meals.findIndex(m => m.id === editingMeal.id);
                   if (existingIndex >= 0) {
@@ -5096,19 +5113,21 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   </div>
                 </div>
 
-                {/* Semáforo */}
-                {editingMeal.semaforo && (
-                  <div className={`${themeStyles.iconBg} rounded-2xl p-4 border ${themeStyles.border} space-y-2`}>
-                    <div className="flex items-center justify-between">
-                      <SemaforoBadge semaforo={editingMeal.semaforo} label={editingMeal.semaforoLabel} />
-                      {editingMeal.totalWeight != null && editingMeal.totalWeight > 0 && (
-                        <span className={`text-xs font-bold ${themeStyles.textMuted} ${themeStyles.iconBg} px-2 py-1 rounded border ${themeStyles.border}`}>
-                          {editingMeal.totalWeight}g estimados
-                        </span>
-                      )}
-                    </div>
+                {/* Semáforo + Confianza */}
+                <div className={`${themeStyles.iconBg} rounded-2xl p-4 border ${themeStyles.border} space-y-2`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Calidad del análisis</span>
+                    {editingMeal.totalWeight != null && editingMeal.totalWeight > 0 && (
+                      <span className={`text-xs font-bold ${themeStyles.textMuted} ${themeStyles.iconBg} px-2 py-1 rounded border ${themeStyles.border}`}>
+                        {editingMeal.totalWeight}g estimados
+                      </span>
+                    )}
                   </div>
-                )}
+                  <div className="flex items-center justify-between">
+                    <SemaforoBadge semaforo={editingMeal.semaforo} label={editingMeal.semaforoLabel} />
+                    <ConfidenceBadge confidence={editingMeal.confidence} message={editingMeal.confidenceMessage} />
+                  </div>
+                </div>
 
 
 

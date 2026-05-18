@@ -87,27 +87,32 @@ function calculateSemaforo(calories: number, protein: number, goal: UserGoal): {
   return { semaforo, semaforoLabel: labels[semaforo] };
 }
 
+function toNum(v: unknown): number {
+  const n = Number(v);
+  return isFinite(n) ? n : 0;
+}
+
 function parseJsonFromText(text: string, goal: UserGoal): NutritionalInfo {
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('JSON no encontrado en respuesta');
   const raw = JSON.parse(match[0]) as VisionResponse;
 
-  const foods = raw.foods ?? [];
-  const totalWeight = foods.reduce((s, f) => s + (f.grams ?? 0), 0);
-  const protein = foods.reduce((s, f) => s + (f.protein ?? 0), 0);
-  const carbs   = foods.reduce((s, f) => s + (f.carbs   ?? 0), 0);
-  const fat     = foods.reduce((s, f) => s + (f.fat     ?? 0), 0);
-  const calories = raw.totalCalories ?? Math.round(protein * 4 + carbs * 4 + fat * 9);
+  const foods = Array.isArray(raw.foods) ? raw.foods : [];
+  const totalWeight = foods.reduce((s, f) => s + toNum(f.grams), 0);
+  const protein     = foods.reduce((s, f) => s + toNum(f.protein), 0);
+  const carbs       = foods.reduce((s, f) => s + toNum(f.carbs), 0);
+  const fat         = foods.reduce((s, f) => s + toNum(f.fat), 0);
+  const calories    = toNum(raw.totalCalories) || Math.round(protein * 4 + carbs * 4 + fat * 9);
   const { semaforo, semaforoLabel } = calculateSemaforo(calories, Math.round(protein), goal);
 
   return {
-    foodName: foods.map(f => f.name).join(', ') || 'Comida',
+    foodName: foods.map(f => f.name || 'Ingrediente').join(', ') || 'Comida',
     totalWeight: Math.round(totalWeight),
     calories,
     protein: Math.round(protein),
     carbs: Math.round(carbs),
     fat: Math.round(fat),
-    ingredients: foods.map(f => ({ name: f.name, amount: `${f.grams}g` })),
+    ingredients: foods.map(f => ({ name: f.name || 'Ingrediente', amount: `${toNum(f.grams)}g` })),
     confidence: raw.globalConfidence ?? 'media',
     confidenceMessage: raw.confidenceMessage ?? '',
     interpretation: raw.notes ?? '',
