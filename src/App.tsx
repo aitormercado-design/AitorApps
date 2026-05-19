@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, ChevronUp, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, User as UserIcon, Pizza, Save, Edit2, Trash2, Home, Sparkles, Clock, UtensilsCrossed, BarChart2 } from 'lucide-react';
+import { Camera, Activity, Flame, Beef, Wheat, Droplet, Droplets, PieChart, X, Loader2, Plus, Minus, Upload, AlertTriangle, Info, CheckCircle2, ChevronDown, ChevronUp, Zap, TrendingUp, Target, Dumbbell, Calendar, Utensils, Moon, Sun, ShoppingCart, ClipboardList, CheckSquare, ChefHat, Send, Bot, Pencil, RefreshCw, LogOut, User as UserIcon, Pizza, Save, Edit2, Trash2, Home, Sparkles, Clock, UtensilsCrossed, BarChart2, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AreaChart, Area, ResponsiveContainer, YAxis, ComposedChart, Bar, Line, XAxis, Tooltip } from 'recharts';
 import Markdown from 'react-markdown';
@@ -74,6 +74,20 @@ type Meal = NutritionalInfo & {
   id: string;
   imageUrl: string;
   timestamp: number;
+};
+
+type Favorito = {
+  id: string;
+  nombre: string;
+  foodName: string;
+  foods: NutritionalInfo['ingredients'];
+  totals: { calories: number; protein: number; carbs: number; fat: number; totalWeight: number };
+  semaforo?: 'verde' | 'amarillo' | 'rojo';
+  semaforoLabel?: string;
+  confidence?: 'alta' | 'media' | 'baja';
+  confidenceMessage?: string;
+  interpretation?: string;
+  creadoEn?: any;
 };
 
 type MedicalConditions = {
@@ -452,6 +466,14 @@ export default function App() {
   const baseIngredientGramsRef = React.useRef<number[]>([]);
   const cancelRecalcRef = React.useRef(false);
   const [mealEditMode, setMealEditMode] = useState<'create' | 'edit'>('create');
+
+  const [favoritos, setFavoritos] = useState<Favorito[]>([]);
+  const [showFavoritosModal, setShowFavoritosModal] = useState(false);
+  const [showSaveFavoritoModal, setShowSaveFavoritoModal] = useState(false);
+  const [favoritoName, setFavoritoName] = useState('');
+  const [isSavingFavorito, setIsSavingFavorito] = useState(false);
+  const [deletingFavoritoId, setDeletingFavoritoId] = useState<string | null>(null);
+  const favoritosListenerRef = useRef<(() => void) | null>(null);
   const [originalAnalyzedName, setOriginalAnalyzedName] = useState<string | null>(null);
   const [isRecalculatingMacros, setIsRecalculatingMacros] = useState(false);
   const [macrosJustUpdated, setMacrosJustUpdated] = useState(false);
@@ -656,6 +678,18 @@ export default function App() {
               (err) => handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}/meals`)
             );
 
+            // Load favorites via real-time listener
+            if (favoritosListenerRef.current) favoritosListenerRef.current();
+            const favoritosQ = query(
+              collection(db, 'users', currentUser.uid, 'favoritos'),
+              orderBy('creadoEn', 'desc')
+            );
+            favoritosListenerRef.current = onSnapshot(
+              favoritosQ,
+              (snap) => setFavoritos(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Favorito[]),
+              () => {}
+            );
+
             try {
               const habitsSnap = await getDocs(collection(db, 'users', currentUser.uid, 'habits'));
               const loadedHabits: DailyHabits = {};
@@ -723,6 +757,7 @@ export default function App() {
     return () => {
       unsubscribe();
       if (mealsListenerRef.current) mealsListenerRef.current();
+      if (favoritosListenerRef.current) favoritosListenerRef.current();
     };
   }, []);
 
@@ -1721,6 +1756,77 @@ export default function App() {
     }
   };
 
+  const handleSaveFavorito = async () => {
+    if (!user || !editingMeal || !favoritoName.trim() || isSavingFavorito) return;
+    setIsSavingFavorito(true);
+    try {
+      const favId = Date.now().toString();
+      const fav: Favorito = {
+        id: favId,
+        nombre: favoritoName.trim(),
+        foodName: editingMeal.foodName,
+        foods: editingMeal.ingredients ?? [],
+        totals: {
+          calories: editingMeal.calories,
+          protein: editingMeal.protein,
+          carbs: editingMeal.carbs,
+          fat: editingMeal.fat,
+          totalWeight: editingMeal.totalWeight ?? 0,
+        },
+        semaforo: editingMeal.semaforo,
+        semaforoLabel: editingMeal.semaforoLabel,
+        confidence: editingMeal.confidence,
+        confidenceMessage: editingMeal.confidenceMessage,
+        interpretation: editingMeal.interpretation,
+        creadoEn: serverTimestamp(),
+      };
+      await setDoc(doc(db, 'users', user.uid, 'favoritos', favId), fav);
+      setShowSaveFavoritoModal(false);
+      setFavoritoName('');
+      showSuccess('¡Guardado en favoritos!');
+    } catch {
+      showError('Error al guardar el favorito. Inténtalo de nuevo.');
+    } finally {
+      setIsSavingFavorito(false);
+    }
+  };
+
+  const handleUseFavorito = (fav: Favorito) => {
+    const newMeal: Meal = {
+      id: Date.now().toString(),
+      foodName: fav.nombre,
+      totalWeight: fav.totals.totalWeight ?? 0,
+      calories: fav.totals.calories,
+      protein: fav.totals.protein,
+      carbs: fav.totals.carbs,
+      fat: fav.totals.fat,
+      ingredients: fav.foods,
+      confidence: fav.confidence ?? 'alta',
+      confidenceMessage: fav.confidenceMessage ?? '',
+      semaforo: fav.semaforo,
+      semaforoLabel: fav.semaforoLabel,
+      interpretation: fav.interpretation,
+      imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(fav.nombre)}&background=27272a&color=a3e635&size=200`,
+      timestamp: Date.now(),
+    };
+    setMeals(prev => [newMeal, ...prev]);
+    if (user) {
+      setDoc(doc(db, 'users', user.uid, 'meals', newMeal.id), newMeal).catch(console.error);
+    }
+    setShowFavoritosModal(false);
+    showSuccess(`${fav.nombre} añadido al registro`);
+  };
+
+  const handleDeleteFavorito = async (favId: string) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'favoritos', favId));
+      setDeletingFavoritoId(null);
+    } catch {
+      showError('Error al eliminar el favorito.');
+    }
+  };
+
   const openMealForEdit = (meal: Meal) => {
     setMealEditMode('edit');
     setPortionMultiplier(1);
@@ -2696,6 +2802,16 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             ? <span className="text-xs font-mono font-bold">{imageFoodCooldown.remaining}s</span>
                             : <Camera className={`w-5 h-5 ${themeStyles.accent}`} />}
                         </button>
+                        {/* Favorites button */}
+                        {user && (
+                          <button
+                            onClick={() => setShowFavoritosModal(true)}
+                            className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${themeStyles.iconBg} border ${themeStyles.border} transition-all`}
+                            title="Mis favoritos"
+                          >
+                            <Star className={`w-5 h-5 ${favoritos.length > 0 ? 'fill-yellow-400 text-yellow-400' : themeStyles.textMuted}`} />
+                          </button>
+                        )}
                         {/* Text input with send button */}
                         <div className="flex-1 relative">
                           <input
@@ -5302,6 +5418,19 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <button type="submit" className={`w-full ${themeStyles.accentBg} text-zinc-950 font-bold uppercase tracking-wider py-4 rounded-xl transition-colors`}>
                     {mealEditMode === 'edit' ? 'Actualizar' : 'Guardar Registro'}
                   </button>
+                  {user && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFavoritoName(editingMeal.foodName);
+                        setShowSaveFavoritoModal(true);
+                      }}
+                      className={`w-full flex items-center justify-center gap-2 ${themeStyles.iconBg} border ${themeStyles.border} font-bold uppercase tracking-wider py-3 rounded-xl hover:border-yellow-400/50 transition-colors text-sm ${themeStyles.textMuted}`}
+                    >
+                      <Star className="w-4 h-4 text-yellow-400" />
+                      Guardar como favorito
+                    </button>
+                  )}
                   {mealEditMode === 'edit' && (
                     <button
                       type="button"
@@ -5316,6 +5445,138 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   )}
                 </div>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── SAVE FAVORITO MODAL ── */}
+      <AnimatePresence>
+        {showSaveFavoritoModal && editingMeal && (
+          <motion.div
+            key="save-fav-backdrop"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowSaveFavoritoModal(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className={`${themeStyles.card} border ${themeStyles.border} rounded-2xl p-6 w-full max-w-sm shadow-2xl`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                  <h3 className={`text-base font-bold ${themeStyles.textMain}`}>Guardar como favorito</h3>
+                </div>
+                <button onClick={() => setShowSaveFavoritoModal(false)} className="text-zinc-500 hover:text-white transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <p className={`text-xs ${themeStyles.textMuted} mb-4`}>Ponle un nombre para identificarlo fácilmente</p>
+              <input
+                type="text"
+                value={favoritoName}
+                onChange={(e) => setFavoritoName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveFavorito(); }}
+                placeholder="Ej: Mi desayuno de lunes"
+                className={`w-full ${themeStyles.input} rounded-xl px-4 py-3 text-sm mb-4 focus:outline-none`}
+                autoFocus
+              />
+              <button
+                onClick={handleSaveFavorito}
+                disabled={!favoritoName.trim() || isSavingFavorito}
+                className={`w-full ${themeStyles.accentBg} text-zinc-950 font-bold py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2`}
+              >
+                {isSavingFavorito ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4 fill-zinc-950" />}
+                {isSavingFavorito ? 'Guardando…' : 'Guardar'}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── FAVORITOS LIST MODAL ── */}
+      <AnimatePresence>
+        {showFavoritosModal && (
+          <motion.div
+            key="fav-list-backdrop"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] bg-zinc-950/80 backdrop-blur-sm flex items-end justify-center sm:items-center"
+            onClick={(e) => { if (e.target === e.currentTarget) { setShowFavoritosModal(false); setDeletingFavoritoId(null); } }}
+          >
+            <motion.div
+              initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
+              className={`${themeStyles.card} border ${themeStyles.border} rounded-t-2xl sm:rounded-2xl p-5 w-full max-w-md shadow-2xl max-h-[80vh] flex flex-col`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                  <h3 className={`text-base font-bold ${themeStyles.textMain}`}>Mis favoritos</h3>
+                  {favoritos.length > 0 && (
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${themeStyles.iconBg} border ${themeStyles.border} ${themeStyles.textMuted}`}>{favoritos.length}</span>
+                  )}
+                </div>
+                <button onClick={() => { setShowFavoritosModal(false); setDeletingFavoritoId(null); }} className="text-zinc-500 hover:text-white transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {favoritos.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center py-12 gap-3">
+                  <Star className="w-10 h-10 text-zinc-600" />
+                  <p className={`text-sm ${themeStyles.textMuted} text-center`}>
+                    Todavía no tienes favoritos.<br />Guarda una comida desde el análisis.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                  {favoritos.map((fav) => (
+                    <div key={fav.id} className={`${themeStyles.iconBg} border ${themeStyles.border} rounded-2xl overflow-hidden`}>
+                      {deletingFavoritoId === fav.id ? (
+                        <div className="p-4 flex items-center justify-between gap-3">
+                          <p className={`text-sm ${themeStyles.textMain} flex-1`}>¿Eliminar "{fav.nombre}"?</p>
+                          <div className="flex gap-2 shrink-0">
+                            <button
+                              onClick={() => setDeletingFavoritoId(null)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold ${themeStyles.buttonSecondary} border`}
+                            >Cancelar</button>
+                            <button
+                              onClick={() => handleDeleteFavorito(fav.id)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+                            >Eliminar</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center">
+                          <button
+                            onClick={() => handleUseFavorito(fav)}
+                            className="flex-1 flex items-center gap-3 p-4 text-left hover:bg-white/5 transition-colors"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-bold ${themeStyles.textMain} truncate`}>{fav.nombre}</p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className={`text-xs ${themeStyles.textMuted}`}>{fav.totals.calories} kcal</span>
+                                {fav.semaforo && (
+                                  <span className={`w-2 h-2 rounded-full shrink-0 ${fav.semaforo === 'verde' ? 'bg-emerald-500' : fav.semaforo === 'amarillo' ? 'bg-yellow-400' : 'bg-red-500'}`} />
+                                )}
+                                <span className={`text-xs ${themeStyles.textMuted}`}>·</span>
+                                <span className={`text-xs ${themeStyles.textMuted}`}>{fav.totals.protein}g prot · {fav.totals.carbs}g ch · {fav.totals.fat}g grasa</span>
+                              </div>
+                            </div>
+                            <Plus className={`w-5 h-5 ${themeStyles.accent} shrink-0`} />
+                          </button>
+                          <button
+                            onClick={() => setDeletingFavoritoId(fav.id)}
+                            className="p-4 text-zinc-600 hover:text-red-400 transition-colors shrink-0"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}
