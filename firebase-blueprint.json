@@ -39,6 +39,24 @@
         "timestamp": { "type": "number", "description": "Unix ms (Date.now())" }
       }
     },
+    "Favorito": {
+      "title": "Favorito",
+      "description": "Comida guardada como favorito para reutilizar en el registro diario sin repetir el análisis.",
+      "type": "object",
+      "properties": {
+        "id":               { "type": "string" },
+        "nombre":           { "type": "string",  "description": "Nombre personalizado que el usuario da al favorito" },
+        "foodName":         { "type": "string",  "description": "Nombre del plato tal como lo identificó la IA" },
+        "foods":            { "type": "array",   "description": "Array de ingredientes con macros por ingrediente (mismo formato que NutritionalInfo.ingredients)" },
+        "totals":           { "type": "object",  "description": "{ calories, protein, carbs, fat, totalWeight } — macros totales del plato" },
+        "semaforo":         { "type": "string",  "description": "verde | amarillo | rojo" },
+        "semaforoLabel":    { "type": "string" },
+        "confidence":       { "type": "string",  "description": "alta | media | baja" },
+        "confidenceMessage":{ "type": "string" },
+        "interpretation":   { "type": "string" },
+        "creadoEn":         { "type": "timestamp" }
+      }
+    },
     "Habits": {
       "title": "Daily Habits",
       "description": "Hábitos del día: agua, sueño y ejercicio. La clave del documento es la fecha local en formato YYYY-MM-DD.",
@@ -70,6 +88,10 @@
     "/users/{userId}/habits/{fecha}": {
       "schema": { "$ref": "#/entities/Habits" },
       "description": "Hábitos diarios del usuario. El ID del documento es la fecha local YYYY-MM-DD generada por getLocalDateStr()."
+    },
+    "/users/{userId}/favoritos/{favoritoId}": {
+      "schema": { "$ref": "#/entities/Favorito" },
+      "description": "Comidas guardadas como favoritos por el usuario."
     }
   }
 }

@@ -16,9 +16,10 @@ service cloud.firestore {
     //   - workoutPlan:   string — rutina semanal en Markdown (Gemini)
     //
     // Subcolecciones (documentos independientes, no en el doc raíz):
-    //   - /meals/{mealId}     — comidas registradas
-    //   - /weights/{weightId} — registros de peso
-    //   - /habits/{fecha}     — hábitos diarios (agua, sueño, ejercicio)
+    //   - /meals/{mealId}       — comidas registradas
+    //   - /weights/{weightId}   — registros de peso
+    //   - /habits/{fecha}       — hábitos diarios (agua, sueño, ejercicio)
+    //   - /favoritos/{favId}    — comidas guardadas como favoritos
     //
     // ===============================================================
 
@@ -66,6 +67,11 @@ service cloud.firestore {
       }
 
       match /habits/{habitId} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId);
+      }
+
+      match /favoritos/{favoritoId} {
         allow read: if isOwner(userId);
         allow write: if isOwner(userId);
       }
