@@ -521,6 +521,35 @@ export default function App() {
   const mealsListenerRef = useRef<(() => void) | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuTabsRef = useRef<HTMLDivElement>(null);
+  const deferredInstallPromptRef = useRef<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isInStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+
+  useEffect(() => {
+    if (isInStandalone) return; // already installed
+    const handler = (e: Event) => {
+      e.preventDefault();
+      deferredInstallPromptRef.current = e;
+      setShowInstallBanner(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    // iOS: no beforeinstallprompt — show manual instructions banner after a short delay
+    if (isIOS && !isInStandalone) {
+      const t = setTimeout(() => setShowInstallBanner(true), 3000);
+      return () => { clearTimeout(t); window.removeEventListener('beforeinstallprompt', handler); };
+    }
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleInstallApp = async () => {
+    if (!deferredInstallPromptRef.current) return;
+    deferredInstallPromptRef.current.prompt();
+    const { outcome } = await deferredInstallPromptRef.current.userChoice;
+    deferredInstallPromptRef.current = null;
+    setShowInstallBanner(false);
+    if (outcome === 'accepted') dismissPrompt('pwa_install');
+  };
 
   const [generatedMenu, setGeneratedMenu] = useState<WeeklyMenu | null>(null);
   const [isGeneratingMenu, setIsGeneratingMenu] = useState(false);
@@ -2623,6 +2652,33 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     <button onClick={requestNotificationPermission} className={`shrink-0 text-xs font-bold ${themeStyles.accent} hover:underline`}>Activar</button>
                   }
                   onDismiss={() => dismissPrompt('notifications_ask')}
+                />
+              </motion.div>
+            );
+          }
+
+          // P4: install PWA
+          if (showInstallBanner && !dismissedPrompts.includes('pwa_install') && !isInStandalone) {
+            return (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+                <AppBanner
+                  variant="info"
+                  theme={profile.theme}
+                  icon={<span className="text-base">📲</span>}
+                  message={
+                    isIOS
+                      ? <span>Instala KiloKalo: pulsa <strong>Compartir</strong> → <strong>Añadir a pantalla de inicio</strong></span>
+                      : 'Instala KiloKalo en tu dispositivo para acceder más rápido, sin navegador'
+                  }
+                  actions={
+                    !isIOS ? (
+                      <button
+                        onClick={handleInstallApp}
+                        className={`shrink-0 text-xs font-bold ${themeStyles.accent} hover:underline`}
+                      >Instalar</button>
+                    ) : undefined
+                  }
+                  onDismiss={() => { setShowInstallBanner(false); dismissPrompt('pwa_install'); }}
                 />
               </motion.div>
             );
