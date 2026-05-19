@@ -1801,6 +1801,8 @@ export default function App() {
   };
 
   const handleUseFavorito = (fav: Favorito) => {
+    setShowFavoritosModal(false);
+    setDeletingFavoritoId(null);
     const newMeal: Meal = {
       id: Date.now().toString(),
       foodName: fav.nombre,
@@ -1822,7 +1824,6 @@ export default function App() {
     if (user) {
       setDoc(doc(db, 'users', user.uid, 'meals', newMeal.id), newMeal).catch(console.error);
     }
-    setShowFavoritosModal(false);
     showSuccess(`${fav.nombre} añadido al registro`);
   };
 
@@ -5413,16 +5414,11 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 </div>
 
                 {(editingMeal.coachMessage || editingMeal.healthAnalysis) && (
-                  <div className="mt-6 space-y-3">
-                    {/* Mensaje del Coach */}
-                    <div className="p-4 bg-zinc-900/50 rounded-2xl border border-white/5 flex items-start gap-3">
-                      <div className={`p-2 rounded-xl shrink-0 ${themeStyles.accentMuted} ${themeStyles.accent}`}>
-                        <Bot className="w-5 h-5" />
-                      </div>
-                      <p className="text-sm text-zinc-300 leading-relaxed pt-0.5">
-                        {editingMeal.coachMessage || editingMeal.healthAnalysis}
-                      </p>
-                    </div>
+                  <div className={`${themeStyles.iconBg} rounded-2xl p-3 border ${themeStyles.border} space-y-1`}>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Nota del coach</span>
+                    <p className={`text-xs ${themeStyles.textMuted} leading-relaxed`}>
+                      {editingMeal.coachMessage || editingMeal.healthAnalysis}
+                    </p>
                   </div>
                 )}
 
@@ -5519,14 +5515,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
           <motion.div
             key="fav-list-backdrop"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[80] bg-zinc-950/80 backdrop-blur-sm flex items-end justify-center sm:items-center"
+            className="fixed inset-0 z-[80] bg-zinc-950/80 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={(e) => { if (e.target === e.currentTarget) { setShowFavoritosModal(false); setDeletingFavoritoId(null); } }}
           >
             <motion.div
-              initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
-              className={`${themeStyles.card} border ${themeStyles.border} rounded-t-2xl sm:rounded-2xl p-5 w-full max-w-md shadow-2xl max-h-[80vh] flex flex-col`}
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className={`${themeStyles.card} border ${themeStyles.border} rounded-2xl p-5 w-full max-w-md shadow-2xl max-h-[80vh] flex flex-col`}
             >
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
                   <h3 className={`text-base font-bold ${themeStyles.textMain}`}>Mis favoritos</h3>
@@ -5538,16 +5534,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <X className="w-5 h-5" />
                 </button>
               </div>
+              <p className={`text-xs ${themeStyles.textMuted} mb-4`}>Toca una comida para añadirla al registro de hoy</p>
 
               {!user ? (
-                <div className="flex-1 flex flex-col items-center justify-center py-12 gap-3">
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
                   <Star className="w-10 h-10 text-zinc-600" />
                   <p className={`text-sm ${themeStyles.textMuted} text-center`}>
                     Inicia sesión para guardar y usar<br />tus comidas favoritas.
                   </p>
                 </div>
               ) : favoritos.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center py-12 gap-3">
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
                   <Star className="w-10 h-10 text-zinc-600" />
                   <p className={`text-sm ${themeStyles.textMuted} text-center`}>
                     Todavía no tienes favoritos.<br />Guarda una comida desde el análisis.
@@ -5572,27 +5569,27 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                           </div>
                         </div>
                       ) : (
-                        <div className="flex items-center">
+                        <div className="flex items-center gap-2 p-3">
                           <button
                             onClick={() => handleUseFavorito(fav)}
-                            className="flex-1 flex items-center gap-3 p-4 text-left hover:bg-white/5 transition-colors"
+                            className={`flex-1 flex items-center gap-3 text-left ${themeStyles.buttonPrimary} rounded-xl px-3 py-2.5 transition-colors`}
                           >
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-sm font-bold ${themeStyles.textMain} truncate`}>{fav.nombre}</p>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className={`text-xs ${themeStyles.textMuted}`}>{fav.totals.calories} kcal</span>
-                                {fav.semaforo && (
-                                  <span className={`w-2 h-2 rounded-full shrink-0 ${fav.semaforo === 'verde' ? 'bg-emerald-500' : fav.semaforo === 'amarillo' ? 'bg-yellow-400' : 'bg-red-500'}`} />
-                                )}
-                                <span className={`text-xs ${themeStyles.textMuted}`}>·</span>
-                                <span className={`text-xs ${themeStyles.textMuted}`}>{fav.totals.protein}g prot · {fav.totals.carbs}g ch · {fav.totals.fat}g grasa</span>
-                              </div>
-                            </div>
-                            <Plus className={`w-5 h-5 ${themeStyles.accent} shrink-0`} />
+                            <Plus className="w-4 h-4 shrink-0" />
+                            <span className="text-xs font-bold uppercase tracking-wide">Añadir</span>
                           </button>
+                          <div className="flex-[3] min-w-0">
+                            <p className={`text-sm font-bold ${themeStyles.textMain} truncate`}>{fav.nombre}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              <span className={`text-xs font-semibold ${themeStyles.textMuted}`}>{fav.totals.calories} kcal</span>
+                              {fav.semaforo && (
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${fav.semaforo === 'verde' ? 'bg-emerald-500' : fav.semaforo === 'amarillo' ? 'bg-yellow-400' : 'bg-red-500'}`} />
+                              )}
+                              <span className={`text-[10px] ${themeStyles.textMuted}`}>{fav.totals.protein}g P · {fav.totals.carbs}g C · {fav.totals.fat}g G</span>
+                            </div>
+                          </div>
                           <button
                             onClick={() => setDeletingFavoritoId(fav.id)}
-                            className="p-4 text-zinc-600 hover:text-red-400 transition-colors shrink-0"
+                            className="p-2 text-zinc-600 hover:text-red-400 transition-colors shrink-0"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
