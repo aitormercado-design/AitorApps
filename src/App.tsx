@@ -2848,16 +2848,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                                   <span className={`text-xs font-bold ${themeStyles.textMuted}`}>Foto</span>
                                 </>}
                           </button>
-                          {user && (
-                            <button
-                              onClick={() => setShowFavoritosModal(true)}
-                              className={`flex-1 h-10 rounded-xl flex items-center justify-center gap-2 ${themeStyles.iconBg} border ${themeStyles.border} transition-all`}
-                              title="Mis favoritos"
-                            >
-                              <Star className={`w-4 h-4 ${favoritos.length > 0 ? 'fill-yellow-400 text-yellow-400' : themeStyles.textMuted}`} />
-                              <span className={`text-xs font-bold ${themeStyles.textMuted}`}>Favoritos</span>
-                            </button>
-                          )}
+                          <button
+                            onClick={() => setShowFavoritosModal(true)}
+                            className={`flex-1 h-10 rounded-xl flex items-center justify-center gap-2 ${themeStyles.iconBg} border ${themeStyles.border} transition-all`}
+                            title="Mis favoritos"
+                          >
+                            <Star className={`w-4 h-4 ${favoritos.length > 0 ? 'fill-yellow-400 text-yellow-400' : themeStyles.textMuted}`} />
+                            <span className={`text-xs font-bold ${themeStyles.textMuted}`}>Favoritos</span>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -5432,19 +5430,17 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <button type="submit" className={`w-full ${themeStyles.accentBg} text-zinc-950 font-bold uppercase tracking-wider py-4 rounded-xl transition-colors`}>
                     {mealEditMode === 'edit' ? 'Actualizar' : 'Guardar Registro'}
                   </button>
-                  {user && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFavoritoName(editingMeal.foodName);
-                        setShowSaveFavoritoModal(true);
-                      }}
-                      className={`w-full flex items-center justify-center gap-2 ${themeStyles.iconBg} border ${themeStyles.border} font-bold uppercase tracking-wider py-3 rounded-xl hover:border-yellow-400/50 transition-colors text-sm ${themeStyles.textMuted}`}
-                    >
-                      <Star className="w-4 h-4 text-yellow-400" />
-                      Guardar como favorito
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFavoritoName(editingMeal.foodName);
+                      setShowSaveFavoritoModal(true);
+                    }}
+                    className={`w-full flex items-center justify-center gap-2 ${themeStyles.iconBg} border ${themeStyles.border} font-bold uppercase tracking-wider py-3 rounded-xl hover:border-yellow-400/50 transition-colors text-sm ${themeStyles.textMuted}`}
+                  >
+                    <Star className="w-4 h-4 text-yellow-400" />
+                    Guardar como favorito
+                  </button>
                   {mealEditMode === 'edit' && (
                     <button
                       type="button"
@@ -5486,24 +5482,32 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <p className={`text-xs ${themeStyles.textMuted} mb-4`}>Ponle un nombre para identificarlo fácilmente</p>
-              <input
-                type="text"
-                value={favoritoName}
-                onChange={(e) => setFavoritoName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveFavorito(); }}
-                placeholder="Ej: Mi desayuno de lunes"
-                className={`w-full ${themeStyles.input} rounded-xl px-4 py-3 text-sm mb-4 focus:outline-none`}
-                autoFocus
-              />
-              <button
-                onClick={handleSaveFavorito}
-                disabled={!favoritoName.trim() || isSavingFavorito}
-                className={`w-full ${themeStyles.accentBg} text-zinc-950 font-bold py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2`}
-              >
-                {isSavingFavorito ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4 fill-zinc-950" />}
-                {isSavingFavorito ? 'Guardando…' : 'Guardar'}
-              </button>
+              {!user ? (
+                <p className={`text-sm ${themeStyles.textMuted} text-center py-4`}>
+                  Inicia sesión para guardar favoritos y acceder a ellos desde cualquier dispositivo.
+                </p>
+              ) : (
+                <>
+                  <p className={`text-xs ${themeStyles.textMuted} mb-4`}>Ponle un nombre para identificarlo fácilmente</p>
+                  <input
+                    type="text"
+                    value={favoritoName}
+                    onChange={(e) => setFavoritoName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveFavorito(); }}
+                    placeholder="Ej: Mi desayuno de lunes"
+                    className={`w-full ${themeStyles.input} rounded-xl px-4 py-3 text-sm mb-4 focus:outline-none`}
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveFavorito}
+                    disabled={!favoritoName.trim() || isSavingFavorito}
+                    className={`w-full ${themeStyles.accentBg} text-zinc-950 font-bold py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2`}
+                  >
+                    {isSavingFavorito ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4 fill-zinc-950" />}
+                    {isSavingFavorito ? 'Guardando…' : 'Guardar'}
+                  </button>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}
@@ -5535,7 +5539,14 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 </button>
               </div>
 
-              {favoritos.length === 0 ? (
+              {!user ? (
+                <div className="flex-1 flex flex-col items-center justify-center py-12 gap-3">
+                  <Star className="w-10 h-10 text-zinc-600" />
+                  <p className={`text-sm ${themeStyles.textMuted} text-center`}>
+                    Inicia sesión para guardar y usar<br />tus comidas favoritas.
+                  </p>
+                </div>
+              ) : favoritos.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center py-12 gap-3">
                   <Star className="w-10 h-10 text-zinc-600" />
                   <p className={`text-sm ${themeStyles.textMuted} text-center`}>
