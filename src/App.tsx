@@ -1761,25 +1761,34 @@ export default function App() {
     setIsSavingFavorito(true);
     try {
       const favId = Date.now().toString();
-      const fav: Favorito = {
+      // Firestore rejects undefined values — build the doc with only defined fields
+      const fav: Record<string, any> = {
         id: favId,
         nombre: favoritoName.trim(),
         foodName: editingMeal.foodName,
-        foods: editingMeal.ingredients ?? [],
+        foods: (editingMeal.ingredients ?? []).map(ing => {
+          const item: Record<string, any> = { name: ing.name, amount: ing.amount };
+          if (ing.grams   !== undefined) item.grams    = ing.grams;
+          if (ing.calories !== undefined) item.calories = ing.calories;
+          if (ing.protein  !== undefined) item.protein  = ing.protein;
+          if (ing.carbs    !== undefined) item.carbs    = ing.carbs;
+          if (ing.fat      !== undefined) item.fat      = ing.fat;
+          return item;
+        }),
         totals: {
-          calories: editingMeal.calories,
-          protein: editingMeal.protein,
-          carbs: editingMeal.carbs,
-          fat: editingMeal.fat,
+          calories:    editingMeal.calories,
+          protein:     editingMeal.protein,
+          carbs:       editingMeal.carbs,
+          fat:         editingMeal.fat,
           totalWeight: editingMeal.totalWeight ?? 0,
         },
-        semaforo: editingMeal.semaforo,
-        semaforoLabel: editingMeal.semaforoLabel,
-        confidence: editingMeal.confidence,
-        confidenceMessage: editingMeal.confidenceMessage,
-        interpretation: editingMeal.interpretation,
         creadoEn: serverTimestamp(),
       };
+      if (editingMeal.semaforo)         fav.semaforo         = editingMeal.semaforo;
+      if (editingMeal.semaforoLabel)    fav.semaforoLabel    = editingMeal.semaforoLabel;
+      if (editingMeal.confidence)       fav.confidence       = editingMeal.confidence;
+      if (editingMeal.confidenceMessage) fav.confidenceMessage = editingMeal.confidenceMessage;
+      if (editingMeal.interpretation)   fav.interpretation   = editingMeal.interpretation;
       await setDoc(doc(db, 'users', user.uid, 'favoritos', favId), fav);
       setShowSaveFavoritoModal(false);
       setFavoritoName('');
@@ -2785,35 +2794,9 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                       <p className={`text-[10px] font-bold ${themeStyles.textMuted} uppercase tracking-[0.18em] px-1 pb-2`}>
                         Escribe lo que comiste · o haz una foto 📷
                       </p>
-                      <div className="flex items-center gap-2">
-                        {/* Camera button */}
-                        <button
-                          disabled={imageFoodCooldown.isActive}
-                          onClick={() => {
-                            if (imageFoodCooldown.isActive) return;
-                            imageFoodCooldown.start();
-                            setAppError(null);
-                            fileInputRef.current?.click();
-                          }}
-                          className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${themeStyles.iconBg} border ${themeStyles.border} transition-all disabled:opacity-50`}
-                          title="Escanear comida"
-                        >
-                          {imageFoodCooldown.isActive
-                            ? <span className="text-xs font-mono font-bold">{imageFoodCooldown.remaining}s</span>
-                            : <Camera className={`w-5 h-5 ${themeStyles.accent}`} />}
-                        </button>
-                        {/* Favorites button */}
-                        {user && (
-                          <button
-                            onClick={() => setShowFavoritosModal(true)}
-                            className={`shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${themeStyles.iconBg} border ${themeStyles.border} transition-all`}
-                            title="Mis favoritos"
-                          >
-                            <Star className={`w-5 h-5 ${favoritos.length > 0 ? 'fill-yellow-400 text-yellow-400' : themeStyles.textMuted}`} />
-                          </button>
-                        )}
+                      <div className="flex flex-col gap-2">
                         {/* Text input with send button */}
-                        <div className="flex-1 relative">
+                        <div className="relative">
                           <input
                             type="text"
                             placeholder={mealTimeHint}
@@ -2844,6 +2827,37 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               ? <span className="text-[10px] font-mono font-bold">{textFoodCooldown.remaining}s</span>
                               : <Send className="w-3.5 h-3.5" />}
                           </button>
+                        </div>
+                        {/* Camera + Favorites row */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            disabled={imageFoodCooldown.isActive}
+                            onClick={() => {
+                              if (imageFoodCooldown.isActive) return;
+                              imageFoodCooldown.start();
+                              setAppError(null);
+                              fileInputRef.current?.click();
+                            }}
+                            className={`flex-1 h-10 rounded-xl flex items-center justify-center gap-2 ${themeStyles.iconBg} border ${themeStyles.border} transition-all disabled:opacity-50`}
+                            title="Escanear comida"
+                          >
+                            {imageFoodCooldown.isActive
+                              ? <span className="text-xs font-mono font-bold">{imageFoodCooldown.remaining}s</span>
+                              : <>
+                                  <Camera className={`w-4 h-4 ${themeStyles.accent}`} />
+                                  <span className={`text-xs font-bold ${themeStyles.textMuted}`}>Foto</span>
+                                </>}
+                          </button>
+                          {user && (
+                            <button
+                              onClick={() => setShowFavoritosModal(true)}
+                              className={`flex-1 h-10 rounded-xl flex items-center justify-center gap-2 ${themeStyles.iconBg} border ${themeStyles.border} transition-all`}
+                              title="Mis favoritos"
+                            >
+                              <Star className={`w-4 h-4 ${favoritos.length > 0 ? 'fill-yellow-400 text-yellow-400' : themeStyles.textMuted}`} />
+                              <span className={`text-xs font-bold ${themeStyles.textMuted}`}>Favoritos</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
