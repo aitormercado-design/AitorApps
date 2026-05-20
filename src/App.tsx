@@ -5171,32 +5171,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </button>
                       )}
                     </div>
-                    {notificationsEnabled && (
-                      <button
-                        onClick={async () => {
-                          const body = '¡Recordatorio de prueba — así llegarán los avisos a las 9h, 14h y 21h 🎯';
-                          // Show in-app banner immediately
-                          showReminder(body);
-                          // Also try system notification
-                          if ('Notification' in window && Notification.permission === 'granted') {
-                            const opts: NotificationOptions = { body, icon: '/favicon.png' };
-                            try {
-                              if ('serviceWorker' in navigator) {
-                                const reg = await navigator.serviceWorker.ready;
-                                await reg.showNotification('KiloKalo', opts);
-                              } else {
-                                new Notification('KiloKalo', opts);
-                              }
-                            } catch {
-                              try { new Notification('KiloKalo', opts); } catch { /* ignore */ }
-                            }
-                          }
-                        }}
-                        className={`w-full py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent} transition-colors`}
-                      >
-                        Enviar notificación de prueba
-                      </button>
-                    )}
                   </div>
                 )}
 
