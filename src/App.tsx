@@ -171,6 +171,13 @@ function getLocalDateStr(date: Date = new Date()): string {
   return d.toISOString().split('T')[0];
 }
 
+function getWeekStart(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  const day = d.getDay();
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+  return getLocalDateStr(d);
+}
+
 // Fitness expert calculation for calories burned per block
 const calculateExpertCalories = (weight: number | null | undefined, goal: string | undefined, blockType: 'warm' | 'main' | 'cool'): number => {
   const w = weight || 70; // fallback to 70kg
@@ -389,6 +396,7 @@ export default function App() {
   const [gymDay, setGymDay] = useState<string>('Día 1');
   const [gymRoutineDates, setGymRoutineDates] = useState<{[key: string]: string}>({});
   const [gymDayDone, setGymDayDone] = useState<{[dayLabel: string]: boolean}>({});
+  const [gymWeekStart, setGymWeekStart] = useState<string>('');
 
   useEffect(() => {
     if (profile.theme === 'light') {
@@ -693,6 +701,7 @@ export default function App() {
             if (data.checkedItems) setCheckedItems(data.checkedItems);
             if (data.gymRoutineDates) setGymRoutineDates(data.gymRoutineDates);
             if (data.gymDayDone) setGymDayDone(data.gymDayDone);
+            if (data.gymWeekStart) setGymWeekStart(data.gymWeekStart);
             
             // Load subcollections — meals via real-time listener ordered server-side
             if (mealsListenerRef.current) mealsListenerRef.current();
@@ -894,6 +903,33 @@ export default function App() {
       setDoc(doc(db, 'users', user.uid), { gymDayDone }, { merge: true }).catch(console.error);
     }
   }, [gymDayDone, user, isDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-reset gym tracking at the start of each new week
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    const currentWeekStart = getWeekStart(todayStr);
+    const isNewWeek = gymWeekStart !== '' && gymWeekStart !== currentWeekStart;
+
+    if (isNewWeek && workoutPlan && profile.gymEnabled) {
+      const days = profile.trainingDaysPerWeek || 3;
+      const base = new Date(todayStr + 'T12:00:00');
+      const newDates: Record<string, string> = {};
+      for (let i = 1; i <= days; i++) {
+        const d = new Date(base);
+        d.setDate(base.getDate() + (i - 1) * 2);
+        newDates[`Día ${i}`] = getLocalDateStr(d);
+      }
+      setGymDayDone({});
+      setGymRoutineDates(newDates);
+      if (user) setDoc(doc(db, 'users', user.uid), { gymDayDone: {}, gymRoutineDates: newDates, gymWeekStart: currentWeekStart }, { merge: true }).catch(console.error);
+      showSuccess('¡Nueva semana! La rutina se ha reiniciado 🏋️');
+    }
+
+    if (gymWeekStart !== currentWeekStart) {
+      setGymWeekStart(currentWeekStart);
+      if (user) setDoc(doc(db, 'users', user.uid), { gymWeekStart: currentWeekStart }, { merge: true }).catch(console.error);
+    }
+  }, [isDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When Firestore data finishes loading, always recalculate goals from the current user's
   // profile. This prevents stale or missing Firestore goals (e.g. DEFAULT_GOALS = 2500) from
@@ -1528,6 +1564,37 @@ export default function App() {
       };
     });
   }, [meals, goals, habits, profile, workoutPlan, evolutionPeriod]);
+
+  // Memoize workout plan section parsing — avoids re-parsing on every render
+  const parsedWorkoutSections = useMemo(() => {
+    if (!workoutPlan) return { info: '', exercises: '', safety: '', parsedDays: [] };
+    const plan = workoutPlan.replace(/\r\n/g, '\n');
+    const markerMap = { info: '## INFO', exercises: '## EJERCICIOS', safety: '## TIPS' };
+    const nextMap:  { info: string; exercises: string; safety: string } = { info: '## EJERCICIOS', exercises: '## TIPS', safety: '' };
+    const getSection = (section: 'info' | 'exercises' | 'safety') => {
+      const marker = markerMap[section];
+      const next   = nextMap[section];
+      const startIdx = plan.indexOf(marker);
+      if (startIdx === -1) return section === 'info' ? plan : `Sección no disponible. Prueba a regenerar.`;
+      const contentStart = plan.indexOf('\n', startIdx) + 1;
+      const endIdx = next ? plan.indexOf(next, contentStart) : -1;
+      return (endIdx === -1 ? plan.slice(contentStart) : plan.slice(contentStart, endIdx)).trim();
+    };
+    const info      = getSection('info');
+    const exercises = getSection('exercises');
+    const safety    = getSection('safety');
+    const parsedDays = exercises
+      .split(/\n(?=# DÍA \d+)/i)
+      .filter(chunk => /^# DÍA \d+/i.test(chunk.trim()))
+      .map(chunk => {
+        const trimmed    = chunk.trim();
+        const firstLine  = trimmed.split('\n')[0];
+        const dayNum     = parseInt(firstLine.match(/\d+/)?.[0] ?? '1');
+        const focus      = firstLine.replace(/^# DÍA \d+\s*[—–-]\s*/i, '').trim();
+        return { dayNumber: dayNum, focus, fullText: trimmed };
+      });
+    return { info, exercises, safety, parsedDays };
+  }, [workoutPlan]);
 
   const compressImage = (file: File, maxWidth = 800): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -4091,7 +4158,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         </div>
 
                         {/* Info del programa — collapsible */}
-                        {getWorkoutSection(workoutPlan, 'info').trim() && (
+                        {parsedWorkoutSections.info.trim() && (
                           <div className={`${themeStyles.bento} overflow-hidden`}>
                             <button
                               onClick={() => setGymInfoExpanded(v => !v)}
@@ -4104,7 +4171,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               {gymInfoExpanded && (
                                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                                   <div className={`px-4 pb-4 prose max-w-none text-left ${profile.theme === 'light' ? 'prose-slate prose-h2:text-emerald-500 prose-h3:text-emerald-600' : 'prose-invert prose-zinc prose-h2:text-lime-400 prose-h3:text-lime-300'} prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter prose-h2:text-xl prose-h3:text-sm prose-strong:font-black prose-p:text-sm prose-p:leading-relaxed prose-li:text-sm`}>
-                                    <Markdown remarkPlugins={[remarkGfm]}>{getWorkoutSection(workoutPlan, 'info')}</Markdown>
+                                    <Markdown remarkPlugins={[remarkGfm]}>{parsedWorkoutSections.info}</Markdown>
                                   </div>
                                 </motion.div>
                               )}
@@ -4114,17 +4181,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                         {/* Daily routines logic — always shown */}
                         {(() => {
-                          const ejerciciosContent = getWorkoutSection(workoutPlan, 'exercises');
-                          const parsedDays = ejerciciosContent
-                            .split(/\n(?=# DÍA \d+)/i)
-                            .filter(chunk => /^# DÍA \d+/i.test(chunk.trim()))
-                            .map(chunk => {
-                              const trimmed = chunk.trim();
-                              const firstLine = trimmed.split('\n')[0];
-                              const dayNum = parseInt(firstLine.match(/\d+/)?.[0] ?? '1');
-                              const focus = firstLine.replace(/^# DÍA \d+\s*[—–-]\s*/i, '').trim();
-                              return { dayNumber: dayNum, focus, fullText: trimmed };
-                            });
+                          const { parsedDays } = parsedWorkoutSections;
 
                           if (parsedDays.length === 0) {
                             return (
@@ -4316,7 +4373,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                         })()}
 
                         {/* Tips del día — collapsible, outside day IIFE */}
-                        {workoutPlan && getWorkoutSection(workoutPlan, 'safety').trim() && (
+                        {parsedWorkoutSections.safety.trim() && (
                           <div className={`${themeStyles.bento} overflow-hidden`}>
                             <button
                               onClick={() => setGymTipsExpanded(v => !v)}
@@ -4329,7 +4386,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               {gymTipsExpanded && (
                                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                                   <div className={`px-4 pb-4 prose max-w-none text-left ${profile.theme === 'light' ? 'prose-slate prose-h2:text-emerald-500 prose-h3:text-emerald-600' : 'prose-invert prose-zinc prose-h2:text-lime-400 prose-h3:text-lime-300'} prose-headings:font-display prose-headings:font-black prose-headings:uppercase prose-headings:tracking-tighter prose-h2:text-xl prose-h3:text-sm prose-strong:font-black prose-p:text-sm prose-p:leading-relaxed prose-li:text-sm`}>
-                                    <Markdown remarkPlugins={[remarkGfm]}>{getWorkoutSection(workoutPlan, 'safety')}</Markdown>
+                                    <Markdown remarkPlugins={[remarkGfm]}>{parsedWorkoutSections.safety}</Markdown>
                                   </div>
                                 </motion.div>
                               )}
