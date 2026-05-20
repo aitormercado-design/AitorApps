@@ -1397,11 +1397,15 @@ export default function App() {
       const workoutCalories =
         dayHabits?.workoutCalories ??
         getManualWorkoutKcal(dayHabits);
+      const manualWorkoutEntries: ManualWorkoutEntry[] = dayHabits?.manualWorkouts?.length
+        ? dayHabits.manualWorkouts
+        : dayHabits?.manualWorkout ? [dayHabits.manualWorkout as ManualWorkoutEntry] : [];
+      const hasManualWorkout = manualWorkoutEntries.length > 0;
 
       let status: 'green' | 'yellow' | 'red' | 'future' | 'empty';
       if (isFuture) {
         status = 'future';
-      } else if (caloriesConsumed === 0 && !workoutDone) {
+      } else if (caloriesConsumed === 0 && !workoutDone && !hasManualWorkout) {
         status = 'empty';
       } else if (caloriesPct < 0.7 || caloriesPct > 1.3) {
         status = 'red';
@@ -1427,6 +1431,8 @@ export default function App() {
         hadWorkoutPlanned,
         workoutDone,
         workoutCalories,
+        manualWorkoutEntries,
+        hasManualWorkout,
         status,
         dayMeals,
       };
@@ -3324,7 +3330,7 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                               ) : !day.isFuture ? (
                                 <span className={`text-xs font-bold ${themeStyles.textMuted} text-center leading-tight`}>Sin<br/>datos</span>
                               ) : null}
-                              {day.workoutDone && !day.isFuture && (
+                              {(day.workoutDone || day.hasManualWorkout) && !day.isFuture && (
                                 <Dumbbell className={`w-2.5 h-2.5 ${themeStyles.accent}`} />
                               )}
                             </div>
@@ -3422,17 +3428,27 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                             )}
 
                             {/* Workout row */}
-                            {profile.gymEnabled && (
-                              <div className={`flex items-center gap-2 pt-2 border-t ${themeStyles.border}`}>
-                                <Dumbbell className={`w-3.5 h-3.5 shrink-0 ${day.workoutDone ? (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400') : themeStyles.textMuted}`} />
-                                <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Entrenamiento:</span>
-                                <span className={`text-xs font-bold ${day.workoutDone ? (profile.theme === 'light' ? 'text-emerald-600' : 'text-lime-400') : 'text-red-500'}`}>
-                                  {day.workoutDone
-                                    ? `✓ Completado — ${Math.round(day.workoutCalories)} kcal quemadas`
-                                    : day.hadWorkoutPlanned
-                                      ? '✗ No completado'
-                                      : '— Sin entrenamiento'}
-                                </span>
+                            {(day.workoutDone || day.hasManualWorkout || (profile.gymEnabled && day.hadWorkoutPlanned)) && (
+                              <div className={`pt-2 border-t ${themeStyles.border} space-y-1.5`}>
+                                <div className="flex items-center gap-2">
+                                  <Dumbbell className={`w-3.5 h-3.5 shrink-0 ${(day.workoutDone || day.hasManualWorkout) ? themeStyles.accent : themeStyles.textMuted}`} />
+                                  <span className={`text-xs font-bold ${themeStyles.textMuted} uppercase tracking-widest`}>Entrenamiento</span>
+                                </div>
+                                {profile.gymEnabled && day.workoutDone && (
+                                  <p className={`text-xs font-semibold ${themeStyles.accent} ml-5`}>
+                                    ✓ Rutina completada — {Math.round(day.workoutCalories)} kcal
+                                  </p>
+                                )}
+                                {profile.gymEnabled && day.hadWorkoutPlanned && !day.workoutDone && (
+                                  <p className={`text-xs font-semibold text-red-500 ml-5`}>
+                                    ✗ Rutina no completada
+                                  </p>
+                                )}
+                                {day.manualWorkoutEntries.map((w: ManualWorkoutEntry, i: number) => (
+                                  <p key={i} className={`text-xs ${themeStyles.textMain} ml-5`}>
+                                    • {w.activity} — {w.caloriesBurned ?? (w as any).calories ?? 0} kcal
+                                  </p>
+                                ))}
                               </div>
                             )}
                           </div>
