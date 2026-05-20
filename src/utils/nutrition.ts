@@ -6,14 +6,22 @@ function toDateStr(date: Date): string {
 
 export function calculateStreak(
   meals: Array<{ timestamp: number }>,
-  habits: Record<string, { workoutDone?: boolean; manualWorkout?: unknown; workoutCalories?: number }>
+  habits: Record<string, {
+    workoutDone?: boolean;
+    manualWorkout?: { activity?: string };
+    manualWorkouts?: Array<{ activity?: string }>;
+  }>
 ): number {
   let streak = 0;
   for (let i = 0; i < 365; i++) {
     const date = toDateStr(new Date(Date.now() - i * 86400000));
     const hasMeals = meals.some(m => toDateStr(new Date(m.timestamp)) === date);
     const h = habits[date];
-    const hasWorkout = h?.workoutDone || !!h?.manualWorkout || (h?.workoutCalories ?? 0) > 0;
+    // workoutDone: gym routine explicitly marked done
+    // manualWorkouts (array) or legacy manualWorkout (singular): require a real activity string
+    const hasWorkout = h?.workoutDone ||
+      (h?.manualWorkouts?.length ?? 0) > 0 ||
+      !!h?.manualWorkout?.activity;
     if (hasMeals || hasWorkout) {
       streak++;
     } else if (i > 0) {

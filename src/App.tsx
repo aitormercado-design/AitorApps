@@ -5154,15 +5154,40 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
 
                 {/* Notification preference (tab mode only) */}
                 {!isWizardMode && 'Notification' in window && Notification.permission !== 'denied' && (
-                  <div className={`pt-3 mt-1 border-t ${themeStyles.border} flex items-center justify-between`}>
-                    <span className={`text-xs ${themeStyles.textMuted}`}>🔔 Recordatorios</span>
-                    {notificationsEnabled ? (
-                      <button onClick={disableNotifications} className="text-xs font-bold text-red-400 hover:text-red-500">
-                        Desactivar
-                      </button>
-                    ) : (
-                      <button onClick={requestNotificationPermission} className={`text-xs font-bold ${themeStyles.accent} hover:underline`}>
-                        Activar
+                  <div className={`pt-3 mt-1 border-t ${themeStyles.border} space-y-2`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className={`text-xs ${themeStyles.textMuted}`}>🔔 Recordatorios</span>
+                        <p className={`text-[10px] ${themeStyles.textMuted} opacity-60`}>Solo mientras la app está abierta (9h, 14h, 21h)</p>
+                      </div>
+                      {notificationsEnabled ? (
+                        <button onClick={disableNotifications} className="text-xs font-bold text-red-400 hover:text-red-500">
+                          Desactivar
+                        </button>
+                      ) : (
+                        <button onClick={requestNotificationPermission} className={`text-xs font-bold ${themeStyles.accent} hover:underline`}>
+                          Activar
+                        </button>
+                      )}
+                    </div>
+                    {notificationsEnabled && (
+                      <button
+                        onClick={async () => {
+                          const opts: NotificationOptions = { body: '¡Las notificaciones funcionan correctamente! 🎯', icon: '/favicon.png' };
+                          try {
+                            if ('serviceWorker' in navigator) {
+                              const reg = await navigator.serviceWorker.ready;
+                              await reg.showNotification('KiloKalo — Prueba', opts);
+                            } else {
+                              new Notification('KiloKalo — Prueba', opts);
+                            }
+                          } catch {
+                            new Notification('KiloKalo — Prueba', opts);
+                          }
+                        }}
+                        className={`w-full py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent} transition-colors`}
+                      >
+                        Enviar notificación de prueba
                       </button>
                     )}
                   </div>
