@@ -1,7 +1,7 @@
-import { X } from 'lucide-react';
+import { X, CheckCircle2, Bell } from 'lucide-react';
 
 interface AppBannerProps {
-  variant: 'coach' | 'info' | 'warning' | 'error';
+  variant: 'coach' | 'info' | 'warning' | 'error' | 'success' | 'reminder';
   theme: 'light' | 'dark';
   icon?: React.ReactNode;
   label?: string;
@@ -103,6 +103,42 @@ export function AppBanner({
           )}
         </div>
         {actions && <div>{actions}</div>}
+      </div>
+    );
+  }
+
+  if (variant === 'success') {
+    return (
+      <div className={`rounded-2xl flex items-center gap-3 px-4 py-3 border ${
+        isLight
+          ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300'
+      } ${className}`}>
+        <CheckCircle2 className={`w-4 h-4 shrink-0 ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`} />
+        <p className="text-sm font-medium flex-1">{message}</p>
+        {onDismiss && (
+          <button onClick={onDismiss} className="shrink-0 opacity-50 hover:opacity-100 transition-opacity">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (variant === 'reminder') {
+    return (
+      <div className={`rounded-2xl flex items-start gap-3 px-4 py-3 border ${
+        isLight
+          ? 'bg-white border-slate-200 text-slate-800'
+          : 'bg-zinc-900 border-white/10 text-white'
+      } shadow-sm ${className}`}>
+        <Bell className={`w-4 h-4 shrink-0 mt-0.5 ${isLight ? 'text-slate-500' : 'text-zinc-400'}`} />
+        <p className="text-sm leading-snug flex-1">{message}</p>
+        {onDismiss && (
+          <button onClick={onDismiss} className={`shrink-0 p-0.5 rounded-lg transition-colors ${isLight ? 'text-slate-400 hover:text-slate-600' : 'text-zinc-500 hover:text-zinc-300'}`}>
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
     );
   }

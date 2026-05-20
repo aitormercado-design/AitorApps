@@ -567,8 +567,7 @@ export default function App() {
   const [shoppingList, setShoppingList] = useState<ShoppingList | null>(null);
   const [isGeneratingShoppingList, setIsGeneratingShoppingList] = useState(false);
   const [appError, setAppError] = useState<{ message: string; timestamp: number } | null>(null);
-  const [appSuccess, setAppSuccess] = useState<string | null>(null);
-  const [reminderMsg, setReminderMsg] = useState<string | null>(null);
+  const [appNotification, setAppNotification] = useState<{ variant: 'success' | 'reminder'; message: string } | null>(null);
   const [expandedWeekDay, setExpandedWeekDay] = useState<string | null>(null);
   const [weeklyAnalysis, setWeeklyAnalysis] = useState<string>('');
   const [weeklyAnalysisLoading, setWeeklyAnalysisLoading] = useState(false);
@@ -582,8 +581,17 @@ export default function App() {
   );
   const [isAIGenerating, setIsAIGenerating] = useState(false);
   const showError = (message: string) => setAppError({ message, timestamp: Date.now() });
-  const showSuccess = (message: string) => { setAppSuccess(message); setTimeout(() => setAppSuccess(null), 3000); };
-  const showReminder = (message: string) => { setReminderMsg(message); setTimeout(() => setReminderMsg(null), 8000); };
+  const notifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showSuccess = (message: string) => {
+    if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
+    setAppNotification({ variant: 'success', message });
+    notifTimerRef.current = setTimeout(() => setAppNotification(null), 3000);
+  };
+  const showReminder = (message: string) => {
+    if (notifTimerRef.current) clearTimeout(notifTimerRef.current);
+    setAppNotification({ variant: 'reminder', message });
+    notifTimerRef.current = setTimeout(() => setAppNotification(null), 8000);
+  };
 
   const activeSuggestionsForField = (field: ProfileSuggestion['field']) =>
     getSuggestions(editProfile).filter(
@@ -2645,6 +2653,27 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         </div>
       </header>
 
+      {/* Global Notification Banner — single notification point for success/reminder */}
+      <AnimatePresence>
+        {appNotification && (
+          <motion.div
+            key="app-notification"
+            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            className="max-w-md mx-auto px-6 pt-3"
+          >
+            <AppBanner
+              variant={appNotification.variant}
+              theme={profile.theme}
+              message={appNotification.message}
+              onDismiss={() => { if (notifTimerRef.current) clearTimeout(notifTimerRef.current); setAppNotification(null); }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Global Profile Warning */}
       {profile.age === 0 && (
         <div className="max-w-md mx-auto px-6 pt-4">
@@ -4645,22 +4674,8 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
         )}
       </AnimatePresence>
 
-      {/* Error Toast */}
+      {/* Error Toast — kept separate as it needs to interrupt regardless of scroll/tab */}
       <AnimatePresence>
-        {appSuccess && (
-          <motion.div
-            key="success-toast"
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="fixed bottom-24 left-4 right-4 z-[60] flex justify-center pointer-events-none"
-          >
-            <div className="bg-emerald-500 text-white px-6 py-4 rounded-2xl shadow-2xl font-medium text-sm flex items-center gap-3 pointer-events-auto max-w-md w-full border border-emerald-400/50">
-              <CheckCircle2 className="w-5 h-5 shrink-0" />
-              <p className="flex-1">{appSuccess}</p>
-            </div>
-          </motion.div>
-        )}
         {appError && (
           <motion.div
             key="error-toast"
@@ -4677,27 +4692,6 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 className="p-1 hover:bg-red-600 rounded-lg transition-colors shrink-0"
               >
                 <X className="w-5 h-5" />
-              </button>
-            </div>
-          </motion.div>
-        )}
-        {reminderMsg && (
-          <motion.div
-            key="reminder-toast"
-            initial={{ opacity: 0, y: -60 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -40 }}
-            className="fixed top-4 left-4 right-4 z-[70] flex justify-center pointer-events-none"
-          >
-            <div className={`px-4 py-3 rounded-2xl shadow-2xl text-sm flex items-start gap-3 pointer-events-auto max-w-md w-full border ${
-              profile.theme === 'light'
-                ? 'bg-white border-slate-200 text-slate-800'
-                : 'bg-zinc-900 border-white/10 text-white'
-            }`}>
-              <span className="text-lg leading-none shrink-0">🔔</span>
-              <p className="flex-1 leading-snug">{reminderMsg}</p>
-              <button onClick={() => setReminderMsg(null)} className={`shrink-0 p-0.5 rounded-lg ${profile.theme === 'light' ? 'text-slate-400 hover:text-slate-600' : 'text-zinc-500 hover:text-zinc-300'}`}>
-                <X className="w-4 h-4" />
               </button>
             </div>
           </motion.div>
