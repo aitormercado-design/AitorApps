@@ -2091,12 +2091,16 @@ export default function App() {
   };
 
   const handleToggleGymDay = (dayLabel: string) => {
-    const date = gymRoutineDates[dayLabel];
-    if (!date) return;
+    const date = gymRoutineDates[dayLabel] || todayStr;
+    // Persist the date for this label if it wasn't set yet (keeps syncHabitsForDate counts correct)
+    const effectiveDates = gymRoutineDates[dayLabel]
+      ? gymRoutineDates
+      : { ...gymRoutineDates, [dayLabel]: date };
+    if (!gymRoutineDates[dayLabel]) setGymRoutineDates(effectiveDates);
     const newDoneState = { ...gymDayDone, [dayLabel]: !(gymDayDone[dayLabel] ?? false) };
     setGymDayDone(newDoneState);
     setHabits(prev => {
-      const updated = syncHabitsForDate(date, newDoneState, gymRoutineDates, prev);
+      const updated = syncHabitsForDate(date, newDoneState, effectiveDates, prev);
       if (user) setDoc(doc(db, 'users', user.uid, 'habits', date), updated).catch(console.error);
       return { ...prev, [date]: updated };
     });
