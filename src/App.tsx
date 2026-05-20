@@ -558,6 +558,7 @@ export default function App() {
   const [isGeneratingShoppingList, setIsGeneratingShoppingList] = useState(false);
   const [appError, setAppError] = useState<{ message: string; timestamp: number } | null>(null);
   const [appSuccess, setAppSuccess] = useState<string | null>(null);
+  const [reminderMsg, setReminderMsg] = useState<string | null>(null);
   const [expandedWeekDay, setExpandedWeekDay] = useState<string | null>(null);
   const [weeklyAnalysis, setWeeklyAnalysis] = useState<string>('');
   const [weeklyAnalysisLoading, setWeeklyAnalysisLoading] = useState(false);
@@ -571,6 +572,7 @@ export default function App() {
   const [isAIGenerating, setIsAIGenerating] = useState(false);
   const showError = (message: string) => setAppError({ message, timestamp: Date.now() });
   const showSuccess = (message: string) => { setAppSuccess(message); setTimeout(() => setAppSuccess(null), 3000); };
+  const showReminder = (message: string) => { setReminderMsg(message); setTimeout(() => setReminderMsg(null), 8000); };
 
   const activeSuggestionsForField = (field: ProfileSuggestion['field']) =>
     getSuggestions(editProfile).filter(
@@ -954,33 +956,34 @@ export default function App() {
 
   // Scheduled notifications: 9h, 14h, 21h — fires while app is open
   useEffect(() => {
-    if (!notificationsEnabled || !isDataLoaded || !('Notification' in window) || Notification.permission !== 'granted') return;
+    if (!notificationsEnabled || !isDataLoaded) return;
     const timers: ReturnType<typeof setTimeout>[] = [];
     const now = new Date();
 
-    const showNotif = async (body: string) => {
+    const fireReminder = async (body: string) => {
+      // Always show in-app banner (app must be open for the timer to fire)
+      showReminder(body);
+      // Also attempt system notification (works when OS doesn't suppress foreground notifs)
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
       const opts: NotificationOptions = { body, icon: '/favicon.png' };
-      // iOS Safari (16.4+ PWA) requires showNotification via SW; desktop/Android accept both
       if ('serviceWorker' in navigator) {
         try {
           const reg = await navigator.serviceWorker.ready;
           reg.showNotification('KiloKalo', opts);
           return;
-        } catch {
-          // fall through to Notification constructor
-        }
+        } catch { /* fall through */ }
       }
-      new Notification('KiloKalo', opts);
+      try { new Notification('KiloKalo', opts); } catch { /* ignore */ }
     };
 
-    const schedule = (hour: number, buildMsg: () => { body: string } | null) => {
+    const schedule = (hour: number, buildMsg: () => string | null) => {
       const target = new Date(now);
       target.setHours(hour, 0, 0, 0);
       const ms = target.getTime() - now.getTime();
-      if (ms < 0) return; // already past today
+      if (ms < 0) return;
       timers.push(setTimeout(() => {
-        const notif = buildMsg();
-        if (notif) showNotif(notif.body);
+        const msg = buildMsg();
+        if (msg) fireReminder(msg);
       }, ms));
     };
 
@@ -988,13 +991,11 @@ export default function App() {
     const consumed = Math.round(todaysMeals.reduce((s, m) => s + m.calories, 0));
     const remaining = Math.max(0, Math.round(goals.calories) - consumed);
 
-    schedule(9, () => mealsCount === 0 ? { body: 'Buenos días — recuerda registrar el desayuno para empezar bien el día' } : null);
-    schedule(14, () => mealsCount < 2 ? { body: '¿Ya registraste el almuerzo?' } : null);
-    schedule(21, () => ({
-      body: remaining > 0
-        ? `Llevas ${consumed} kcal hoy. Te quedan ${remaining} kcal`
-        : `Llevas ${consumed} kcal hoy. Objetivo cumplido 🎯`,
-    }));
+    schedule(9,  () => mealsCount === 0 ? 'Buenos días — recuerda registrar el desayuno para empezar bien el día 🌅' : null);
+    schedule(14, () => mealsCount < 2  ? '¿Ya registraste el almuerzo? 🍽️' : null);
+    schedule(21, () => remaining > 0
+      ? `Llevas ${consumed} kcal hoy. Te quedan ${remaining} kcal para el objetivo 🎯`
+      : `Llevas ${consumed} kcal hoy. ¡Objetivo cumplido! 🎉`);
 
     return () => timers.forEach(clearTimeout);
   }, [notificationsEnabled, isDataLoaded, todayStr]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -5173,16 +5174,22 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                     {notificationsEnabled && (
                       <button
                         onClick={async () => {
-                          const opts: NotificationOptions = { body: '¡Las notificaciones funcionan correctamente! 🎯', icon: '/favicon.png' };
-                          try {
-                            if ('serviceWorker' in navigator) {
-                              const reg = await navigator.serviceWorker.ready;
-                              await reg.showNotification('KiloKalo — Prueba', opts);
-                            } else {
-                              new Notification('KiloKalo — Prueba', opts);
+                          const body = '¡Recordatorio de prueba — así llegarán los avisos a las 9h, 14h y 21h 🎯';
+                          // Show in-app banner immediately
+                          showReminder(body);
+                          // Also try system notification
+                          if ('Notification' in window && Notification.permission === 'granted') {
+                            const opts: NotificationOptions = { body, icon: '/favicon.png' };
+                            try {
+                              if ('serviceWorker' in navigator) {
+                                const reg = await navigator.serviceWorker.ready;
+                                await reg.showNotification('KiloKalo', opts);
+                              } else {
+                                new Notification('KiloKalo', opts);
+                              }
+                            } catch {
+                              try { new Notification('KiloKalo', opts); } catch { /* ignore */ }
                             }
-                          } catch {
-                            new Notification('KiloKalo — Prueba', opts);
                           }
                         }}
                         className={`w-full py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${themeStyles.border} ${themeStyles.textMuted} hover:${themeStyles.accent} transition-colors`}
@@ -5745,6 +5752,27 @@ Devuélveme SOLO la nueva tabla en formato Markdown, similar a la anterior pero 
                 className="p-1 hover:bg-red-600 rounded-lg transition-colors shrink-0"
               >
                 <X className="w-5 h-5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+        {reminderMsg && (
+          <motion.div
+            key="reminder-toast"
+            initial={{ opacity: 0, y: -60 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -40 }}
+            className="fixed top-4 left-4 right-4 z-[70] flex justify-center pointer-events-none"
+          >
+            <div className={`px-4 py-3 rounded-2xl shadow-2xl text-sm flex items-start gap-3 pointer-events-auto max-w-md w-full border ${
+              profile.theme === 'light'
+                ? 'bg-white border-slate-200 text-slate-800'
+                : 'bg-zinc-900 border-white/10 text-white'
+            }`}>
+              <span className="text-lg leading-none shrink-0">🔔</span>
+              <p className="flex-1 leading-snug">{reminderMsg}</p>
+              <button onClick={() => setReminderMsg(null)} className={`shrink-0 p-0.5 rounded-lg ${profile.theme === 'light' ? 'text-slate-400 hover:text-slate-600' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                <X className="w-4 h-4" />
               </button>
             </div>
           </motion.div>
