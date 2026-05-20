@@ -1846,14 +1846,22 @@ export default function App() {
       protein: fav.totals.protein,
       carbs: fav.totals.carbs,
       fat: fav.totals.fat,
-      ingredients: fav.foods,
+      ingredients: (fav.foods ?? []).map(ing => {
+        const item: Record<string, any> = { name: ing.name, amount: ing.amount };
+        if (ing.grams    !== undefined) item.grams    = ing.grams;
+        if (ing.calories !== undefined) item.calories = ing.calories;
+        if (ing.protein  !== undefined) item.protein  = ing.protein;
+        if (ing.carbs    !== undefined) item.carbs    = ing.carbs;
+        if (ing.fat      !== undefined) item.fat      = ing.fat;
+        return item as any;
+      }),
       confidence: fav.confidence ?? 'alta',
       confidenceMessage: fav.confidenceMessage ?? '',
-      semaforo: fav.semaforo,
-      semaforoLabel: fav.semaforoLabel,
-      interpretation: fav.interpretation,
       imageUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(fav.nombre)}&background=27272a&color=a3e635&size=200`,
       timestamp: Date.now(),
+      ...(fav.semaforo      && { semaforo:      fav.semaforo }),
+      ...(fav.semaforoLabel && { semaforoLabel: fav.semaforoLabel }),
+      ...(fav.interpretation && { interpretation: fav.interpretation }),
     };
     setMeals(prev => [newMeal, ...prev]);
     if (user) {
