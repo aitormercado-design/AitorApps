@@ -2100,6 +2100,7 @@ export default function App() {
     if (!gymRoutineDates[dayLabel]) setGymRoutineDates(effectiveDates);
     const newDoneState = { ...gymDayDone, [dayLabel]: !(gymDayDone[dayLabel] ?? false) };
     setGymDayDone(newDoneState);
+    if (user) setDoc(doc(db, 'users', user.uid), { gymDayDone: newDoneState }, { merge: true }).catch(console.error);
     setHabits(prev => {
       const updated = syncHabitsForDate(date, newDoneState, effectiveDates, prev);
       if (user) setDoc(doc(db, 'users', user.uid, 'habits', date), updated).catch(console.error);
